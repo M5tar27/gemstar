@@ -6,6 +6,12 @@ const crypto = require("crypto");
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
+// Owners/founders get permanent free access — no Stripe subscription required.
+const ALLOWLIST = [
+  "m5tarmusicnyc@gmail.com",
+  "gemsquadproductions@gmail.com",
+];
+
 function b64url(input) {
   return Buffer.from(input, "utf8")
     .toString("base64")
@@ -47,6 +53,12 @@ module.exports = async (req, res) => {
   const tokenSecret = process.env.ACCESS_TOKEN_SECRET;
   if (!secretKey || !tokenSecret) {
     res.status(500).json({ access: false, error: "Server not configured" });
+    return;
+  }
+
+  if (ALLOWLIST.includes(email)) {
+    const token = signToken(email);
+    res.status(200).json({ access: true, token });
     return;
   }
 
