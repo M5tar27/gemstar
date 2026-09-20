@@ -64,6 +64,82 @@
   }
   .lang-toggle button.active{background:var(--cyan); color:#03191b; font-weight:600;}
 
+  .nav-right{display:flex; align-items:center; gap:10px;}
+  .help-btn{
+    display:flex; align-items:center; gap:5px;
+    padding:7px 13px; border-radius:20px; border:1px solid var(--line);
+    background:none; color:var(--ink-dim); font-family:var(--font-body);
+    font-size:0.72rem; letter-spacing:0.02em; white-space:nowrap;
+    cursor:pointer; transition:color .2s ease, border-color .2s ease, background .2s ease;
+  }
+  .help-btn:hover, .help-btn:focus-visible{color:var(--cyan); border-color:var(--cyan); background:rgba(0,245,255,0.08);}
+
+  #help-overlay{
+    display:none; position:fixed; inset:0; z-index:410;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(6,6,12,0.72);
+  }
+  #help-overlay.show{display:flex;}
+  .help-card{
+    max-width:440px; width:100%; max-height:82vh; overflow-y:auto;
+    background:var(--bg-panel); border:1px solid var(--line-strong);
+    border-radius:14px; padding:26px 24px; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .help-card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .help-card h3{font-family:var(--font-display); font-size:1.05rem; margin:0; color:var(--ink);}
+  .help-close{
+    background:none; border:none; color:var(--ink-dim); font-size:1.2rem; line-height:1;
+    cursor:pointer; padding:4px 6px;
+  }
+  .help-close:hover{color:var(--ink);}
+  .help-card > p{color:var(--ink-muted); font-size:0.86rem; margin:0 0 16px; line-height:1.5;}
+  .help-tips{list-style:none; padding:0; margin:0 0 20px; display:flex; flex-direction:column; gap:10px;}
+  .help-tips li{
+    font-size:0.84rem; color:var(--ink-muted); line-height:1.5; padding-left:20px; position:relative;
+  }
+  .help-tips li::before{content:"\2022"; color:var(--cyan); position:absolute; left:4px;}
+  .help-knobs-heading{
+    font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--ink-dim); margin:0 0 10px;
+  }
+  .help-knob-item{margin:0 0 12px;}
+  .help-knob-item .k-name{display:block; font-size:0.85rem; font-weight:600; color:var(--ink); margin-bottom:2px;}
+  .help-knob-item .k-desc{display:block; font-size:0.82rem; color:var(--ink-muted); line-height:1.45;}
+
+  #welcome-overlay{
+    display:none; position:fixed; inset:0; z-index:420;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(6,6,12,0.78);
+  }
+  #welcome-overlay.show{display:flex;}
+  .welcome-card{
+    max-width:400px; width:100%; background:var(--bg-panel); border:1px solid var(--line-strong);
+    border-radius:14px; padding:28px 24px 22px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.55);
+  }
+  .welcome-skip{
+    display:block; margin:0 0 10px auto; background:none; border:none; color:var(--ink-dim);
+    font-size:0.74rem; letter-spacing:0.03em; cursor:pointer; padding:2px 4px;
+  }
+  .welcome-skip:hover{color:var(--ink);}
+  .welcome-card h3{font-family:var(--font-display); font-size:1.05rem; margin:0 0 10px; color:var(--ink);}
+  .welcome-card p{color:var(--ink-muted); font-size:0.86rem; margin:0 0 20px; line-height:1.55;}
+  .welcome-dots{display:flex; justify-content:center; gap:7px; margin-bottom:20px;}
+  .welcome-dots span{width:6px; height:6px; border-radius:50%; background:var(--line-strong); transition:background .2s ease, transform .2s ease;}
+  .welcome-dots span.active{background:var(--cyan); transform:scale(1.3);}
+  .welcome-actions{display:flex; gap:10px;}
+  .welcome-actions button{flex:1;}
+  .welcome-back{
+    padding:11px 14px; border-radius:9px; border:1px solid var(--line); background:none;
+    color:var(--ink-muted); font-size:0.82rem; cursor:pointer;
+  }
+  .welcome-back:hover{color:var(--ink); border-color:var(--line-strong);}
+  .welcome-next{
+    padding:11px 14px; border-radius:9px; border:none; cursor:pointer;
+    background:linear-gradient(90deg, var(--cyan), var(--gem)); color:#03191b;
+    font-family:var(--font-display); font-weight:700; font-size:0.8rem; letter-spacing:0.05em;
+    text-transform:uppercase;
+  }
+
   /* ---------------- hero copy ---------------- */
   .hero-copy{padding-block:44px 28px; text-align:center;}
   .eyebrow{
@@ -212,10 +288,16 @@
     text-transform:uppercase; color:var(--gem); margin:0;
   }
   .knob-grid{
-    display:grid; grid-template-columns:repeat(5,1fr); gap:16px 8px;
+    display:flex; flex-direction:column; gap:22px;
     margin-block:20px 8px;
   }
-  @media (max-width:760px){ .knob-grid{gap:18px 4px;} }
+  .knob-row{
+    display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:16px 8px;
+  }
+  .knob.knob-big{ width:clamp(64px,11vw,92px); }
+  @media (max-width:760px){
+    .knob-row{gap:18px 4px;}
+  }
 
   @keyframes sparkle-twinkle{
     0%, 100%{ opacity:0; transform:scale(0.4) rotate(0deg); }
@@ -485,11 +567,47 @@
       </svg>
       <span class="word" data-i18n="brand">GEMSTAR</span>
     </div>
-    <div class="lang-toggle" role="group" aria-label="Language">
-      <button type="button" id="lang-en" class="active">EN</button>
-      <button type="button" id="lang-es">ES</button>
+    <div class="nav-right">
+      <button type="button" id="btn-help" class="help-btn" aria-label="Help" data-i18n-aria="helpBtnAria">
+        <span data-i18n="helpBtnLabel">Need Help</span><span aria-hidden="true">?</span>
+      </button>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" id="lang-en" class="active">EN</button>
+        <button type="button" id="lang-es">ES</button>
+      </div>
     </div>
   </nav>
+
+  <div id="help-overlay">
+    <div class="help-card">
+      <div class="help-card-head">
+        <h3 data-i18n="helpTitle">How Gemstar Works</h3>
+        <button type="button" class="help-close" id="help-close" aria-label="Close">&times;</button>
+      </div>
+      <p data-i18n="helpIntro">A quick rundown of the basics — every knob also shows this same text if you press and hold it (or hover, on desktop).</p>
+      <ul class="help-tips">
+        <li data-i18n="helpTip1">Record straight from your mic or upload a file — either way, Gemstar processes it right in your browser, nothing to install.</li>
+        <li data-i18n="helpTip2">Use the A/B button to flip between your raw vocal ("Before") and the processed version ("After") so you can hear exactly what the knobs are doing.</li>
+        <li data-i18n="helpTip3">Try a Preset from the dropdown for a quick starting point, or start from scratch — every knob starts at 0 until you move it.</li>
+        <li data-i18n="helpTip4">When you're happy with it, Export MP3 downloads a real MP3 encoded right in your browser.</li>
+      </ul>
+      <p class="help-knobs-heading" data-i18n="helpKnobsHeading">What each knob does</p>
+      <div id="help-knob-list"></div>
+    </div>
+  </div>
+
+  <div id="welcome-overlay">
+    <div class="welcome-card">
+      <button type="button" class="welcome-skip" id="welcome-skip" data-i18n="welcomeSkip">Skip</button>
+      <h3 id="welcome-step-title"></h3>
+      <p id="welcome-step-desc"></p>
+      <div class="welcome-dots" id="welcome-dots"></div>
+      <div class="welcome-actions">
+        <button type="button" class="welcome-back" id="welcome-back" data-i18n="welcomeBack">Back</button>
+        <button type="button" class="welcome-next" id="welcome-next" data-i18n="welcomeNext">Next</button>
+      </div>
+    </div>
+  </div>
 
   <header class="hero-copy">
     <p class="eyebrow" data-i18n="eyebrow">M5tar Studio x Gemsquad Production</p>
@@ -879,19 +997,36 @@
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
-      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",smooth:"Smooth",tune:"Tune",space:"Space",wide:"Wide",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Tune",space:"Space",wide:"Wide",m5tar:"M5tar",jewels:"Jewels"},
       knobDesc:{
         clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
         punch:"Punch: compresses the vocal for punch and consistency, evening out loud and quiet moments.",
         bass:"Bass: shapes low-end body and warmth in the vocal.",
         voice:"Voice: boosts midrange presence and clarity so the vocal cuts through the mix.",
+        highs:"Highs: shapes top-end sparkle and air — cut for a darker, mellow tone or boost for extra brightness and shine.",
         smooth:"Smooth: de-esses harsh S's and sibilance.",
         tune:"Tune: pitch-correction strength, from a light touch to a fully tuned effect.",
         space:"Space: reverb + delay — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
         m5tar:"M5tar: signature blend — dials in a touch of Tune, Punch, Voice & Jewels together, plus subtle warmth.",
         jewels:"Jewels: high-shelf air/sparkle exciter with vocal doubling — sparkles visually past 60%."
-      }
+      },
+      helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
+      helpIntro:"A quick rundown of the basics — every knob also shows this same text if you press and hold it (or hover, on desktop).",
+      helpTip1:"Record straight from your mic or upload a file — either way, Gemstar processes it right in your browser, nothing to install.",
+      helpTip2:"Use the A/B button to flip between your raw vocal (“Before”) and the processed version (“After”) so you can hear exactly what the knobs are doing.",
+      helpTip3:"Try a Preset from the dropdown for a quick starting point, or start from scratch — every knob starts at 0 until you move it.",
+      helpTip4:"When you're happy with it, Export MP3 downloads a real MP3 encoded right in your browser.",
+      helpKnobsHeading:"What each knob does",
+      welcomeSkip:"Skip", welcomeBack:"Back", welcomeNext:"Next", welcomeGotIt:"Let's Go",
+      welcomeStep1Title:"Welcome to Gemstar",
+      welcomeStep1Desc:"Two engineers built the chain behind this tool from real sessions — not off-the-shelf presets. Here's a quick look at how it works.",
+      welcomeStep2Title:"Record or Upload",
+      welcomeStep2Desc:"Record straight from your mic or drop in a file — either way it processes right in your browser, nothing to install.",
+      welcomeStep3Title:"Dial It In",
+      welcomeStep3Desc:"Every knob starts at 0. Move them yourself or try a Preset, then hit A/B to flip between your raw vocal and the processed version.",
+      welcomeStep4Title:"Export When Ready",
+      welcomeStep4Desc:"Export MP3 downloads a real MP3 encoded right in your browser. Tap “Need Help?” up top any time for a refresher on what each knob does."
     },
     es:{
       brand:"GEMSTAR", eyebrow:"M5tar Studio x Gemsquad Production",
@@ -957,19 +1092,36 @@
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
-      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",smooth:"Suave",tune:"Afinado",space:"Espacio",wide:"Amplio",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Afinado",space:"Espacio",wide:"Amplio",m5tar:"M5tar",jewels:"Jewels"},
       knobDesc:{
         clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
         punch:"Pegada: comprime la voz para dar pegada y consistencia, nivelando los momentos fuertes y suaves.",
         bass:"Bajo: da forma al cuerpo y la calidez de graves en la voz.",
         voice:"Voz: realza la presencia y claridad en los medios para que la voz destaque en la mezcla.",
+        highs:"Agudos: da forma al brillo y aire en los agudos — reduce para un tono más oscuro y suave, o sube para más brillo.",
         smooth:"Suave: quita eses ásperas y sibilancia.",
         tune:"Afinado: intensidad de la corrección de tono, desde un toque ligero hasta un efecto totalmente afinado.",
         space:"Espacio: reverb + delay — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
         m5tar:"M5tar: mezcla de firma — suma un toque de Afinado, Pegada, Voz y Jewels juntos, más calidez sutil.",
         jewels:"Jewels: exciter de brillo en agudos con doblaje vocal — brilla visualmente por encima del 60%."
-      }
+      },
+      helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
+      helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la mantienes presionada (o pasas el cursor, en escritorio).",
+      helpTip1:"Graba directo desde tu micrófono o sube un archivo — en ambos casos, Gemstar procesa todo en tu navegador, sin instalar nada.",
+      helpTip2:"Usa el botón A/B para alternar entre tu voz sin procesar (“Antes”) y la versión procesada (“Después”) para escuchar exactamente lo que hacen las perillas.",
+      helpTip3:"Prueba un Preset del menú desplegable para un punto de partida rápido, o empieza desde cero — cada perilla comienza en 0 hasta que la muevas.",
+      helpTip4:"Cuando estés conforme, Exportar MP3 descarga un MP3 real codificado directo en tu navegador.",
+      helpKnobsHeading:"Qué hace cada perilla",
+      welcomeSkip:"Omitir", welcomeBack:"Atrás", welcomeNext:"Siguiente", welcomeGotIt:"Vamos",
+      welcomeStep1Title:"Bienvenido a Gemstar",
+      welcomeStep1Desc:"Dos ingenieros construyeron esta cadena a partir de sesiones reales — no de preajustes genéricos. Aquí un vistazo rápido de cómo funciona.",
+      welcomeStep2Title:"Graba o Sube un Archivo",
+      welcomeStep2Desc:"Graba directo desde tu micrófono o sube un archivo — en ambos casos se procesa en tu navegador, sin instalar nada.",
+      welcomeStep3Title:"Ajusta las Perillas",
+      welcomeStep3Desc:"Cada perilla empieza en 0. Muévelas tú mismo o prueba un Preset, luego usa A/B para alternar entre tu voz sin procesar y la versión procesada.",
+      welcomeStep4Title:"Exporta Cuando Estés Listo",
+      welcomeStep4Desc:"Exportar MP3 descarga un MP3 real codificado directo en tu navegador. Toca “Ayuda” arriba cuando quieras un repaso de lo que hace cada perilla."
     }
   };
   var lang = "en";
@@ -987,12 +1139,18 @@
       var key = el.getAttribute("data-i18n-html");
       if (STR[l][key] !== undefined) el.innerHTML = STR[l][key];
     });
+    document.querySelectorAll("[data-i18n-aria]").forEach(function(el){
+      var key = el.getAttribute("data-i18n-aria");
+      if (STR[l][key] !== undefined) el.setAttribute("aria-label", STR[l][key]);
+    });
     KNOB_DEFS.forEach(function(k){
       var lbl = document.querySelector('.knob-label[data-key="'+k.id+'"]');
       if (lbl) lbl.textContent = STR[l].knobs[k.id];
       var unit = knobUnitEls[k.id];
       if (unit) unit.title = STR[l].knobDesc[k.id];
     });
+    renderHelpKnobList(l);
+    if (typeof renderWelcomeStep === "function" && welcomeOverlay && welcomeOverlay.classList.contains("show")) renderWelcomeStep();
     var optStreaming = document.getElementById("lufs-opt-streaming");
     var optApple = document.getElementById("lufs-opt-apple");
     var optBroadcast = document.getElementById("lufs-opt-broadcast");
@@ -1016,22 +1174,23 @@
     {id:"punch", group:"chain",  color:"#29C9FF"},
     {id:"bass",  group:"chain",  color:"#4FD8E8"},
     {id:"voice", group:"chain",  color:"#8A6CFF"},
+    {id:"highs", group:"chain",  color:"#FFE066"},
+    {id:"m5tar", group:"signature", color:"#FFC24C", big:true},
+    {id:"jewels",group:"signature", color:"#3CF2A0", big:true},
     {id:"smooth",group:"finish", color:"#FF2E88"},
     {id:"tune",  group:"finish", color:"#FF4CD6"},
     {id:"space", group:"finish", color:"#14C8B8"},
-    {id:"wide",  group:"finish", color:"#C24CFF"},
-    {id:"m5tar", group:"signature", color:"#FFC24C"},
-    {id:"jewels",group:"signature", color:"#3CF2A0"}
+    {id:"wide",  group:"finish", color:"#C24CFF"}
   ];
 
-  var DEFAULT_VALUES   = {clean:20, punch:30, bass:30, voice:35, smooth:20, tune:0,  space:20, wide:10, m5tar:0,  jewels:0};
+  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  m5tar:0,  jewels:0};
   var PRESETS = {
-    M5TAR_VOCAL:  {clean:45, punch:65, bass:60, voice:60, smooth:45, tune:10, space:25, wide:15, m5tar:70, jewels:0},
-    JEWELS_VOCAL: {clean:35, punch:45, bass:35, voice:55, smooth:50, tune:15, space:50, wide:45, m5tar:0,  jewels:70},
-    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, smooth:40, tune:20, space:60, wide:55, m5tar:0,  jewels:40},
-    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, smooth:50, tune:10, space:20, wide:5,  m5tar:40, jewels:0},
-    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, smooth:45, tune:85, space:45, wide:15, m5tar:15, jewels:15},
-    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, smooth:55, tune:15, space:55, wide:35, m5tar:10, jewels:25}
+    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, m5tar:70, jewels:0},
+    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, m5tar:0,  jewels:70},
+    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, m5tar:0,  jewels:40},
+    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  m5tar:40, jewels:0},
+    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, m5tar:15, jewels:15},
+    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, m5tar:10, jewels:25}
   };
 
   var values = Object.assign({}, DEFAULT_VALUES);
@@ -1040,13 +1199,21 @@
 
   function buildKnobs(){
     var grid = document.getElementById("knob-grid");
+    var rows = {}; // one flex row per group, in first-seen order: chain, signature, finish
     KNOB_DEFS.forEach(function(def){
+      var row = rows[def.group];
+      if (!row){
+        row = document.createElement("div");
+        row.className = "knob-row knob-row-" + def.group;
+        grid.appendChild(row);
+        rows[def.group] = row;
+      }
       var unit = document.createElement("div");
       unit.className = "knob-unit" + (def.group === "signature" ? " signature" : "");
       unit.title = STR[lang].knobDesc[def.id];
 
       var knob = document.createElement("div");
-      knob.className = "knob";
+      knob.className = "knob" + (def.big ? " knob-big" : "");
       knob.dataset.group = def.group;
       knob.dataset.id = def.id;
       knob.style.setProperty("--knob-color", def.color);
@@ -1070,7 +1237,7 @@
 
       unit.appendChild(knob);
       unit.appendChild(label);
-      grid.appendChild(unit);
+      row.appendChild(unit);
       knobEls[def.id] = knob;
       knobUnitEls[def.id] = unit;
 
@@ -1150,6 +1317,37 @@
   var mainVocalLevel = 1;    // lead vocal fader (0..1), like a mixer channel
   var extraVocals = [];      // additional vocal tracks: {id, name, buffer, level, _liveGain}
   var extraVocalIdSeq = 1;
+
+  /* Silent, automatic input gain-staging — no user-facing knob. Every recorded
+     or uploaded vocal comes in at wildly different levels (quiet phone mic
+     takes vs. hot interface takes), which throws off Punch's compressor and
+     makes A/B comparisons unfair. Runs once, right after decode, before the
+     buffer ever touches the chain: scans for the true sample peak and scales
+     the whole buffer so it sits at a consistent target headroom. */
+  function autoNormalizeBuffer(buffer){
+    if (!buffer) return buffer;
+    var TARGET_PEAK = 0.7079; // -3 dBFS: headroom for Punch's compressor + final limiter
+    var MAX_BOOST = 8;        // +18dB ceiling so a near-silent take doesn't just amplify noise/hiss
+    var peak = 0;
+    for (var ch = 0; ch < buffer.numberOfChannels; ch++){
+      var data = buffer.getChannelData(ch);
+      for (var i = 0; i < data.length; i++){
+        var abs = Math.abs(data[i]);
+        if (abs > peak) peak = abs;
+      }
+    }
+    if (peak < 0.0005) return buffer; // effectively silent — nothing meaningful to normalize
+    var gain = TARGET_PEAK / peak;
+    if (Math.abs(gain - 1) < 0.02) return buffer; // already well gain-staged, skip pointless work
+    gain = Math.min(gain, MAX_BOOST);
+    for (var ch2 = 0; ch2 < buffer.numberOfChannels; ch2++){
+      var d = buffer.getChannelData(ch2);
+      for (var j = 0; j < d.length; j++){
+        d[j] = d[j] * gain;
+      }
+    }
+    return buffer;
+  }
   var PLAN_LIMITS = {starter:1, mix:3, unlimited:8}; // max vocal tracks per plan tier
   var RECORD_LENGTH_LIMITS = {starter:180, mix:360, unlimited:600}; // max mic recording length (sec) per plan tier
   var currentPlan = "mix";
@@ -1362,6 +1560,11 @@
     g.voiceFilter.frequency.value = 2200;
     g.voiceFilter.Q.value = 1.1;
 
+    // ---- Highs: top-end air/sparkle shelf ----
+    g.highsFilter = ctx.createBiquadFilter();
+    g.highsFilter.type = "highshelf";
+    g.highsFilter.frequency.value = 9500;
+
     // ---- Smooth: static sibilance subtraction ----
     g.deEssBand = ctx.createBiquadFilter();
     g.deEssBand.type = "bandpass";
@@ -1481,9 +1684,12 @@
     g.deEssBand.connect(g.deEssGain);
     g.deEssGain.connect(g.deEssSum);
 
+    // highs: top-end shelf sits after de-essing so it doesn't reintroduce sibilance
+    g.deEssSum.connect(g.highsFilter);
+
     // tune: dry + modulated delay blend
-    g.deEssSum.connect(g.tuneDry);
-    g.deEssSum.connect(g.tuneDelay);
+    g.highsFilter.connect(g.tuneDry);
+    g.highsFilter.connect(g.tuneDelay);
     g.tuneDelay.connect(g.tuneWet);
     g.tuneDry.connect(g.tuneSum);
     g.tuneWet.connect(g.tuneSum);
@@ -1608,6 +1814,7 @@
 
     chain.bassFilter.gain.setTargetAtTime(lerp(v.bass,0,100,-6,9), now, 0.02);
     chain.voiceFilter.gain.setTargetAtTime(lerp(effVoice,0,100,-6,8), now, 0.02);
+    chain.highsFilter.gain.setTargetAtTime(lerp(v.highs,0,100,-6,9), now, 0.02);
 
     chain.deEssGain.gain.setTargetAtTime(-(v.smooth/100)*1.1, now, 0.02);
 
@@ -1670,7 +1877,7 @@
     var reader = new FileReader();
     reader.onload = function(e){
       ctx.decodeAudioData(e.target.result.slice(0), function(buf){
-        audioBuffer = buf;
+        audioBuffer = autoNormalizeBuffer(buf);
         trackNameEl.textContent = file.name;
         dropzone.hidden = true;
         if (inputModeRow) inputModeRow.hidden = true;
@@ -2104,7 +2311,7 @@
     var reader = new FileReader();
     reader.onload = function(ev){
       ctx.decodeAudioData(ev.target.result.slice(0), function(buf){
-        extraVocals.push({id: extraVocalIdSeq++, name: file.name, buffer: buf, level: 1, _liveGain: null});
+        extraVocals.push({id: extraVocalIdSeq++, name: file.name, buffer: autoNormalizeBuffer(buf), level: 1, _liveGain: null});
         renderExtraVocals();
         updateVocalMixerUI();
         drawStaticWaveform();
@@ -2805,9 +3012,93 @@
   document.getElementById("lang-en").addEventListener("click", function(){ applyLang("en"); });
   document.getElementById("lang-es").addEventListener("click", function(){ applyLang("es"); });
 
+  /* ---------- help modal ---------- */
+  function renderHelpKnobList(l){
+    var list = document.getElementById("help-knob-list");
+    if (!list) return;
+    list.innerHTML = "";
+    KNOB_DEFS.forEach(function(k){
+      var item = document.createElement("div");
+      item.className = "help-knob-item";
+      var name = document.createElement("span");
+      name.className = "k-name";
+      name.textContent = STR[l].knobs[k.id];
+      var desc = document.createElement("span");
+      desc.className = "k-desc";
+      desc.textContent = STR[l].knobDesc[k.id];
+      item.appendChild(name);
+      item.appendChild(desc);
+      list.appendChild(item);
+    });
+  }
+  var helpOverlay = document.getElementById("help-overlay");
+  var helpBtn = document.getElementById("btn-help");
+  var helpClose = document.getElementById("help-close");
+  function openHelp(){ if (helpOverlay) helpOverlay.classList.add("show"); }
+  function closeHelp(){ if (helpOverlay) helpOverlay.classList.remove("show"); }
+  if (helpBtn) helpBtn.addEventListener("click", openHelp);
+  if (helpClose) helpClose.addEventListener("click", closeHelp);
+  if (helpOverlay) helpOverlay.addEventListener("click", function(e){ if (e.target === helpOverlay) closeHelp(); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && helpOverlay && helpOverlay.classList.contains("show")) closeHelp();
+  });
+
+  /* ---------- first-visit welcome tour ---------- */
+  var WELCOME_SEEN_KEY = "gemstarSeenWelcome";
+  var WELCOME_STEPS = ["welcomeStep1", "welcomeStep2", "welcomeStep3", "welcomeStep4"];
+  var welcomeStepIdx = 0;
+  var welcomeOverlay = document.getElementById("welcome-overlay");
+  var welcomeTitleEl = document.getElementById("welcome-step-title");
+  var welcomeDescEl = document.getElementById("welcome-step-desc");
+  var welcomeDotsEl = document.getElementById("welcome-dots");
+  var welcomeBackBtn = document.getElementById("welcome-back");
+  var welcomeNextBtn = document.getElementById("welcome-next");
+  var welcomeSkipBtn = document.getElementById("welcome-skip");
+
+  function renderWelcomeStep(){
+    if (!welcomeOverlay) return;
+    var key = WELCOME_STEPS[welcomeStepIdx];
+    welcomeTitleEl.textContent = STR[lang][key + "Title"];
+    welcomeDescEl.textContent = STR[lang][key + "Desc"];
+    welcomeDotsEl.innerHTML = "";
+    WELCOME_STEPS.forEach(function(_, i){
+      var dot = document.createElement("span");
+      if (i === welcomeStepIdx) dot.className = "active";
+      welcomeDotsEl.appendChild(dot);
+    });
+    welcomeBackBtn.style.visibility = welcomeStepIdx === 0 ? "hidden" : "visible";
+    var isLast = welcomeStepIdx === WELCOME_STEPS.length - 1;
+    welcomeNextBtn.textContent = isLast ? STR[lang].welcomeGotIt : STR[lang].welcomeNext;
+  }
+  function openWelcome(){
+    welcomeStepIdx = 0;
+    renderWelcomeStep();
+    if (welcomeOverlay) welcomeOverlay.classList.add("show");
+  }
+  function closeWelcome(){
+    if (welcomeOverlay) welcomeOverlay.classList.remove("show");
+    try { localStorage.setItem(WELCOME_SEEN_KEY, "1"); } catch(e){}
+  }
+  if (welcomeNextBtn) welcomeNextBtn.addEventListener("click", function(){
+    if (welcomeStepIdx === WELCOME_STEPS.length - 1) { closeWelcome(); return; }
+    welcomeStepIdx++;
+    renderWelcomeStep();
+  });
+  if (welcomeBackBtn) welcomeBackBtn.addEventListener("click", function(){
+    if (welcomeStepIdx === 0) return;
+    welcomeStepIdx--;
+    renderWelcomeStep();
+  });
+  if (welcomeSkipBtn) welcomeSkipBtn.addEventListener("click", closeWelcome);
+
   /* ---------- init ---------- */
   buildKnobs();
   applyLang("en");
+  (function(){
+    var seen = false;
+    try { seen = localStorage.getItem(WELCOME_SEEN_KEY) === "1"; } catch(e){}
+    if (!seen) openWelcome();
+  })();
 })();
 </script>
 
