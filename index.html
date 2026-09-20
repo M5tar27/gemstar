@@ -295,8 +295,21 @@
     display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:16px 8px;
   }
   .knob.knob-big{ width:clamp(64px,11vw,92px); }
+  .knob-group-box{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    padding:14px 16px 16px; border-radius:16px;
+    border:1px solid rgba(255,76,214,0.35);
+    background:rgba(255,76,214,0.06);
+    box-shadow:0 0 18px rgba(255,76,214,0.08) inset;
+  }
+  .knob-group-box-label{
+    font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.28em;
+    text-transform:uppercase; color:#FF4CD6; opacity:0.9;
+  }
+  .knob-group-box .knob-row{ gap:16px 20px; }
   @media (max-width:760px){
     .knob-row{gap:18px 4px;}
+    .knob-group-box{padding:12px 10px 14px;}
   }
 
   @keyframes sparkle-twinkle{
@@ -997,7 +1010,8 @@
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
-      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Tune",space:"Space",wide:"Wide",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",m5tar:"M5tar",jewels:"Jewels"},
+      pitchGroupLabel:"Auto-Tune",
       knobDesc:{
         clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
         punch:"Punch: compresses the vocal for punch and consistency, evening out loud and quiet moments.",
@@ -1005,10 +1019,11 @@
         voice:"Voice: boosts midrange presence and clarity so the vocal cuts through the mix.",
         highs:"Highs: shapes top-end sparkle and air — cut for a darker, mellow tone or boost for extra brightness and shine.",
         smooth:"Smooth: de-esses harsh S's and sibilance.",
-        tune:"Tune: pitch-correction strength, from a light touch to a fully tuned effect.",
+        tune:"Speed: real pitch correction that snaps the vocal to the nearest note — low is a gentle glide, high is the classic hard, robotic T-Pain snap.",
+        humanize:"Humanize: adds a touch of natural vibrato back on top of the correction so it doesn't sound stiff — 0 is glass-clean, higher adds more wobble.",
         space:"Space: reverb + delay — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
-        m5tar:"M5tar: signature blend — dials in a touch of Tune, Punch, Voice & Jewels together, plus subtle warmth.",
+        m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch, Voice & Jewels together, plus subtle warmth.",
         jewels:"Jewels: high-shelf air/sparkle exciter with vocal doubling — sparkles visually past 60%."
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
@@ -1092,7 +1107,8 @@
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
-      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Afinado",space:"Espacio",wide:"Amplio",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",m5tar:"M5tar",jewels:"Jewels"},
+      pitchGroupLabel:"Auto-Tune",
       knobDesc:{
         clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
         punch:"Pegada: comprime la voz para dar pegada y consistencia, nivelando los momentos fuertes y suaves.",
@@ -1100,10 +1116,11 @@
         voice:"Voz: realza la presencia y claridad en los medios para que la voz destaque en la mezcla.",
         highs:"Agudos: da forma al brillo y aire en los agudos — reduce para un tono más oscuro y suave, o sube para más brillo.",
         smooth:"Suave: quita eses ásperas y sibilancia.",
-        tune:"Afinado: intensidad de la corrección de tono, desde un toque ligero hasta un efecto totalmente afinado.",
+        tune:"Velocidad: corrección de tono real que ajusta la voz a la nota más cercana — bajo es un deslizamiento suave, alto es el clásico efecto robótico tipo T-Pain.",
+        humanize:"Humanizar: agrega un toque de vibrato natural sobre la corrección para que no suene rígido — 0 es limpio y cristalino, más alto agrega más vibrato.",
         space:"Espacio: reverb + delay — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
-        m5tar:"M5tar: mezcla de firma — suma un toque de Afinado, Pegada, Voz y Jewels juntos, más calidez sutil.",
+        m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada, Voz y Jewels juntos, más calidez sutil.",
         jewels:"Jewels: exciter de brillo en agudos con doblaje vocal — brilla visualmente por encima del 60%."
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
@@ -1178,19 +1195,20 @@
     {id:"m5tar", group:"signature", color:"#FFC24C", big:true},
     {id:"jewels",group:"signature", color:"#3CF2A0", big:true},
     {id:"smooth",group:"finish", color:"#FF2E88"},
-    {id:"tune",  group:"finish", color:"#FF4CD6"},
     {id:"space", group:"finish", color:"#14C8B8"},
-    {id:"wide",  group:"finish", color:"#C24CFF"}
+    {id:"wide",  group:"finish", color:"#C24CFF"},
+    {id:"tune",     group:"pitch", color:"#FF4CD6"},
+    {id:"humanize", group:"pitch", color:"#FF8FE0"}
   ];
 
-  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  m5tar:0,  jewels:0};
+  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  m5tar:0,  jewels:0, humanize:0};
   var PRESETS = {
-    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, m5tar:70, jewels:0},
-    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, m5tar:0,  jewels:70},
-    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, m5tar:0,  jewels:40},
-    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  m5tar:40, jewels:0},
-    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, m5tar:15, jewels:15},
-    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, m5tar:10, jewels:25}
+    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, m5tar:70, jewels:0,  humanize:15},
+    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, m5tar:0,  jewels:70, humanize:20},
+    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, m5tar:0,  jewels:40, humanize:25},
+    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  m5tar:40, jewels:0,  humanize:10},
+    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, m5tar:15, jewels:15, humanize:5},
+    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, m5tar:10, jewels:25, humanize:30}
   };
 
   var values = Object.assign({}, DEFAULT_VALUES);
@@ -1203,9 +1221,23 @@
     KNOB_DEFS.forEach(function(def){
       var row = rows[def.group];
       if (!row){
-        row = document.createElement("div");
-        row.className = "knob-row knob-row-" + def.group;
-        grid.appendChild(row);
+        if (def.group === "pitch"){
+          var pitchBox = document.createElement("div");
+          pitchBox.className = "knob-group-box";
+          var pitchLabel = document.createElement("div");
+          pitchLabel.className = "knob-group-box-label";
+          pitchLabel.setAttribute("data-i18n", "pitchGroupLabel");
+          pitchLabel.textContent = STR[lang].pitchGroupLabel || "AUTO-TUNE";
+          pitchBox.appendChild(pitchLabel);
+          row = document.createElement("div");
+          row.className = "knob-row knob-row-" + def.group;
+          pitchBox.appendChild(row);
+          grid.appendChild(pitchBox);
+        } else {
+          row = document.createElement("div");
+          row.className = "knob-row knob-row-" + def.group;
+          grid.appendChild(row);
+        }
         rows[def.group] = row;
       }
       var unit = document.createElement("div");
@@ -1509,6 +1541,198 @@
     return buf;
   }
 
+  // ---- Real pitch-correction AudioWorklet ----
+  // Embedded verbatim (validated separately in Node with synthetic-signal
+  // unit tests before being placed here) so it can be turned into a Blob URL
+  // and loaded via ctx.audioWorklet.addModule() with no separate file to host.
+  var PITCH_WORKLET_SOURCE = `
+function detectPitch(frame, sampleRate, minFreq, maxFreq) {
+  const n = frame.length;
+  const maxLag = Math.min(n - 1, Math.floor(sampleRate / minFreq));
+  const minLag = Math.max(2, Math.floor(sampleRate / maxFreq));
+  let mean = 0;
+  for (let i = 0; i < n; i++) mean += frame[i];
+  mean /= n;
+  let energy = 0;
+  for (let i = 0; i < n; i++) { const v = frame[i] - mean; energy += v * v; }
+  if (energy < 1e-9) return { freq: 0, confidence: 0 };
+  let bestLag = -1, bestVal = -Infinity;
+  const acf = new Float64Array(maxLag + 2);
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0;
+    for (let i = 0; i < n - lag; i++) sum += (frame[i] - mean) * (frame[i + lag] - mean);
+    acf[lag] = sum;
+    if (sum > bestVal) { bestVal = sum; bestLag = lag; }
+  }
+  const confidence = bestVal / energy;
+  if (bestLag < 0 || confidence < 0.01) return { freq: 0, confidence: 0 };
+  let refinedLag = bestLag;
+  if (bestLag > minLag && bestLag < maxLag) {
+    const y0 = acf[bestLag - 1], y1 = acf[bestLag], y2 = acf[bestLag + 1];
+    const denom = (y0 - 2 * y1 + y2);
+    if (Math.abs(denom) > 1e-12) {
+      const shift = 0.5 * (y0 - y2) / denom;
+      if (shift > -1 && shift < 1) refinedLag = bestLag + shift;
+    }
+  }
+  return { freq: sampleRate / refinedLag, confidence: Math.max(0, Math.min(1, confidence)) };
+}
+function freqToMidi(freq) { return 69 + 12 * Math.log2(freq / 440); }
+function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+function nearestNoteFreq(freq) { return freq <= 0 ? 0 : midiToFreq(Math.round(freqToMidi(freq))); }
+class GranularPitchShifter {
+  constructor(sampleRate, grainMs) {
+    this.grainSize = Math.max(64, Math.round(sampleRate * (grainMs || 80) / 1000));
+    this.bufferSize = this.grainSize * 8;
+    this.buffer = new Float32Array(this.bufferSize);
+    this.writeIndex = 0;
+    this.window = new Float32Array(this.grainSize + 1);
+    for (let i = 0; i <= this.grainSize; i++) {
+      this.window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / this.grainSize);
+    }
+    this.delay = [this.grainSize, this.grainSize / 2];
+  }
+  _wrap(i) { const n = this.bufferSize; return ((i % n) + n) % n; }
+  _readInterp(pos) {
+    const i0 = Math.floor(pos), frac = pos - i0;
+    const a = this.buffer[this._wrap(i0)], b = this.buffer[this._wrap(i0 + 1)];
+    return a + (b - a) * frac;
+  }
+  process(inputSample, ratio) {
+    this.buffer[this.writeIndex] = inputSample;
+    this.writeIndex = this._wrap(this.writeIndex + 1);
+    let out = 0;
+    for (let h = 0; h < 2; h++) {
+      const d = this.delay[h];
+      const readPos = this.writeIndex - 1 - d;
+      const phase = d - this.grainSize * 0.5;
+      const w = this.window[Math.max(0, Math.min(this.grainSize, Math.round(phase)))];
+      out += this._readInterp(readPos) * w;
+      this.delay[h] += (1 - ratio);
+      while (this.delay[h] > this.grainSize * 1.5) this.delay[h] -= this.grainSize;
+      while (this.delay[h] < this.grainSize * 0.5) this.delay[h] += this.grainSize;
+    }
+    return out;
+  }
+}
+class GemstarPitchProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: 'speed', defaultValue: 0, minValue: 0, maxValue: 100, automationRate: 'k-rate' },
+      { name: 'humanize', defaultValue: 0, minValue: 0, maxValue: 100, automationRate: 'k-rate' },
+    ];
+  }
+  constructor() {
+    super();
+    this.sr = sampleRate;
+    this.shifters = [new GranularPitchShifter(this.sr, 80), new GranularPitchShifter(this.sr, 80)];
+    this.analysisWinSize = 1024;
+    this.analysisBuf = new Float32Array(this.analysisWinSize);
+    this.analysisWritePos = 0;
+    this.samplesSinceAnalysis = 0;
+    this.analysisIntervalSamples = 512;
+    this.currentRatio = 1.0;
+    this.targetRatio = 1.0;
+    this.voiced = false;
+    this.lfoPhase = 0;
+    this.lfoRateHz = 5.5;
+  }
+  _timeConstantSeconds(speed) {
+    const s = Math.max(1, Math.min(100, speed));
+    const tSlow = 0.18, tFast = 0.003;
+    return tSlow * Math.pow(tFast / tSlow, (s - 1) / 99);
+  }
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    const output = outputs[0];
+    if (!input || input.length === 0) return true;
+    const speed = parameters.speed[0];
+    const humanize = parameters.humanize[0];
+    const numChannels = input.length;
+    const frameLen = input[0].length;
+    for (let i = 0; i < frameLen; i++) {
+      let monoSample = 0;
+      for (let ch = 0; ch < numChannels; ch++) monoSample += input[ch][i];
+      monoSample /= numChannels;
+      this.analysisBuf[this.analysisWritePos] = monoSample;
+      this.analysisWritePos = (this.analysisWritePos + 1) % this.analysisWinSize;
+      this.samplesSinceAnalysis++;
+      if (this.samplesSinceAnalysis >= this.analysisIntervalSamples) {
+        this.samplesSinceAnalysis = 0;
+        const ordered = new Float32Array(this.analysisWinSize);
+        for (let k = 0; k < this.analysisWinSize; k++) {
+          ordered[k] = this.analysisBuf[(this.analysisWritePos + k) % this.analysisWinSize];
+        }
+        const pr = detectPitch(ordered, this.sr, 70, 1000);
+        this.voiced = pr.confidence > 0.35 && pr.freq > 0;
+        this.targetRatio = this.voiced ? nearestNoteFreq(pr.freq) / pr.freq : 1.0;
+      }
+      if (!speed || speed <= 0) {
+        for (let ch = 0; ch < numChannels; ch++) {
+          if (!this.shifters[ch]) this.shifters[ch] = new GranularPitchShifter(this.sr, 80);
+          this.shifters[ch].process(input[ch][i], 1.0);
+          output[ch][i] = input[ch][i];
+        }
+        continue;
+      }
+      const tau = this._timeConstantSeconds(speed);
+      const dt = 1 / this.sr;
+      const alpha = 1 - Math.exp(-dt / tau);
+      this.currentRatio += (this.targetRatio - this.currentRatio) * alpha;
+      let appliedRatio = this.currentRatio;
+      if (humanize > 0 && this.voiced) {
+        const maxCents = 25 * (humanize / 100);
+        this.lfoPhase += (2 * Math.PI * this.lfoRateHz) / this.sr;
+        if (this.lfoPhase > 2 * Math.PI) this.lfoPhase -= 2 * Math.PI;
+        const cents = maxCents * Math.sin(this.lfoPhase);
+        appliedRatio *= Math.pow(2, cents / 1200);
+      }
+      for (let ch = 0; ch < numChannels; ch++) {
+        if (!this.shifters[ch]) this.shifters[ch] = new GranularPitchShifter(this.sr, 80);
+        output[ch][i] = this.shifters[ch].process(input[ch][i], appliedRatio);
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
+`;
+
+  var pitchWorkletModulePromise = null;
+  function loadPitchWorklet(audioCtx){
+    if (!audioCtx.audioWorklet || typeof AudioWorkletNode === "undefined"){
+      return Promise.resolve(null);
+    }
+    if (!pitchWorkletModulePromise){
+      try {
+        var blob = new Blob([PITCH_WORKLET_SOURCE], {type: "application/javascript"});
+        var url = URL.createObjectURL(blob);
+        pitchWorkletModulePromise = audioCtx.audioWorklet.addModule(url).catch(function(err){
+          console.warn("Gemstar: pitch-correction worklet failed to load, falling back to bypass.", err);
+          return null;
+        });
+      } catch(err){
+        console.warn("Gemstar: pitch-correction worklet setup failed, falling back to bypass.", err);
+        pitchWorkletModulePromise = Promise.resolve(null);
+      }
+    }
+    return pitchWorkletModulePromise.then(function(result){
+      if (result === null) return null;
+      try {
+        return new AudioWorkletNode(audioCtx, "gemstar-pitch-processor", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          channelCount: 2,
+          channelCountMode: "explicit",
+          channelCountInterpretation: "speakers"
+        });
+      } catch(err){
+        console.warn("Gemstar: pitch-correction node creation failed, falling back to bypass.", err);
+        return null;
+      }
+    });
+  }
+
   function buildChain(){
     var g = {};
 
@@ -1573,20 +1797,26 @@
     g.deEssGain = ctx.createGain();
     g.deEssSum = ctx.createGain();
 
-    // ---- Tune: modulated micro-delay ----
-    g.tuneDelay = ctx.createDelay(0.05);
-    g.tuneDelay.delayTime.value = 0.01;
-    g.tuneLFO = ctx.createOscillator();
-    g.tuneLFO.type = "square";
-    g.tuneLFO.frequency.value = 1;
-    g.tuneDepth = ctx.createGain();
-    g.tuneDepth.gain.value = 0;
-    g.tuneLFO.connect(g.tuneDepth);
-    g.tuneDepth.connect(g.tuneDelay.delayTime);
-    g.tuneLFO.start();
-    g.tuneDry = ctx.createGain();
-    g.tuneWet = ctx.createGain();
-    g.tuneSum = ctx.createGain();
+    // ---- Speed/Humanize: real pitch correction (AudioWorklet) ----
+    // g.pitchInput/g.pitchOutput are stable nodes the rest of the chain
+    // always connects to/from; internally they start wired straight through
+    // a plain passthrough gain, and get swapped to the real pitch-correction
+    // worklet node the moment its module finishes loading (or stay a
+    // passthrough forever on a browser without AudioWorklet support).
+    g.pitchInput = ctx.createGain();
+    g.pitchOutput = ctx.createGain();
+    g.pitchBypass = ctx.createGain();
+    g.pitchInput.connect(g.pitchBypass);
+    g.pitchBypass.connect(g.pitchOutput);
+    g.pitchWorkletNode = null;
+    loadPitchWorklet(ctx).then(function(node){
+      if (!node || g !== chain) return; // chain may have been rebuilt already
+      g.pitchWorkletNode = node;
+      g.pitchInput.disconnect(g.pitchBypass);
+      g.pitchInput.connect(node);
+      node.connect(g.pitchOutput);
+      applyAllParams();
+    });
 
     // ---- Wide: room / hall+delay / chorus ----
     g.wideDry = ctx.createGain();
@@ -1687,31 +1917,27 @@
     // highs: top-end shelf sits after de-essing so it doesn't reintroduce sibilance
     g.deEssSum.connect(g.highsFilter);
 
-    // tune: dry + modulated delay blend
-    g.highsFilter.connect(g.tuneDry);
-    g.highsFilter.connect(g.tuneDelay);
-    g.tuneDelay.connect(g.tuneWet);
-    g.tuneDry.connect(g.tuneSum);
-    g.tuneWet.connect(g.tuneSum);
+    // speed/humanize: real pitch correction sits after Highs, before Space/Wide
+    g.highsFilter.connect(g.pitchInput);
 
     // wide: dry + room + hall/delay + chorus
-    g.tuneSum.connect(g.wideDry);
+    g.pitchOutput.connect(g.wideDry);
     g.wideDry.connect(g.wideSum);
 
-    g.tuneSum.connect(g.convSmall);
+    g.pitchOutput.connect(g.convSmall);
     g.convSmall.connect(g.smallWet);
     g.smallWet.connect(g.wideSum);
 
-    g.tuneSum.connect(g.convHall);
+    g.pitchOutput.connect(g.convHall);
     g.convHall.connect(g.hallWet);
     g.hallWet.connect(g.wideSum);
 
-    g.tuneSum.connect(g.echoDelay);
+    g.pitchOutput.connect(g.echoDelay);
     g.echoDelay.connect(g.echoWet);
     g.echoWet.connect(g.wideSum);
 
-    g.tuneSum.connect(g.chorusA);
-    g.tuneSum.connect(g.chorusB);
+    g.pitchOutput.connect(g.chorusA);
+    g.pitchOutput.connect(g.chorusB);
     g.chorusA.connect(g.chorusPanA);
     g.chorusB.connect(g.chorusPanB);
     g.chorusPanA.connect(g.chorusWet);
@@ -1818,12 +2044,14 @@
 
     chain.deEssGain.gain.setTargetAtTime(-(v.smooth/100)*1.1, now, 0.02);
 
-    var tuneAmt = effTune/100;
-    chain.tuneLFO.frequency.setTargetAtTime(lerp(effTune,0,100,0.6,9), now, 0.05);
-    chain.tuneDepth.gain.setTargetAtTime(lerp(effTune,0,100,0.0002,0.011), now, 0.05);
-    var tuneWetAmt = tuneAmt*0.9;
-    chain.tuneDry.gain.setTargetAtTime(1 - tuneWetAmt*0.5, now, 0.02);
-    chain.tuneWet.gain.setTargetAtTime(tuneWetAmt, now, 0.02);
+    // Speed/Humanize: real pitch correction. Both AudioParams are already
+    // 0-100 range, same as the knobs, so no lerp needed. The worklet node
+    // may not have finished loading yet -- if so this is a no-op and the
+    // load-complete callback calls applyAllParams() again once it's ready.
+    if (chain.pitchWorkletNode){
+      chain.pitchWorkletNode.parameters.get("speed").setTargetAtTime(effTune, now, 0.05);
+      chain.pitchWorkletNode.parameters.get("humanize").setTargetAtTime(v.humanize, now, 0.05);
+    }
 
     // Space: room / hall reverb + delay (dedicated)
     var sp = v.space;
