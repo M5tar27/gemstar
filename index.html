@@ -106,6 +106,55 @@
   .help-knob-item .k-name{display:block; font-size:0.85rem; font-weight:600; color:var(--ink); margin-bottom:2px;}
   .help-knob-item .k-desc{display:block; font-size:0.82rem; color:var(--ink-muted); line-height:1.45;}
 
+  #midi-overlay{
+    display:none; position:fixed; inset:0; z-index:410;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(6,6,12,0.72);
+  }
+  #midi-overlay.show{display:flex;}
+  .midi-card{ display:flex; flex-direction:column; gap:12px; }
+  .midi-status-line{ display:flex; align-items:center; gap:8px; font-size:0.84rem; color:var(--ink-muted); margin:0; }
+  .midi-dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    background:var(--ink-dim); flex-shrink:0;
+  }
+  .midi-dot.connected{background:var(--ok); box-shadow:0 0 6px var(--ok);}
+  .midi-dot.unsupported{background:var(--danger);}
+  #btn-midi .midi-dot{ margin-left:2px; }
+  .midi-desc{color:var(--ink-muted); font-size:0.82rem; line-height:1.5; margin:0;}
+  .midi-hint{font-size:0.8rem; color:var(--cyan); min-height:1.2em; margin:0;}
+  #midi-learn-btn.active{background:rgba(255,46,136,0.16); box-shadow:0 0 14px -4px rgba(255,46,136,0.85) inset;}
+  .midi-mapping-list{display:flex; flex-direction:column; gap:8px;}
+  .midi-map-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    border:1px solid var(--line); border-radius:8px; padding:8px 12px;
+    font-size:0.82rem; color:var(--ink);
+  }
+  .midi-map-row .cc-tag{color:var(--ink-dim); font-variant-numeric:tabular-nums; font-size:0.76rem;}
+  .midi-map-remove{background:none; border:none; color:var(--ink-dim); cursor:pointer; font-size:1rem; line-height:1; padding:2px 6px;}
+  .midi-map-remove:hover{color:var(--danger);}
+  .midi-clear-btn{background:none; border:none; color:var(--ink-dim); font-size:0.78rem; cursor:pointer; text-decoration:underline; padding:0; align-self:flex-start;}
+  .midi-clear-btn:hover{color:var(--danger);}
+  .midi-empty{color:var(--ink-dim); font-size:0.8rem; font-style:italic; margin:0;}
+  body.midi-learn-armed .knob{ cursor:crosshair; }
+  body.midi-learn-armed .knob:hover{ outline:2px solid var(--gem); outline-offset:3px; }
+  .knob.midi-mapped-flash{ outline:2px solid var(--ok); outline-offset:3px; }
+
+  #midi-learn-banner{
+    display:none; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;
+    position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:500;
+    max-width:min(92vw, 460px); padding:12px 16px; border-radius:12px;
+    background:var(--bg-panel); border:1px solid var(--gem); box-shadow:0 12px 34px rgba(0,0,0,0.45);
+    font-size:0.82rem; color:var(--ink);
+  }
+  #midi-learn-banner.show{display:flex;}
+  #midi-learn-banner-text{color:var(--ink-muted);}
+  #midi-learn-cancel{
+    background:none; border:1px solid var(--gem); color:var(--gem); border-radius:999px;
+    padding:6px 14px; font-size:0.76rem; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  #midi-learn-cancel:hover{background:rgba(255,46,136,0.12);}
+
   #welcome-overlay{
     display:none; position:fixed; inset:0; z-index:420;
     align-items:center; justify-content:center; padding:20px;
@@ -271,6 +320,9 @@
     border:1px solid var(--line); border-radius:10px; padding:11px 16px;
   }
   .plan-select-row select{ appearance:none; -webkit-appearance:none; }
+  .plan-select-row select:disabled{ opacity:0.75; cursor:not-allowed; }
+  .plan-unlock-link{ font-size:0.72rem; color:var(--gem); text-decoration:none; margin-left:2px; white-space:nowrap; }
+  .plan-unlock-link:hover{ text-decoration:underline; }
   .vocal-mixer{
     border:1px solid var(--line); border-radius:10px; padding:14px 16px;
     display:flex; flex-direction:column; gap:10px;
@@ -335,6 +387,11 @@
     --glow:0.15; --knob-color:var(--cyan);
   }
   .knob:active{cursor:grabbing;}
+  .knob.locked{ opacity:0.32; cursor:not-allowed; filter:grayscale(0.7) !important; }
+  .knob.locked:active{ cursor:not-allowed; }
+  .knob.locked::after{
+    content:"\1F512"; position:absolute; top:-6px; right:-6px; font-size:13px; line-height:1;
+  }
   .knob svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible;}
   .knob .track{stroke:rgba(255,255,255,0.07); fill:none; stroke-width:3; stroke-linecap:round;}
   .knob .value-arc{fill:none; stroke:var(--knob-color); stroke-width:3; stroke-linecap:round; transition:stroke-dashoffset .04s linear;}
@@ -609,6 +666,30 @@
     </div>
   </div>
 
+  <div id="midi-overlay">
+    <div class="help-card midi-card">
+      <div class="help-card-head">
+        <h3 data-i18n="midiTitle">MIDI Controller</h3>
+        <button type="button" class="help-close" id="midi-close" aria-label="Close">&times;</button>
+      </div>
+      <p class="midi-status-line">
+        <span class="midi-dot" id="midi-panel-status-dot"></span>
+        <span id="midi-status-text" data-i18n="midiStatusChecking">Checking your browser…</span>
+      </p>
+      <button type="button" class="pill-btn pill-cyan" id="midi-enable-btn" data-i18n="midiEnableBtn">Enable MIDI</button>
+      <p class="midi-desc" data-i18n="midiDesc">Connect a MIDI controller and map its knobs or faders to Gemstar's knobs — turn a physical control, watch it move here.</p>
+      <button type="button" class="pill-btn pill-purple" id="midi-learn-btn" data-i18n="midiLearnBtn">+ Map a Knob</button>
+      <p class="midi-hint" id="midi-hint"></p>
+      <div id="midi-mapping-list" class="midi-mapping-list"></div>
+      <button type="button" class="midi-clear-btn" id="midi-clear-btn" data-i18n="midiClearBtn">Clear All Mappings</button>
+    </div>
+  </div>
+
+  <div id="midi-learn-banner">
+    <span id="midi-learn-banner-text"></span>
+    <button type="button" id="midi-learn-cancel" data-i18n="midiLearnBtnActive">Cancel Mapping</button>
+  </div>
+
   <div id="welcome-overlay">
     <div class="welcome-card">
       <button type="button" class="welcome-skip" id="welcome-skip" data-i18n="welcomeSkip">Skip</button>
@@ -632,8 +713,8 @@
     <div id="gate-overlay">
       <div class="gate-card">
         <div id="gate-step-email">
-          <h3>Subscribe to Export</h3>
-          <p>You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export.</p>
+          <h3 id="gate-title">Subscribe to Export</h3>
+          <p id="gate-desc">You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export.</p>
           <form id="gate-form">
             <input type="email" id="gate-email" placeholder="you@email.com" required autocomplete="email" />
             <button type="submit" id="gate-submit">Send Code</button>
@@ -654,7 +735,7 @@
         </div>
       </div>
     </div>
-    <p class="free-tier-note"><strong>Free to try</strong> — dial in your chain and preview live. Subscribe only when you're ready to export.</p>
+    <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock the M5tar &amp; Jewels signature knobs and Full Song Mix; any plan unlocks export.</p>
     <div class="transport">
       <div class="mode-toggle" role="tablist" aria-label="Mix mode">
         <button type="button" class="mode-btn active" id="mode-vocal" role="tab" aria-selected="true">
@@ -669,10 +750,11 @@
       <div class="plan-select-row">
         <span class="status-label" data-i18n="planPreviewLabel">Plan (preview)</span>
         <select id="plan-select" class="pill-btn pill-cyan">
-          <option value="starter" id="plan-opt-starter">Starter · 1 vocal track</option>
-          <option value="mix" id="plan-opt-mix" selected>Mix · 3 vocal tracks</option>
+          <option value="starter" id="plan-opt-starter" selected>Starter · 1 vocal track</option>
+          <option value="mix" id="plan-opt-mix">Mix · 3 vocal tracks</option>
           <option value="unlimited" id="plan-opt-unlimited">Unlimited · 8 vocal tracks</option>
         </select>
+        <a href="#" id="plan-unlock-link" class="plan-unlock-link" data-i18n="planUnlockLink">Verify plan &rarr;</a>
       </div>
 
       <div class="input-mode-row" id="input-mode-row">
@@ -794,6 +876,9 @@
           <option value="RNB_SMOOTH">R&amp;B Smooth</option>
         </select>
         <button class="pill-btn pill-purple" id="btn-reset" type="button" data-i18n="reset">Reset to Default</button>
+        <button class="pill-btn pill-cyan" id="btn-midi" type="button">
+          <span data-i18n="midiBtnLabel">MIDI</span><span class="midi-dot" id="midi-status-dot"></span>
+        </button>
       </div>
       <div class="status-row bypass-switch" id="bypass-toggle" role="switch" aria-checked="false" tabindex="0">
         <span data-i18n="bypass">Bypass</span>
@@ -1005,7 +1090,7 @@
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"One booth. <em>Two engineers.</em>",
       wfLabelVocal:"Vocal", wfLabelBeat:"Beat",
-      planPreviewLabel:"Plan (preview)",
+      planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
       planOptStarter:"Starter · 1 vocal track", planOptMix:"Mix · 3 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
@@ -1033,6 +1118,22 @@
       helpTip3:"Try a Preset from the dropdown for a quick starting point, or start from scratch — every knob starts at 0 until you move it.",
       helpTip4:"When you're happy with it, Export MP3 downloads a real MP3 encoded right in your browser.",
       helpKnobsHeading:"What each knob does",
+      midiBtnLabel:"MIDI",
+      midiTitle:"MIDI Controller",
+      midiDesc:"Connect a MIDI controller and map its knobs or faders to Gemstar's knobs — turn a physical control, watch it move here.",
+      midiEnableBtn:"Enable MIDI",
+      midiStatusChecking:"Checking your browser…",
+      midiStatusUnsupported:"MIDI isn't supported in this browser — try Chrome or Edge.",
+      midiStatusNotConnected:"No MIDI device connected yet.",
+      midiStatusConnected:"Connected: {device}",
+      midiLearnBtn:"+ Map a Knob",
+      midiLearnBtnActive:"Cancel Mapping",
+      midiHintPickKnob:"Click any knob above to map it.",
+      midiHintWaiting:"Now move a knob or fader on your MIDI device for “{knob}”…",
+      midiHintMapped:"Mapped “{knob}” to CC {cc}. Pick another knob, or Cancel Mapping when done.",
+      midiEmptyList:"No knobs mapped yet.",
+      midiClearBtn:"Clear All Mappings",
+      midiCcTag:"CC {cc}",
       welcomeSkip:"Skip", welcomeBack:"Back", welcomeNext:"Next", welcomeGotIt:"Let's Go",
       welcomeStep1Title:"Welcome to Gemstar",
       welcomeStep1Desc:"Two engineers built the chain behind this tool from real sessions — not off-the-shelf presets. Here's a quick look at how it works.",
@@ -1102,7 +1203,7 @@
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"Una cabina. <em>Dos ingenieros.</em>",
       wfLabelVocal:"Voz", wfLabelBeat:"Beat",
-      planPreviewLabel:"Plan (vista previa)",
+      planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
       planOptStarter:"Inicial · 1 pista vocal", planOptMix:"Mix · 3 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
@@ -1130,6 +1231,22 @@
       helpTip3:"Prueba un Preset del menú desplegable para un punto de partida rápido, o empieza desde cero — cada perilla comienza en 0 hasta que la muevas.",
       helpTip4:"Cuando estés conforme, Exportar MP3 descarga un MP3 real codificado directo en tu navegador.",
       helpKnobsHeading:"Qué hace cada perilla",
+      midiBtnLabel:"MIDI",
+      midiTitle:"Controlador MIDI",
+      midiDesc:"Conecta un controlador MIDI y asigna sus perillas o faders a las perillas de Gemstar — mueve un control físico y velo moverse aquí.",
+      midiEnableBtn:"Activar MIDI",
+      midiStatusChecking:"Comprobando tu navegador…",
+      midiStatusUnsupported:"MIDI no es compatible con este navegador — prueba Chrome o Edge.",
+      midiStatusNotConnected:"Ningún dispositivo MIDI conectado todavía.",
+      midiStatusConnected:"Conectado: {device}",
+      midiLearnBtn:"+ Asignar Una Perilla",
+      midiLearnBtnActive:"Cancelar Asignación",
+      midiHintPickKnob:"Haz clic en cualquier perilla de arriba para asignarla.",
+      midiHintWaiting:"Ahora mueve una perilla o fader en tu dispositivo MIDI para “{knob}”…",
+      midiHintMapped:"Se asignó “{knob}” a CC {cc}. Elige otra perilla o cancela cuando termines.",
+      midiEmptyList:"Aún no hay perillas asignadas.",
+      midiClearBtn:"Borrar Todas Las Asignaciones",
+      midiCcTag:"CC {cc}",
       welcomeSkip:"Omitir", welcomeBack:"Atrás", welcomeNext:"Siguiente", welcomeGotIt:"Vamos",
       welcomeStep1Title:"Bienvenido a Gemstar",
       welcomeStep1Desc:"Dos ingenieros construyeron esta cadena a partir de sesiones reales — no de preajustes genéricos. Aquí un vistazo rápido de cómo funciona.",
@@ -1167,6 +1284,10 @@
       if (unit) unit.title = STR[l].knobDesc[k.id];
     });
     renderHelpKnobList(l);
+    if (typeof renderMidiStatus === "function") renderMidiStatus();
+    if (typeof renderMidiMappingList === "function") renderMidiMappingList();
+    if (typeof updateMidiHint === "function") updateMidiHint();
+    if (typeof midiLearnBtn !== "undefined" && midiLearnBtn) midiLearnBtn.textContent = midiLearnArmed ? STR[l].midiLearnBtnActive : STR[l].midiLearnBtn;
     if (typeof renderWelcomeStep === "function" && welcomeOverlay && welcomeOverlay.classList.contains("show")) renderWelcomeStep();
     var optStreaming = document.getElementById("lufs-opt-streaming");
     var optApple = document.getElementById("lufs-opt-apple");
@@ -1276,10 +1397,12 @@
       wireKnobDrag(knob, def.id);
     });
     renderAllKnobs();
+    refreshKnobLocks();
   }
 
   function setKnob(id, val, opts){
     opts = opts || {};
+    if (typeof isKnobLocked === "function" && isKnobLocked(id)) val = 0;
     val = Math.max(0, Math.min(100, Math.round(val)));
     var prev = values[id];
     values[id] = val;
@@ -1322,6 +1445,16 @@
       setKnob(id, startVal + (delta/RANGE_PX)*100);
     }
     knob.addEventListener("pointerdown", function(e){
+      if (isKnobLocked(id)){
+        e.preventDefault();
+        openTierGate("knob:" + id);
+        return;
+      }
+      if (midiLearnArmed){
+        e.preventDefault();
+        midiLearnPickKnob(id);
+        return;
+      }
       dragging = true; startY = e.clientY; startVal = values[id];
       knob.setPointerCapture(e.pointerId);
       e.preventDefault();
@@ -1329,12 +1462,18 @@
     knob.addEventListener("pointermove", function(e){ if (dragging) move(e.clientY); });
     knob.addEventListener("pointerup", function(){ dragging = false; });
     knob.addEventListener("pointercancel", function(){ dragging = false; });
-    knob.addEventListener("dblclick", function(){ setKnob(id, DEFAULT_VALUES[id]); });
+    knob.addEventListener("dblclick", function(){ if (isKnobLocked(id)) return; setKnob(id, DEFAULT_VALUES[id]); });
     knob.addEventListener("wheel", function(e){
       e.preventDefault();
+      if (isKnobLocked(id)){ openTierGate("knob:" + id); return; }
       setKnob(id, values[id] + (e.deltaY < 0 ? 2 : -2));
     }, {passive:false});
     knob.addEventListener("keydown", function(e){
+      var isArrow = e.key === "ArrowUp" || e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "ArrowLeft";
+      if (isKnobLocked(id)){
+        if (isArrow){ openTierGate("knob:" + id); e.preventDefault(); }
+        return;
+      }
       var step = e.shiftKey ? 10 : 2;
       if (e.key === "ArrowUp" || e.key === "ArrowRight"){ setKnob(id, values[id]+step); e.preventDefault(); }
       if (e.key === "ArrowDown" || e.key === "ArrowLeft"){ setKnob(id, values[id]-step); e.preventDefault(); }
@@ -1382,8 +1521,31 @@
   }
   var PLAN_LIMITS = {starter:1, mix:3, unlimited:8}; // max vocal tracks per plan tier
   var RECORD_LENGTH_LIMITS = {starter:180, mix:360, unlimited:600}; // max mic recording length (sec) per plan tier
-  var currentPlan = "mix";
+  var currentPlan = "starter"; // free baseline until a Mix/Unlimited email verifies (see window.gemstarApplyTier)
   function maxRecordSeconds(){ return RECORD_LENGTH_LIMITS[currentPlan] || RECORD_LENGTH_LIMITS.starter; }
+
+  /* ---- tier gating: signature knobs + Full Song Mix require Mix/Unlimited,
+     everything else (core chain, finish, Auto-Tune, export) stays free/any-plan.
+     currentPlan is set for real by window.gemstarApplyTier once the gate IIFE
+     (below) verifies an email against Stripe or the founders allowlist. ---- */
+  var TIER_RANK = {starter:1, mix:2, unlimited:3};
+  function isTierAtLeast(tier){ return (TIER_RANK[currentPlan]||1) >= (TIER_RANK[tier]||1); }
+  function isKnobLocked(id){
+    for (var i=0;i<KNOB_DEFS.length;i++){
+      if (KNOB_DEFS[i].id === id) return KNOB_DEFS[i].group === "signature" && !isTierAtLeast("mix");
+    }
+    return false;
+  }
+  function openTierGate(reason){ if (window.gemstarShowGate) window.gemstarShowGate(reason); }
+  function refreshKnobLocks(){
+    KNOB_DEFS.forEach(function(def){
+      if (def.group !== "signature") return;
+      var knob = knobEls[def.id];
+      var locked = isKnobLocked(def.id);
+      if (knob){ knob.classList.toggle("locked", locked); knob.dataset.locked = locked ? "1" : "0"; }
+      if (typeof setKnob === "function") setKnob(def.id, values[def.id]);
+    });
+  }
   var beatSourceNode = null; // beat/instrumental AudioBufferSourceNode
   var beatBuffer = null;
   var mixEnabled = false;    // true when mode === "full" (Full Song Mix)
@@ -1484,6 +1646,38 @@
     if (ctx) return;
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     buildChain();
+  }
+
+  // iOS Safari (WebKit) puts the page's shared audio session into a
+  // "PlayAndRecord" category the moment getUserMedia() is used for the mic
+  // (Record Vocal), and it often does NOT revert that back to a plain
+  // "Playback" category afterward even once every mic track is stopped --
+  // while stuck in that mode, WebKit can default subsequent AudioContext
+  // playback to the phone's own speaker/earpiece instead of a connected
+  // Bluetooth device (a car stereo, headphones), no matter what's actually
+  // selected as the system audio output. This is a documented WebKit quirk,
+  // not anything wrong with the Bluetooth pairing itself.
+  //
+  // Fully closing and recreating the AudioContext is the one thing that
+  // reliably makes WebKit reconsider and drop back to a normal Playback
+  // session. This is safe to do here: AudioBuffers (already-decoded PCM --
+  // the uploaded/recorded vocal, beat, etc.) are not tied to a specific
+  // context per the Web Audio spec, so nothing needs to be re-decoded --
+  // only the live node graph (chain) needs rebuilding, and buildChain()
+  // already re-syncs a fresh chain to the current knob values. The pitch
+  // worklet's cached module-load promise is keyed to the old context, so it
+  // has to be cleared too or Auto-Tune would silently stop reconnecting.
+  function resetContextForCleanPlaybackRouting(){
+    if (!ctx) return;
+    // Never do this while something is actively playing -- there's nothing
+    // to gain mid-playback, and it would cut the audio out from under it.
+    if (vocalSourceNodes.length || beatSourceNode) return;
+    var oldCtx = ctx;
+    ctx = null;
+    chain = null;
+    pitchWorkletModulePromise = null;
+    try { oldCtx.close(); } catch(e){}
+    ensureContext();
   }
 
   function makeGateShaperCurve(amount){
@@ -2257,6 +2451,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       stopMeter();
       stopStream();
       resetButtons();
+      resetContextForCleanPlaybackRouting();
     }
 
     // Stop + keep whatever was captured — used by the Stop button and by
@@ -2265,17 +2460,24 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       stopCapture();
       stopTimer();
       stopMeter();
+      var sr = ctx.sampleRate; // read before any context reset below
       stopStream();
       resetButtons();
       if (opts.retryBtn) opts.retryBtn.hidden = false;
-      if (pcmLength === 0) return;
+      if (pcmLength === 0) { resetContextForCleanPlaybackRouting(); return; }
       var merged = new Float32Array(pcmLength);
       var off = 0;
       pcmChunks.forEach(function(c){ merged.set(c, off); off += c.length; });
       pcmChunks = [];
       pcmLength = 0;
-      var wavBlob = encodeWavBlob(merged, ctx.sampleRate);
+      var wavBlob = encodeWavBlob(merged, sr);
       var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
+      // Reset before handing off the captured file -- handleFile() /
+      // addExtraVocalFromFile() will call ensureContext() and decode this
+      // file on whatever context is current, so doing the reset first means
+      // it gets decoded straight into the fresh, clean-routing context
+      // instead of the one that was just used for recording.
+      resetContextForCleanPlaybackRouting();
       opts.onCaptured(file);
       if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintDone;
     }
@@ -2442,7 +2644,10 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     }
   }
   modeVocalBtn.addEventListener("click", function(){ setMode("vocal"); });
-  modeFullBtn.addEventListener("click", function(){ setMode("full"); });
+  modeFullBtn.addEventListener("click", function(){
+    if (!isTierAtLeast("mix")){ openTierGate("fullMix"); return; }
+    setMode("full");
+  });
 
   function handleBeatFile(file){
     if (!file) return;
@@ -2646,17 +2851,40 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     updateVocalMixerUI();
   }
 
-  if (planSelect){
-    planSelect.addEventListener("change", function(){
-      currentPlan = planSelect.value;
-      applyPlanLimit();
-      drawStaticWaveform();
-      drawBeatWaveformStatic();
-      if (isPlaying) startPlayback();
-      if (recordPanel && !recordPanel.hidden) mainRecorder.refreshIdleHint();
-      if (extraRecordPanel && !extraRecordPanel.hidden) extraRecorder.refreshIdleHint();
+  // The dropdown is now a read-only reflection of your verified plan, not a
+  // free "pick any tier to preview" control — see window.gemstarApplyTier.
+  function applyCurrentPlanSideEffects(){
+    applyPlanLimit();
+    drawStaticWaveform();
+    drawBeatWaveformStatic();
+    if (isPlaying) startPlayback();
+    if (recordPanel && !recordPanel.hidden) mainRecorder.refreshIdleHint();
+    if (extraRecordPanel && !extraRecordPanel.hidden) extraRecorder.refreshIdleHint();
+  }
+  function updatePlanSelectUI(){
+    if (!planSelect) return;
+    planSelect.value = currentPlan;
+    planSelect.disabled = true;
+  }
+  updatePlanSelectUI();
+
+  var planUnlockLink = document.getElementById("plan-unlock-link");
+  if (planUnlockLink){
+    planUnlockLink.addEventListener("click", function(e){
+      e.preventDefault();
+      openTierGate("plan");
     });
   }
+
+  // Bridge from the gate IIFE (below), which owns Stripe/email verification —
+  // called once a tier is actually confirmed (allowlist, fresh code entry,
+  // or a valid stored token on reload).
+  window.gemstarApplyTier = function(tier){
+    currentPlan = (tier === "mix" || tier === "unlimited") ? tier : "starter";
+    updatePlanSelectUI();
+    applyCurrentPlanSideEffects();
+    refreshKnobLocks();
+  };
 
   if (leadVocalLevelSlider){
     leadVocalLevelSlider.addEventListener("input", function(){
@@ -3319,6 +3547,240 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   });
   if (welcomeSkipBtn) welcomeSkipBtn.addEventListener("click", closeWelcome);
 
+  /* ---------- MIDI controller mapping ---------- */
+  // Any class-compliant MIDI controller (store-bought or a DIY Arduino/Teensy
+  // box running the MIDIUSB library) shows up to the browser as a standard
+  // MIDI input -- no special hardware support needed here beyond the Web
+  // MIDI API. Mappings are CC-number -> knob id, channel-agnostic (simplest
+  // thing that works for the vast majority of controllers, which default to
+  // channel 1), and persisted per-browser via localStorage since they're a
+  // personal hardware-setup convenience, not app data.
+  var MIDI_STORE_KEY = "gemstarMidiMappings";
+  var midiAccess = null;
+  var midiMappings = [];      // [{cc:Number, knobId:String}]
+  var midiLearnArmed = false; // learn mode toggled on, waiting for a knob click
+  var midiLearnPendingKnobId = null; // knob picked, waiting for a MIDI CC
+
+  var midiOverlay = document.getElementById("midi-overlay");
+  var midiBtn = document.getElementById("btn-midi");
+  var midiClose = document.getElementById("midi-close");
+  var midiEnableBtn = document.getElementById("midi-enable-btn");
+  var midiLearnBtn = document.getElementById("midi-learn-btn");
+  var midiClearBtn = document.getElementById("midi-clear-btn");
+  var midiHintEl = document.getElementById("midi-hint");
+  var midiStatusTextEl = document.getElementById("midi-status-text");
+  var midiPanelDotEl = document.getElementById("midi-panel-status-dot");
+  var midiNavDotEl = document.getElementById("midi-status-dot");
+  var midiMappingListEl = document.getElementById("midi-mapping-list");
+  var midiLearnBanner = document.getElementById("midi-learn-banner");
+  var midiLearnBannerTextEl = document.getElementById("midi-learn-banner-text");
+  var midiLearnCancelBtn = document.getElementById("midi-learn-cancel");
+
+  function loadMidiMappings(){
+    try {
+      var raw = localStorage.getItem(MIDI_STORE_KEY);
+      midiMappings = raw ? (JSON.parse(raw) || []) : [];
+    } catch(e){ midiMappings = []; }
+  }
+  function saveMidiMappings(){
+    try { localStorage.setItem(MIDI_STORE_KEY, JSON.stringify(midiMappings)); } catch(e){}
+  }
+
+  function midiConnectedDeviceNames(){
+    if (!midiAccess) return [];
+    var names = [];
+    midiAccess.inputs.forEach(function(input){ names.push(input.name || "MIDI Device"); });
+    return names;
+  }
+
+  function renderMidiStatus(){
+    var supported = !!navigator.requestMIDIAccess;
+    var names = midiConnectedDeviceNames();
+    var dotClass = "midi-dot";
+    var text;
+    if (!supported){
+      dotClass += " unsupported";
+      text = STR[lang].midiStatusUnsupported;
+    } else if (names.length){
+      dotClass += " connected";
+      text = STR[lang].midiStatusConnected.replace("{device}", names.join(", "));
+    } else {
+      text = STR[lang].midiStatusNotConnected;
+    }
+    if (midiStatusTextEl) midiStatusTextEl.textContent = text;
+    if (midiPanelDotEl) midiPanelDotEl.className = dotClass;
+    if (midiNavDotEl) midiNavDotEl.className = dotClass;
+    if (midiEnableBtn) midiEnableBtn.style.display = (!supported || names.length) ? "none" : "";
+    if (midiLearnBtn) midiLearnBtn.style.display = (supported && names.length) ? "" : "none";
+  }
+
+  function renderMidiMappingList(){
+    if (!midiMappingListEl) return;
+    midiMappingListEl.innerHTML = "";
+    if (!midiMappings.length){
+      var empty = document.createElement("p");
+      empty.className = "midi-empty";
+      empty.textContent = STR[lang].midiEmptyList;
+      midiMappingListEl.appendChild(empty);
+      return;
+    }
+    midiMappings.forEach(function(m){
+      var row = document.createElement("div");
+      row.className = "midi-map-row";
+      var label = document.createElement("span");
+      label.textContent = STR[lang].knobs[m.knobId] || m.knobId;
+      var right = document.createElement("span");
+      right.style.display = "flex"; right.style.alignItems = "center"; right.style.gap = "10px";
+      var cc = document.createElement("span");
+      cc.className = "cc-tag";
+      cc.textContent = STR[lang].midiCcTag.replace("{cc}", String(m.cc));
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "midi-map-remove";
+      remove.setAttribute("aria-label", "Remove");
+      remove.innerHTML = "&times;";
+      remove.addEventListener("click", function(){
+        midiMappings = midiMappings.filter(function(x){ return x !== m; });
+        saveMidiMappings();
+        renderMidiMappingList();
+      });
+      right.appendChild(cc);
+      right.appendChild(remove);
+      row.appendChild(label);
+      row.appendChild(right);
+      midiMappingListEl.appendChild(row);
+    });
+  }
+
+  function currentMidiHintText(){
+    if (!midiLearnArmed) return "";
+    if (midiLearnPendingKnobId){
+      return STR[lang].midiHintWaiting.replace("{knob}", STR[lang].knobs[midiLearnPendingKnobId] || midiLearnPendingKnobId);
+    }
+    return STR[lang].midiHintPickKnob;
+  }
+
+  function updateMidiHint(){
+    var text = currentMidiHintText();
+    if (midiHintEl) midiHintEl.textContent = text;
+    if (midiLearnBannerTextEl) midiLearnBannerTextEl.textContent = text;
+  }
+
+  // The MIDI panel is a full-screen modal, so it has to close whenever learn
+  // mode starts -- otherwise it sits on top of the knobs and nobody could
+  // ever click one to pick a mapping target. A small floating banner (with
+  // its own Cancel button) takes over showing the learn-mode hint while the
+  // panel is closed and the knob grid is reachable.
+  function setMidiLearnArmed(armed){
+    midiLearnArmed = armed;
+    midiLearnPendingKnobId = null;
+    document.body.classList.toggle("midi-learn-armed", armed);
+    if (midiLearnBtn){
+      midiLearnBtn.classList.toggle("active", armed);
+      midiLearnBtn.textContent = armed ? STR[lang].midiLearnBtnActive : STR[lang].midiLearnBtn;
+    }
+    if (midiLearnBanner) midiLearnBanner.classList.toggle("show", armed);
+    updateMidiHint();
+  }
+
+  function midiLearnPickKnob(knobId){
+    midiLearnPendingKnobId = knobId;
+    updateMidiHint();
+  }
+
+  function flashMidiMapped(knobId){
+    var el = knobEls[knobId];
+    if (!el) return;
+    el.classList.add("midi-mapped-flash");
+    setTimeout(function(){ el.classList.remove("midi-mapped-flash"); }, 900);
+  }
+
+  function handleMidiMessage(e){
+    var status = e.data[0];
+    var type = status & 0xF0;
+    if (type !== 0xB0) return; // Control Change messages only
+    var cc = e.data[1];
+    var val = e.data[2];
+
+    if (midiLearnArmed && midiLearnPendingKnobId){
+      var knobId = midiLearnPendingKnobId;
+      midiMappings = midiMappings.filter(function(m){ return m.cc !== cc; });
+      midiMappings.push({cc: cc, knobId: knobId});
+      saveMidiMappings();
+      renderMidiMappingList();
+      flashMidiMapped(knobId);
+      // sync the on-screen knob to the controller's current physical
+      // position right away, so the very first move isn't "wasted" just
+      // binding the mapping -- it also does something.
+      if (values.hasOwnProperty(knobId)) setKnob(knobId, Math.round((val / 127) * 100));
+      var mappedText = STR[lang].midiHintMapped
+        .replace("{knob}", STR[lang].knobs[knobId] || knobId)
+        .replace("{cc}", String(cc));
+      if (midiHintEl) midiHintEl.textContent = mappedText;
+      if (midiLearnBannerTextEl) midiLearnBannerTextEl.textContent = mappedText;
+      midiLearnPendingKnobId = null;
+      return;
+    }
+
+    var match = null;
+    for (var i = 0; i < midiMappings.length; i++){
+      if (midiMappings[i].cc === cc){ match = midiMappings[i]; break; }
+    }
+    if (match && values.hasOwnProperty(match.knobId)){
+      setKnob(match.knobId, Math.round((val / 127) * 100));
+    }
+  }
+
+  function wireMidiInputs(){
+    if (!midiAccess) return;
+    midiAccess.inputs.forEach(function(input){ input.onmidimessage = handleMidiMessage; });
+    renderMidiStatus();
+  }
+
+  function enableMidi(){
+    if (!navigator.requestMIDIAccess){
+      renderMidiStatus();
+      return;
+    }
+    navigator.requestMIDIAccess({sysex:false}).then(function(access){
+      midiAccess = access;
+      wireMidiInputs();
+      midiAccess.onstatechange = wireMidiInputs;
+    }, function(){
+      renderMidiStatus();
+    });
+  }
+
+  function hideMidiOverlay(){ if (midiOverlay) midiOverlay.classList.remove("show"); }
+  function openMidiPanel(){ if (midiOverlay) midiOverlay.classList.add("show"); renderMidiStatus(); renderMidiMappingList(); }
+  function closeMidiPanel(){ hideMidiOverlay(); setMidiLearnArmed(false); }
+
+  if (midiBtn) midiBtn.addEventListener("click", openMidiPanel);
+  if (midiClose) midiClose.addEventListener("click", closeMidiPanel);
+  if (midiOverlay) midiOverlay.addEventListener("click", function(e){ if (e.target === midiOverlay) closeMidiPanel(); });
+  if (midiEnableBtn) midiEnableBtn.addEventListener("click", enableMidi);
+  if (midiLearnBtn) midiLearnBtn.addEventListener("click", function(){
+    if (midiLearnArmed){ setMidiLearnArmed(false); return; }
+    // Close the modal so the knob grid underneath becomes clickable --
+    // the floating banner takes over prompting the user from here.
+    hideMidiOverlay();
+    setMidiLearnArmed(true);
+  });
+  if (midiLearnCancelBtn) midiLearnCancelBtn.addEventListener("click", function(){ setMidiLearnArmed(false); });
+  if (midiClearBtn) midiClearBtn.addEventListener("click", function(){
+    midiMappings = [];
+    saveMidiMappings();
+    renderMidiMappingList();
+  });
+  document.addEventListener("keydown", function(e){
+    if (e.key !== "Escape") return;
+    if (midiOverlay && midiOverlay.classList.contains("show")) closeMidiPanel();
+    else if (midiLearnArmed) setMidiLearnArmed(false);
+  });
+
+  loadMidiMappings();
+  renderMidiStatus();
+
   /* ---------- init ---------- */
   buildKnobs();
   applyLang("en");
@@ -3326,6 +3788,18 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     var seen = false;
     try { seen = localStorage.getItem(WELCOME_SEEN_KEY) === "1"; } catch(e){}
     if (!seen) openWelcome();
+  })();
+  // Silently reconnect MIDI on return visits if the browser already granted
+  // access before -- never prompt for permission without the user clicking
+  // Enable MIDI first.
+  (function(){
+    try {
+      if (navigator.requestMIDIAccess && navigator.permissions && navigator.permissions.query){
+        navigator.permissions.query({name:"midi", sysex:false}).then(function(status){
+          if (status.state === "granted") enableMidi();
+        }).catch(function(){});
+      }
+    } catch(e){}
   })();
 })();
 </script>
@@ -3349,16 +3823,47 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   var codeSub = document.getElementById("gate-code-sub");
   var backLink = document.getElementById("gate-back-link");
   var resendLink = document.getElementById("gate-resend-link");
+  var gateTitleEl = document.getElementById("gate-title");
+  var gateDescEl = document.getElementById("gate-desc");
   var STORE_KEY = "gemstar_access_token";
-  var pendingExport = false;
+  var pendingAction = "export";
   var currentChallenge = null;
   var currentEmail = "";
 
   window.gemstarHasAccess = false;
 
+  var GATE_COPY = {
+    export: {
+      t: "Subscribe to Export",
+      d: "You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export."
+    },
+    knob: {
+      t: "Unlock Signature Knobs",
+      d: "M5tar & Jewels signature knobs are part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock them."
+    },
+    fullMix: {
+      t: "Unlock Full Song Mix",
+      d: "Full Song Mix — blending your vocal with a beat, mixed and mastered — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
+    },
+    plan: {
+      t: "Verify Your Plan",
+      d: "Enter the email you used to subscribe so this browser reflects your actual plan."
+    }
+  };
+  function applyGateCopy(reason){
+    var key = (reason && reason.indexOf("knob:") === 0) ? "knob" : reason;
+    var c = GATE_COPY[key] || GATE_COPY.export;
+    if (gateTitleEl) gateTitleEl.textContent = c.t;
+    if (gateDescEl) gateDescEl.textContent = c.d;
+  }
+
   function showGate(){ overlay.classList.add("show"); }
   function hideGate(){ overlay.classList.remove("show"); }
-  window.gemstarShowGate = function(){ pendingExport = true; showGate(); };
+  window.gemstarShowGate = function(reason){
+    pendingAction = reason || "export";
+    applyGateCopy(pendingAction);
+    showGate();
+  };
 
   function setStatus(msg, cls){
     status.textContent = msg || "";
@@ -3383,17 +3888,19 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     setTimeout(function(){ codeInput.focus(); }, 50);
   }
 
-  function unlockWithToken(token){
+  function unlockWithToken(token, tier){
     try{ localStorage.setItem(STORE_KEY, token); }catch(e){}
     window.gemstarHasAccess = true;
+    window.gemstarTier = tier || "starter";
+    if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier);
     setTimeout(function(){
       hideGate();
       setStatus(""); setCodeStatus("");
-      if(pendingExport){
-        pendingExport = false;
+      if(pendingAction === "export"){
         var btn = document.getElementById("btn-export");
         if(btn) btn.click();
       }
+      pendingAction = "export";
     }, 500);
   }
 
@@ -3405,7 +3912,11 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ token: saved })
     }).then(function(r){ return r.json(); }).then(function(data){
-      if(data && data.valid){ window.gemstarHasAccess = true; }
+      if(data && data.valid){
+        window.gemstarHasAccess = true;
+        window.gemstarTier = data.tier || "starter";
+        if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier);
+      }
       else{ try{ localStorage.removeItem(STORE_KEY); }catch(e){} }
     }).catch(function(){});
   }
@@ -3418,8 +3929,8 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       if(btnEl) btnEl.disabled = false;
       if(data && data.access && data.token){
         // Allowlisted founders skip the code step entirely.
-        statusEl("Unlocked — exporting…", "ok");
-        unlockWithToken(data.token);
+        statusEl("Unlocked — " + (pendingAction === "export" ? "exporting" : "unlocking") + "…", "ok");
+        unlockWithToken(data.token, data.tier);
       } else if(data && data.ok && data.challenge){
         currentChallenge = data.challenge;
         currentEmail = email;
@@ -3456,8 +3967,8 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     }).then(function(r){ return r.json(); }).then(function(data){
       codeSubmitBtn.disabled = false;
       if(data && data.access && data.token){
-        setCodeStatus("Unlocked — exporting…", "ok");
-        unlockWithToken(data.token);
+        setCodeStatus("Unlocked — " + (pendingAction === "export" ? "exporting" : "unlocking") + "…", "ok");
+        unlockWithToken(data.token, data.tier);
       } else {
         setCodeStatus((data && data.error) || "Incorrect code — try again.", "err");
       }
@@ -3481,7 +3992,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   });
 
   overlay.addEventListener("click", function(e){
-    if(e.target === overlay){ pendingExport = false; hideGate(); }
+    if(e.target === overlay){ pendingAction = "export"; hideGate(); }
   });
 
   showEmailStep();
