@@ -95,6 +95,7 @@ async function sendCodeEmail(email, code) {
       subject: `${code} is your Gemstar export code`,
       html:
         `<div style="font-family:sans-serif;max-width:420px;margin:auto;padding:24px;">` +
+        `<img src="https://gemstaraudio.com/email-logo.png" width="140" alt="Gemstar" style="display:block;margin:0 auto 20px;">` +
         `<h2 style="margin:0 0 12px;">Your Gemstar export code</h2>` +
         `<p style="color:#555;font-size:14px;">Enter this code in Gemstar to unlock MP3 export:</p>` +
         `<p style="font-size:32px;font-weight:700;letter-spacing:6px;margin:20px 0;">${code}</p>` +
