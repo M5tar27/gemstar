@@ -908,9 +908,13 @@
     </div>
 
     <div class="export-row">
-      <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export MP3</button>
+      <select id="export-format" class="pill-btn pill-cyan" aria-label="Export format">
+        <option value="mp3" id="export-fmt-mp3" selected>MP3</option>
+        <option value="wav" id="export-fmt-wav">WAV (24-bit)</option>
+      </select>
+      <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
     </div>
-    <p class="export-note" data-i18n="exportNote">Downloads a .zip containing a real MP3 (encoded right in your browser) — unzip it to get the .mp3 file. Capturing the audio happens in real time, so it takes as long as the track; encoding to MP3 after that is quick.</p>
+    <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-status" id="export-status"></p>
   </div>
 
@@ -1024,7 +1028,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.2/jszip.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1070,11 +1073,12 @@
       masterPass2:"Pass 2/2 — verifying the correction… play through again.",
       masterSilent:"Couldn't measure loudness — this track looks silent.",
       masterResult:"Measured {measured} LUFS → Output Gain set to {gain} dB (now reads {final} LUFS, target {target} LUFS).",
-      exportBtn:"Export MP3",
-      exportNote:"Downloads a .zip containing a real MP3 (encoded right in your browser) — unzip it to get the .mp3 file. In Full Song Mix mode, it's the mastered vocal + beat combined. Capturing the audio happens in real time, so it takes as long as the track; encoding to MP3 after that is quick.",
+      exportBtn:"Export",
+      exportNote:"Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. In Full Song Mix mode, it's the mastered vocal + beat combined. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.",
+      exportFmtMp3:"MP3", exportFmtWav:"WAV (24-bit)",
       exporting:"Capturing audio… play through the full track.",
-      exportEncoding:"Encoding MP3…",
-      exportedOk:"Exported — check your downloads (unzip it to get the MP3).",
+      exportEncoding:"Encoding…",
+      exportedOk:"Exported — check your downloads.",
       exportErr:"Export needs a loaded track first.",
       pricingEyebrow:"Plans", pricingTitle:"Pick your monthly chain",
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
@@ -1095,7 +1099,7 @@
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
-      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
         clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
@@ -1108,6 +1112,7 @@
         humanize:"Humanize: adds a touch of natural vibrato back on top of the correction so it doesn't sound stiff — 0 is glass-clean, higher adds more wobble.",
         space:"Space: reverb + delay — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
+        radio:"Radio: fast, dense parallel compression for that polished radio/pop vocal push, plus a lifted top end for airiness — blends under the dry tone instead of squashing it flat.",
         m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch, Voice & Jewels together, plus subtle warmth.",
         jewels:"Jewels: high-shelf air/sparkle exciter with vocal doubling — sparkles visually past 60%."
       },
@@ -1183,11 +1188,12 @@
       masterPass2:"Paso 2/2 — verificando la corrección… reproduciendo de nuevo.",
       masterSilent:"No se pudo medir la sonoridad — esta pista parece estar en silencio.",
       masterResult:"Medido {measured} LUFS → Ganancia de Salida ajustada a {gain} dB (ahora {final} LUFS, objetivo {target} LUFS).",
-      exportBtn:"Exportar MP3",
-      exportNote:"Descarga un .zip que contiene un MP3 real (codificado en tu propio navegador) — descomprímelo para obtener el archivo .mp3. En modo Mezcla De Canción Completa, es la voz + el beat combinados y masterizados. Capturar el audio ocurre en tiempo real, así que tarda lo que dure la canción; codificar a MP3 después es rápido.",
+      exportBtn:"Exportar",
+      exportNote:"Descarga un archivo real codificado en tu propio navegador — MP3 para compartir fácilmente, o WAV (24-bit, sin compresión) para la mejor calidad al llevarlo a otro DAW. En modo Mezcla De Canción Completa, es la voz + el beat combinados y masterizados. Capturar el audio ocurre en tiempo real, así que tarda lo que dure la canción; codificar después es rápido.",
+      exportFmtMp3:"MP3", exportFmtWav:"WAV (24-bit)",
       exporting:"Capturando audio… reproduciendo la pista completa.",
-      exportEncoding:"Codificando MP3…",
-      exportedOk:"Exportado — revisa tus descargas (descomprime para obtener el MP3).",
+      exportEncoding:"Codificando…",
+      exportedOk:"Exportado — revisa tus descargas.",
       exportErr:"Primero carga una pista para exportar.",
       pricingEyebrow:"Planes", pricingTitle:"Elige tu cadena mensual",
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
@@ -1208,7 +1214,7 @@
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
-      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
         clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
@@ -1221,6 +1227,7 @@
         humanize:"Humanizar: agrega un toque de vibrato natural sobre la corrección para que no suene rígido — 0 es limpio y cristalino, más alto agrega más vibrato.",
         space:"Espacio: reverb + delay — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
+        radio:"Radio: compresión paralela rápida y densa para ese empuje de voz pulido tipo radio/pop, más un realce en los agudos para dar aire — se mezcla bajo el tono original en vez de aplastarlo.",
         m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada, Voz y Jewels juntos, más calidez sutil.",
         jewels:"Jewels: exciter de brillo en agudos con doblaje vocal — brilla visualmente por encima del 60%."
       },
@@ -1301,6 +1308,10 @@
     if (planOptStarter) planOptStarter.textContent = STR[l].planOptStarter;
     if (planOptMix) planOptMix.textContent = STR[l].planOptMix;
     if (planOptUnlimited) planOptUnlimited.textContent = STR[l].planOptUnlimited;
+    var exportFmtMp3 = document.getElementById("export-fmt-mp3");
+    var exportFmtWav = document.getElementById("export-fmt-wav");
+    if (exportFmtMp3) exportFmtMp3.textContent = STR[l].exportFmtMp3;
+    if (exportFmtWav) exportFmtWav.textContent = STR[l].exportFmtWav;
     updateVocalMixerUI();
     updatePlayButton();
     updateAbButton();
@@ -1318,18 +1329,19 @@
     {id:"smooth",group:"finish", color:"#FF2E88"},
     {id:"space", group:"finish", color:"#14C8B8"},
     {id:"wide",  group:"finish", color:"#C24CFF"},
+    {id:"radio", group:"finish", color:"#FFB020"},
     {id:"tune",     group:"pitch", color:"#FF4CD6"},
     {id:"humanize", group:"pitch", color:"#FF8FE0"}
   ];
 
-  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  m5tar:0,  jewels:0, humanize:0};
+  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  radio:0,  m5tar:0,  jewels:0, humanize:0};
   var PRESETS = {
-    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, m5tar:70, jewels:0,  humanize:15},
-    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, m5tar:0,  jewels:70, humanize:20},
-    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, m5tar:0,  jewels:40, humanize:25},
-    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  m5tar:40, jewels:0,  humanize:10},
-    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, m5tar:15, jewels:15, humanize:5},
-    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, m5tar:10, jewels:25, humanize:30}
+    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, radio:25, m5tar:70, jewels:0,  humanize:15},
+    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, radio:20, m5tar:0,  jewels:70, humanize:20},
+    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, radio:15, m5tar:0,  jewels:40, humanize:25},
+    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  radio:45, m5tar:40, jewels:0,  humanize:10},
+    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, radio:35, m5tar:15, jewels:15, humanize:5},
+    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30}
   };
 
   var values = Object.assign({}, DEFAULT_VALUES);
@@ -1991,6 +2003,25 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     g.deEssGain = ctx.createGain();
     g.deEssSum = ctx.createGain();
 
+    // ---- Radio: parallel "radio-ready" compression + air ----
+    // Classic New-York/parallel-compression trick: blend a small amount of
+    // dry signal underneath a hard, fast compressor instead of squashing the
+    // whole vocal through it. That's what keeps it "airy" instead of dead —
+    // straight-through heavy compression kills the openness; parallel keeps
+    // the transients breathing while the wet path adds density and a lifted
+    // top end for that polished radio/pop push.
+    g.radioDry = ctx.createGain();
+    g.radioComp = ctx.createDynamicsCompressor();
+    g.radioComp.knee.value = 3;
+    g.radioComp.attack.value = 0.001;
+    g.radioComp.release.value = 0.12;
+    g.radioMakeup = ctx.createGain();
+    g.radioAir = ctx.createBiquadFilter();
+    g.radioAir.type = "highshelf";
+    g.radioAir.frequency.value = 11000;
+    g.radioWet = ctx.createGain();
+    g.radioSum = ctx.createGain();
+
     // ---- Speed/Humanize: real pitch correction (AudioWorklet) ----
     // g.pitchInput/g.pitchOutput are stable nodes the rest of the chain
     // always connects to/from; internally they start wired straight through
@@ -2111,8 +2142,18 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     // highs: top-end shelf sits after de-essing so it doesn't reintroduce sibilance
     g.deEssSum.connect(g.highsFilter);
 
-    // speed/humanize: real pitch correction sits after Highs, before Space/Wide
-    g.highsFilter.connect(g.pitchInput);
+    // radio: parallel compression + air sits right after Highs — dry path
+    // plus a hard-compressed/lifted wet path, summed back together
+    g.highsFilter.connect(g.radioDry);
+    g.radioDry.connect(g.radioSum);
+    g.highsFilter.connect(g.radioComp);
+    g.radioComp.connect(g.radioMakeup);
+    g.radioMakeup.connect(g.radioAir);
+    g.radioAir.connect(g.radioWet);
+    g.radioWet.connect(g.radioSum);
+
+    // speed/humanize: real pitch correction sits after Highs/Radio, before Space/Wide
+    g.radioSum.connect(g.pitchInput);
 
     // wide: dry + room + hall/delay + chorus
     g.pitchOutput.connect(g.wideDry);
@@ -2237,6 +2278,19 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     chain.highsFilter.gain.setTargetAtTime(lerp(v.highs,0,100,-6,9), now, 0.02);
 
     chain.deEssGain.gain.setTargetAtTime(-(v.smooth/100)*1.1, now, 0.02);
+
+    // Radio: parallel radio-style compression + air (dedicated). Threshold
+    // drops and ratio climbs as the knob opens up; a rising highshelf on the
+    // wet path only is what gives the "airy" top end. Dry never fully
+    // disappears (floors at 40% dry at 100% radio) so it stays parallel
+    // rather than fully squashed.
+    var rd = v.radio/100;
+    chain.radioComp.threshold.setTargetAtTime(lerp(v.radio,0,100,-6,-32), now, 0.02);
+    chain.radioComp.ratio.setTargetAtTime(lerp(v.radio,0,100,1.5,10), now, 0.02);
+    chain.radioMakeup.gain.setTargetAtTime(dbToGain(lerp(v.radio,0,100,0,6)), now, 0.02);
+    chain.radioAir.gain.setTargetAtTime(lerp(v.radio,0,100,0,6), now, 0.02);
+    chain.radioDry.gain.setTargetAtTime(1 - rd*0.6, now, 0.02);
+    chain.radioWet.gain.setTargetAtTime(rd, now, 0.02);
 
     // Speed/Humanize: real pitch correction. Both AudioParams are already
     // 0-100 range, same as the knobs, so no lerp needed. The worklet node
@@ -3326,24 +3380,70 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     runAutoMaster();
   });
 
-  /* ---------- export: real MP3, zipped ---------- */
-  // The hosted downloads capability's extension allowlist doesn't include
-  // .mp3 (only things like .webm/.mp4 for audio) — but it does allow .zip.
-  // So: encode genuine MP3 bytes in the browser with lamejs (a real port of
-  // the LAME encoder, not a fake/lossy substitute), wrap that single file in
-  // a .zip with JSZip, and offer the zip. One extra unzip step for a real,
-  // standard .mp3 that plays and imports anywhere.
+  /* ---------- export: real MP3 or 24-bit WAV, downloaded directly ---------- */
+  // Downloads go straight through the browser's own Blob+<a download> path —
+  // no external "downloads" capability involved, so this works as a real
+  // file save on any normal website, not just inside a sandboxed preview.
   var btnExport = document.getElementById("btn-export");
+  var exportFormatEl = document.getElementById("export-format");
   var exportStatus = document.getElementById("export-status");
   var exporting = false;
 
+  function triggerBrowserDownload(blob, filename){
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }
+
+  // TPDF (triangular) dither: sum of two independent uniform randoms spreads
+  // the quantization error into noise instead of harmonic distortion —
+  // standard practice on any real 16-bit bounce, and matters most on quiet
+  // passages/fades where straight truncation would otherwise be audible.
   function floatTo16BitPCM(f32){
     var out = new Int16Array(f32.length);
     for (var i=0; i<f32.length; i++){
-      var s = Math.max(-1, Math.min(1, f32[i]));
-      out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      var dither = (Math.random() - Math.random()) / 32768;
+      var s = Math.max(-1, Math.min(1, f32[i] + dither));
+      out[i] = s < 0 ? Math.round(s * 0x8000) : Math.round(s * 0x7FFF);
     }
     return out;
+  }
+
+  // 24-bit stereo WAV — no dither needed here: a 24-bit noise floor
+  // (~-144dBFS) sits far below anything audible, so this is effectively
+  // the same bit-perfect quality a DAW's own WAV bounce would give you.
+  function encodeWavStereo24(left, right, sampleRate){
+    var channels = 2, bytesPerSample = 3, blockAlign = bytesPerSample * channels;
+    var byteRate = sampleRate * blockAlign;
+    var frameCount = left.length;
+    var dataSize = frameCount * blockAlign;
+    var buffer = new ArrayBuffer(44 + dataSize);
+    var view = new DataView(buffer);
+    function writeStr(offset, str){ for (var i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+    writeStr(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); writeStr(8, "WAVE");
+    writeStr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true); view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 24, true);
+    writeStr(36, "data"); view.setUint32(40, dataSize, true);
+    var offset = 44;
+    function write24(sample){
+      var s = Math.max(-1, Math.min(1, sample));
+      var v = s < 0 ? Math.round(s * 0x800000) : Math.round(s * 0x7FFFFF);
+      view.setUint8(offset, v & 0xFF);
+      view.setUint8(offset + 1, (v >> 8) & 0xFF);
+      view.setUint8(offset + 2, (v >> 16) & 0xFF);
+      offset += 3;
+    }
+    for (var i=0; i<frameCount; i++){
+      write24(left[i]);
+      write24(right[i]);
+    }
+    return new Blob([view], { type: "audio/wav" });
   }
 
   function encodeMp3(left, right, sampleRate){
@@ -3378,7 +3478,8 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       exportStatus.className = "export-status err";
       return;
     }
-    if (typeof lamejs === "undefined" || typeof JSZip === "undefined"){
+    var fmt = exportFormatEl ? exportFormatEl.value : "mp3";
+    if (fmt === "mp3" && typeof lamejs === "undefined"){
       exportStatus.textContent = STR[lang].exportErr;
       exportStatus.className = "export-status err";
       return;
@@ -3395,6 +3496,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
 
     var dur = currentTotalDuration();
     var baseName = (mode === "full" && beatBuffer) ? "gemstar-full-mix" : "gemstar-vocal";
+    var fmt = exportFormatEl ? exportFormatEl.value : "mp3";
 
     try {
       exportStatus.textContent = STR[lang].exporting;
@@ -3403,15 +3505,16 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       var channels = await runAnalysisPass(dur);
 
       exportStatus.textContent = STR[lang].exportEncoding;
-      var mp3Blob = encodeMp3(channels[0], channels[1], ctx.sampleRate);
+      var blob, filename;
+      if (fmt === "wav"){
+        blob = encodeWavStereo24(channels[0], channels[1], ctx.sampleRate);
+        filename = baseName + ".wav";
+      } else {
+        blob = encodeMp3(channels[0], channels[1], ctx.sampleRate);
+        filename = baseName + ".mp3";
+      }
 
-      var zip = new JSZip();
-      zip.file(baseName + ".mp3", mp3Blob);
-      var zipBlob = await zip.generateAsync({type:"blob"});
-
-      var downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
-      if (!downloads) throw new Error("no downloads capability");
-      await downloads.save({filename: baseName + ".zip", data: zipBlob});
+      triggerBrowserDownload(blob, filename);
 
       exportStatus.textContent = STR[lang].exportedOk;
       exportStatus.className = "export-status ok";
@@ -3425,38 +3528,35 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   }
 
   /* ---------- waitlist ---------- */
+  // Talks to /api/waitlist (a real Vercel function that emails the signup
+  // to the studio inbox via Resend) instead of the old window.claude.use("db")
+  // capability, which only exists inside Claude's own artifact preview and
+  // always failed on the real site.
   var wlForm = document.getElementById("waitlist-form");
   var wlStatus = document.getElementById("wl-status");
   var wlSubmit = document.getElementById("wl-submit");
-  var dbPromise = null;
-  function getDb(){
-    if (!window.claude || !window.claude.use) return Promise.resolve(null);
-    if (!dbPromise) dbPromise = window.claude.use("db").catch(function(){ return null; });
-    return dbPromise;
-  }
   wlForm.addEventListener("submit", function(e){
     e.preventDefault();
     var email = document.getElementById("wl-email").value.trim();
     var plan = document.getElementById("wl-plan").value;
     if (!email) return;
     wlSubmit.disabled = true;
-    getDb().then(function(db){
-      if (!db){
+    fetch("/api/waitlist", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ email: email, plan: plan })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (!data || !data.ok){
         wlStatus.textContent = STR[lang].wlErr;
         wlStatus.className = "form-status err";
         wlSubmit.disabled = false;
         return;
       }
-      var id = "wl_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
-      return db.doc("waitlist/" + id).set({
-        email: email, plan: plan, submittedAt: new Date().toISOString()
-      }).then(function(){
-        wlForm.reset();
-        document.getElementById("wl-plan").value = "Mix — $49/mo";
-        wlStatus.textContent = STR[lang].wlOk;
-        wlStatus.className = "form-status ok";
-        wlSubmit.disabled = false;
-      });
+      wlForm.reset();
+      document.getElementById("wl-plan").value = "Mix — $49/mo";
+      wlStatus.textContent = STR[lang].wlOk;
+      wlStatus.className = "form-status ok";
+      wlSubmit.disabled = false;
     }).catch(function(){
       wlStatus.textContent = STR[lang].wlErr;
       wlStatus.className = "form-status err";
