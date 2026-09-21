@@ -71,6 +71,7 @@ module.exports = async (req, res) => {
         subject: `Gemstar waitlist: ${email}`,
         html:
           `<div style="font-family:sans-serif;max-width:420px;margin:auto;padding:24px;">` +
+          `<img src="https://gemstaraudio.com/email-logo.png" width="140" alt="Gemstar" style="display:block;margin:0 auto 20px;">` +
           `<h2 style="margin:0 0 12px;">New waitlist signup</h2>` +
           `<p style="color:#555;font-size:14px;">Email: <strong>${escapeHtml(email)}</strong></p>` +
           `<p style="color:#555;font-size:14px;">Interested plan: <strong>${escapeHtml(plan)}</strong></p>` +
