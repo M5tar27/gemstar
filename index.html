@@ -1723,6 +1723,8 @@
     ctx = null;
     chain = null;
     pitchWorkletModulePromise = null;
+    captureWorkletModulePromise = null;
+    analysisWorkletModulePromise = null;
     try { oldCtx.close(); } catch(e){}
     ensureContext();
   }
@@ -1752,6 +1754,38 @@
     }
     return curve;
   }
+
+  // Both curve builders above walk a 1024-sample array with per-sample
+  // trig/branching -- cheap once, but applyAllParams() used to call them
+  // unconditionally on every single call, and it's called on every
+  // pointermove while dragging ANY knob (not just Clean/M5tar) plus once
+  // per preset select, which fires a burst of ~25 param updates at once.
+  // That's a lot of avoidable main-thread work landing right in the middle
+  // of an already-heavy real-time audio graph (two convolution reverbs,
+  // three compressors, modulated chorus), which is exactly the kind of
+  // synchronous spike that shows up as an audible glitch/"robotic" stutter.
+  // These memoize on the rounded input so dragging an unrelated knob (or
+  // any preset whose Clean/M5tar values happen to match the cache) skips
+  // the regen entirely -- only a real change to the driving value pays the
+  // cost.
+  var gateShaperCache = { key: null, curve: null };
+  function getGateShaperCurve(amount){
+    var key = Math.round(amount * 500); // 0.2% resolution -- far finer than audible
+    if (gateShaperCache.key !== key){
+      gateShaperCache.curve = makeGateShaperCurve(amount);
+      gateShaperCache.key = key;
+    }
+    return gateShaperCache.curve;
+  }
+  var softClipCache = { key: null, curve: null };
+  function getSoftClipCurve(drive){
+    var key = Math.round(drive * 500);
+    if (softClipCache.key !== key){
+      softClipCache.curve = makeSoftClipCurve(drive);
+      softClipCache.key = key;
+    }
+    return softClipCache.curve;
+  }
   function makeReverbBuffer(duration, decay, seedShift){
     // Raw random-decay noise (the original approach) reads as harsh/metallic —
     // real rooms lose high frequencies faster as the tail decays. We fake that
@@ -1780,6 +1814,20 @@
       }
     }
     return buf;
+  }
+  // makeReverbBuffer() walks every sample of a 0.9-2.4s stereo buffer with a
+  // per-sample lowpass+envelope -- real work, and buildChain() used to redo
+  // it for both reverbs every single time the chain gets rebuilt (which
+  // happens after every recording, not just on first load). AudioBuffers
+  // aren't tied to the AudioContext that created them (same reason the
+  // already-decoded vocal/beat buffers survive a context reset untouched),
+  // so these only need generating once per sample rate and can be reused
+  // across every future rebuild.
+  var reverbBufferCache = {};
+  function getReverbBuffer(duration, decay, seedShift){
+    var key = duration + "," + decay + "," + seedShift + "," + ctx.sampleRate;
+    if (!reverbBufferCache[key]) reverbBufferCache[key] = makeReverbBuffer(duration, decay, seedShift);
+    return reverbBufferCache[key];
   }
 
   // ---- Real pitch-correction AudioWorklet ----
@@ -1974,6 +2022,130 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     });
   }
 
+  // ---- Recording-capture AudioWorklet ----
+  // The mic-capture path used to run on ScriptProcessorNode, whose
+  // onaudioprocess callback executes synchronously on the MAIN thread --
+  // a well-known source of glitches/dropouts under any main-thread
+  // contention (the live meter's rAF loop, layout, GC pauses, etc.), and
+  // exactly what was causing lag while recording. AudioWorkletProcessor
+  // instead runs on the browser's dedicated, high-priority audio-rendering
+  // thread, so it keeps up regardless of what the main thread is doing. It
+  // just hands each render quantum's mono samples to the main thread via a
+  // transferable postMessage (no copy) so they can be assembled into the
+  // final take the same way as before. Mirrors the loadPitchWorklet pattern
+  // above -- same Blob-URL/addModule/cached-promise approach, own module and
+  // own cached promise since AudioWorklet modules are per-context.
+  var CAPTURE_WORKLET_SOURCE = `
+class GemstarCaptureProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    var input = inputs[0];
+    if (input && input[0] && input[0].length) {
+      var chunk = new Float32Array(input[0]);
+      this.port.postMessage(chunk, [chunk.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('gemstar-capture-processor', GemstarCaptureProcessor);
+`;
+
+  var captureWorkletModulePromise = null;
+  function loadCaptureWorklet(audioCtx){
+    if (!audioCtx.audioWorklet || typeof AudioWorkletNode === "undefined"){
+      return Promise.resolve(null);
+    }
+    if (!captureWorkletModulePromise){
+      try {
+        var capBlob = new Blob([CAPTURE_WORKLET_SOURCE], {type: "application/javascript"});
+        var capUrl = URL.createObjectURL(capBlob);
+        captureWorkletModulePromise = audioCtx.audioWorklet.addModule(capUrl).catch(function(err){
+          console.warn("Gemstar: capture worklet failed to load, falling back to ScriptProcessorNode.", err);
+          return null;
+        });
+      } catch(err){
+        console.warn("Gemstar: capture worklet setup failed, falling back to ScriptProcessorNode.", err);
+        captureWorkletModulePromise = Promise.resolve(null);
+      }
+    }
+    return captureWorkletModulePromise.then(function(result){
+      if (result === null) return null;
+      try {
+        return new AudioWorkletNode(audioCtx, "gemstar-capture-processor", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          channelCount: 1,
+          channelCountMode: "explicit",
+          channelCountInterpretation: "speakers"
+        });
+      } catch(err){
+        console.warn("Gemstar: capture worklet node creation failed, falling back to ScriptProcessorNode.", err);
+        return null;
+      }
+    });
+  }
+
+  // ---- Auto-Master analysis-tap AudioWorklet ----
+  // runAnalysisPass() (below) plays the track through the real, audible
+  // chain once to measure loudness for Auto-Master, tapping the output with
+  // a node so the raw PCM can be inspected afterward. That tap used to be a
+  // ScriptProcessorNode too -- and because ScriptProcessorNode's callback
+  // runs synchronously on the SAME thread that also has to keep up with the
+  // live audio callback, a slow handler (allocating/copying full render
+  // quanta into growing arrays) can stall the whole graph and cause audible
+  // stutter in the playback the user is actually hearing during Auto-Master,
+  // not just in the tapped copy. Moving the tap to an AudioWorkletProcessor
+  // keeps that copying off the audio thread entirely. Same pattern as the
+  // other two worklets above.
+  var ANALYSIS_WORKLET_SOURCE = `
+class GemstarAnalysisTapProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    var input = inputs[0];
+    if (input && input.length && input[0] && input[0].length) {
+      var chL = new Float32Array(input[0]);
+      var chR = (input.length > 1 && input[1]) ? new Float32Array(input[1]) : new Float32Array(chL);
+      this.port.postMessage({ l: chL, r: chR }, [chL.buffer, chR.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
+`;
+
+  var analysisWorkletModulePromise = null;
+  function loadAnalysisWorklet(audioCtx){
+    if (!audioCtx.audioWorklet || typeof AudioWorkletNode === "undefined"){
+      return Promise.resolve(null);
+    }
+    if (!analysisWorkletModulePromise){
+      try {
+        var anBlob = new Blob([ANALYSIS_WORKLET_SOURCE], {type: "application/javascript"});
+        var anUrl = URL.createObjectURL(anBlob);
+        analysisWorkletModulePromise = audioCtx.audioWorklet.addModule(anUrl).catch(function(err){
+          console.warn("Gemstar: analysis-tap worklet failed to load, falling back to ScriptProcessorNode.", err);
+          return null;
+        });
+      } catch(err){
+        console.warn("Gemstar: analysis-tap worklet setup failed, falling back to ScriptProcessorNode.", err);
+        analysisWorkletModulePromise = Promise.resolve(null);
+      }
+    }
+    return analysisWorkletModulePromise.then(function(result){
+      if (result === null) return null;
+      try {
+        return new AudioWorkletNode(audioCtx, "gemstar-analysis-tap", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          channelCount: 2,
+          channelCountMode: "explicit",
+          channelCountInterpretation: "speakers"
+        });
+      } catch(err){
+        console.warn("Gemstar: analysis-tap node creation failed, falling back to ScriptProcessorNode.", err);
+        return null;
+      }
+    });
+  }
+
   function buildChain(){
     var g = {};
 
@@ -2081,11 +2253,11 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     // ---- Wide: room / hall+delay / chorus ----
     g.wideDry = ctx.createGain();
     g.convSmall = ctx.createConvolver();
-    g.convSmall.buffer = makeReverbBuffer(0.9, 2.2, 1);
+    g.convSmall.buffer = getReverbBuffer(0.9, 2.2, 1);
     g.smallWet = ctx.createGain();
 
     g.convHall = ctx.createConvolver();
-    g.convHall.buffer = makeReverbBuffer(2.4, 1.6, 7);
+    g.convHall.buffer = getReverbBuffer(2.4, 1.6, 7);
     g.hallWet = ctx.createGain();
 
     g.echoDelay = ctx.createDelay(0.5);
@@ -2301,7 +2473,8 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     var effJewels = Math.min(100, v.jewels + m5*50);
 
     chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
-    chain.gateShaper.curve = makeGateShaperCurve(v.clean/100);
+    var newGateCurve = getGateShaperCurve(v.clean/100);
+    if (chain.gateShaper.curve !== newGateCurve) chain.gateShaper.curve = newGateCurve;
     chain.hissFilter.gain.setTargetAtTime(lerp(v.clean,0,100,0,-6), now, 0.02);
 
     chain.punchComp.threshold.setTargetAtTime(lerp(effPunch,0,100,-8,-30), now, 0.02);
@@ -2353,7 +2526,8 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
 
     // M5tar: signature grit + low-mid warmth (its own light touch, plus
     // the parameter blend above)
-    chain.m5tarSat.curve = makeSoftClipCurve(0.1 + m5*0.5);
+    var newSoftClip = getSoftClipCurve(0.1 + m5*0.5);
+    if (chain.m5tarSat.curve !== newSoftClip) chain.m5tarSat.curve = newSoftClip;
     chain.m5tarWarmth.gain.setTargetAtTime(lerp(v.m5tar,0,100,0,5), now, 0.02);
     chain.m5tarDry.gain.setTargetAtTime(1 - m5*0.5, now, 0.02);
     chain.m5tarWet.gain.setTargetAtTime(m5, now, 0.02);
@@ -2572,7 +2746,8 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     function stopCapture(){
       recording = false;
       if (captureNode){
-        captureNode.onaudioprocess = null;
+        if (captureNode.port){ try{ captureNode.port.onmessage = null; }catch(e){} }
+        else { captureNode.onaudioprocess = null; }
         try{ captureNode.disconnect(); }catch(e){}
         captureNode = null;
       }
@@ -2651,12 +2826,6 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       recordStream = stream;
       ensureContext();
 
-      if (!ctx.createScriptProcessor){
-        stopStream();
-        alert(STR[lang].recordUnsupported);
-        return;
-      }
-
       recordSrcNode = ctx.createMediaStreamSource(stream);
       recordAnalyser = ctx.createAnalyser();
       recordAnalyser.fftSize = 512;
@@ -2670,33 +2839,60 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       // (avoids feeding the mic back out the speakers while recording).
       pcmChunks = [];
       pcmLength = 0;
-      captureNode = ctx.createScriptProcessor(4096, 1, 1);
       silentGain = ctx.createGain();
       silentGain.gain.value = 0;
-      recordSrcNode.connect(captureNode);
-      captureNode.connect(silentGain);
-      silentGain.connect(ctx.destination);
-      recording = true;
-      captureNode.onaudioprocess = function(e){
-        if (!recording) return;
-        var input = e.inputBuffer.getChannelData(0);
-        pcmChunks.push(new Float32Array(input));
-        pcmLength += input.length;
-      };
 
-      recordStartTs = Date.now();
-      if (opts.dotEl) opts.dotEl.classList.add("live");
-      opts.startBtn.hidden = true;
-      opts.stopBtn.hidden = false;
-      if (opts.retryBtn) opts.retryBtn.hidden = true;
-      if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintRecording;
-      recordTimerInterval = setInterval(function(){
-        var elapsed = (Date.now()-recordStartTs)/1000;
-        if (opts.timeEl) opts.timeEl.textContent = fmtRecordTime(elapsed) + " / " + fmtRecordTime(capSeconds);
-        if (elapsed >= capSeconds && recording){
-          finishRecording(); // plan's max recording length reached — saves what's captured so far
+      function beginCaptureWith(node){
+        captureNode = node;
+        recordSrcNode.connect(captureNode);
+        captureNode.connect(silentGain);
+        silentGain.connect(ctx.destination);
+        recording = true;
+        if (captureNode.port){
+          // AudioWorkletNode path — runs on the audio thread, samples arrive
+          // here already sliced into per-quantum Float32Arrays.
+          captureNode.port.onmessage = function(e){
+            if (!recording) return;
+            pcmChunks.push(e.data);
+            pcmLength += e.data.length;
+          };
+        } else {
+          // Fallback for browsers without AudioWorklet support.
+          captureNode.onaudioprocess = function(e){
+            if (!recording) return;
+            var input = e.inputBuffer.getChannelData(0);
+            pcmChunks.push(new Float32Array(input));
+            pcmLength += input.length;
+          };
         }
-      }, 200);
+
+        recordStartTs = Date.now();
+        if (opts.dotEl) opts.dotEl.classList.add("live");
+        opts.startBtn.hidden = true;
+        opts.stopBtn.hidden = false;
+        if (opts.retryBtn) opts.retryBtn.hidden = true;
+        if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintRecording;
+        recordTimerInterval = setInterval(function(){
+          var elapsed = (Date.now()-recordStartTs)/1000;
+          if (opts.timeEl) opts.timeEl.textContent = fmtRecordTime(elapsed) + " / " + fmtRecordTime(capSeconds);
+          if (elapsed >= capSeconds && recording){
+            finishRecording(); // plan's max recording length reached — saves what's captured so far
+          }
+        }, 200);
+      }
+
+      loadCaptureWorklet(ctx).then(function(workletNode){
+        if (workletNode){
+          beginCaptureWith(workletNode);
+          return;
+        }
+        if (!ctx.createScriptProcessor){
+          stopStream();
+          alert(STR[lang].recordUnsupported);
+          return;
+        }
+        beginCaptureWith(ctx.createScriptProcessor(4096, 1, 1));
+      });
     }
 
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
@@ -3358,24 +3554,28 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   // with [Float32Array left, Float32Array right].
   function runAnalysisPass(durationSec){
     return new Promise(function(resolve, reject){
-      if (typeof ctx.createScriptProcessor !== "function"){
-        reject(new Error("ScriptProcessorNode unavailable"));
-        return;
-      }
+      function beginWithTap(tapNode){
+      var isWorklet = !!tapNode.port;
       var chunksL = [], chunksR = [];
-      var sp = ctx.createScriptProcessor(4096, 2, 2);
       var silent = ctx.createGain();
       silent.gain.value = 0;
-      chain.finalLimiter.connect(sp);
-      sp.connect(silent);
+      chain.finalLimiter.connect(tapNode);
+      tapNode.connect(silent);
       silent.connect(ctx.destination);
-      sp.onaudioprocess = function(e){
-        var inBuf = e.inputBuffer;
-        var chL = inBuf.numberOfChannels > 0 ? inBuf.getChannelData(0) : null;
-        var chR = inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : chL;
-        if (chL) chunksL.push(chL.slice());
-        if (chR) chunksR.push(chR.slice());
-      };
+      if (isWorklet){
+        tapNode.port.onmessage = function(e){
+          chunksL.push(e.data.l);
+          chunksR.push(e.data.r);
+        };
+      } else {
+        tapNode.onaudioprocess = function(e){
+          var inBuf = e.inputBuffer;
+          var chL = inBuf.numberOfChannels > 0 ? inBuf.getChannelData(0) : null;
+          var chR = inBuf.numberOfChannels > 1 ? inBuf.getChannelData(1) : chL;
+          if (chL) chunksL.push(chL.slice());
+          if (chR) chunksR.push(chR.slice());
+        };
+      }
 
       var vocalNodes = [];
       var leadSrc = ctx.createBufferSource();
@@ -3427,10 +3627,11 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
 
       setTimeout(function(){
         clearInterval(duckTimer);
-        try { chain.finalLimiter.disconnect(sp); } catch(err){}
-        try { sp.disconnect(silent); } catch(err){}
+        try { chain.finalLimiter.disconnect(tapNode); } catch(err){}
+        try { tapNode.disconnect(silent); } catch(err){}
         try { silent.disconnect(ctx.destination); } catch(err){}
-        sp.onaudioprocess = null;
+        if (isWorklet){ try { tapNode.port.onmessage = null; } catch(err){} }
+        else { tapNode.onaudioprocess = null; }
         vocalNodes.forEach(function(n){
           try { n.stop(); } catch(err){}
           try { n.disconnect(); } catch(err){}
@@ -3452,6 +3653,19 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
         }
         resolve([outL, outR]);
       }, Math.ceil(durationSec*1000) + 250);
+      } // end beginWithTap
+
+      loadAnalysisWorklet(ctx).then(function(workletNode){
+        if (workletNode){
+          beginWithTap(workletNode);
+          return;
+        }
+        if (typeof ctx.createScriptProcessor !== "function"){
+          reject(new Error("ScriptProcessorNode unavailable"));
+          return;
+        }
+        beginWithTap(ctx.createScriptProcessor(4096, 2, 2));
+      });
     });
   }
 
