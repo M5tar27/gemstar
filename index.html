@@ -1677,6 +1677,24 @@
     buildChain();
   }
 
+  // ctx.resume() is async. Firing it and then immediately scheduling
+  // buffer-source .start() times (or reading ctx.currentTime) without
+  // waiting for it to actually settle is a race: on a still-suspended
+  // context, currentTime is frozen, so a "start in 30ms" ends up scheduled
+  // against a clock that hasn't moved yet -- by the time resume() actually
+  // completes, that moment can already be in the past, and the source
+  // plays back silently (or not at all) even though every UI flag says
+  // "playing." Every place that plays, analyzes, or exports audio routes
+  // through here so the context is verifiably running first.
+  function withRunningContext(fn){
+    ensureContext();
+    if (ctx.state === "suspended"){
+      ctx.resume().then(fn).catch(fn); // still try even if resume() itself rejects
+    } else {
+      fn();
+    }
+  }
+
   // iOS Safari (WebKit) puts the page's shared audio session into a
   // "PlayAndRecord" category the moment getUserMedia() is used for the mic
   // (Record Vocal), and it often does NOT revert that back to a plain
@@ -3115,49 +3133,52 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
 
   function startPlayback(){
     if (!audioBuffer) return;
-    ensureContext();
-    if (ctx.state === "suspended") ctx.resume();
-    stopSourceOnly();
-    stopBeatSourceOnly();
+    withRunningContext(function(){
+      // audioBuffer/beatBuffer/etc. can't change out from under this in the
+      // brief async gap while resume() was settling -- nothing else clears
+      // them except explicit user actions that also call stopPlayback first.
+      stopSourceOnly();
+      stopBeatSourceOnly();
 
-    // Vocal mixer bus: every loaded vocal track (lead + extras) gets its own
-    // level-gain "channel" and they all sum into the same chain.input — one
-    // shared 10-knob chain then processes the combined vocal signal together.
-    vocalSourceNodes = [];
-    var leadSrc = ctx.createBufferSource();
-    leadSrc.buffer = audioBuffer;
-    leadSrc.loop = true;
-    var leadGain = ctx.createGain();
-    leadGain.gain.value = mainVocalLevel;
-    leadSrc.connect(leadGain);
-    leadGain.connect(chain.input);
-    vocalSourceNodes.push({src:leadSrc, gain:leadGain, ref:null});
+      // Vocal mixer bus: every loaded vocal track (lead + extras) gets its own
+      // level-gain "channel" and they all sum into the same chain.input — one
+      // shared 10-knob chain then processes the combined vocal signal together.
+      vocalSourceNodes = [];
+      var leadSrc = ctx.createBufferSource();
+      leadSrc.buffer = audioBuffer;
+      leadSrc.loop = true;
+      var leadGain = ctx.createGain();
+      leadGain.gain.value = mainVocalLevel;
+      leadSrc.connect(leadGain);
+      leadGain.connect(chain.input);
+      vocalSourceNodes.push({src:leadSrc, gain:leadGain, ref:null});
 
-    extraVocals.forEach(function(t){
-      var src = ctx.createBufferSource();
-      src.buffer = t.buffer;
-      src.loop = true;
-      var g = ctx.createGain();
-      g.gain.value = t.level;
-      src.connect(g);
-      g.connect(chain.input);
-      t._liveGain = g;
-      vocalSourceNodes.push({src:src, gain:g, ref:t});
+      extraVocals.forEach(function(t){
+        var src = ctx.createBufferSource();
+        src.buffer = t.buffer;
+        src.loop = true;
+        var g = ctx.createGain();
+        g.gain.value = t.level;
+        src.connect(g);
+        g.connect(chain.input);
+        t._liveGain = g;
+        vocalSourceNodes.push({src:src, gain:g, ref:t});
+      });
+
+      if (beatBuffer){
+        beatSourceNode = ctx.createBufferSource();
+        beatSourceNode.buffer = beatBuffer;
+        beatSourceNode.loop = true;
+        beatSourceNode.connect(chain.beatGain);
+      }
+      // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
+      var startAt = ctx.currentTime + 0.03;
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt); });
+      if (beatSourceNode) beatSourceNode.start(startAt);
+      isPlaying = true;
+      updatePlayButton();
+      runVisualizer();
     });
-
-    if (beatBuffer){
-      beatSourceNode = ctx.createBufferSource();
-      beatSourceNode.buffer = beatBuffer;
-      beatSourceNode.loop = true;
-      beatSourceNode.connect(chain.beatGain);
-    }
-    // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
-    var startAt = ctx.currentTime + 0.03;
-    vocalSourceNodes.forEach(function(n){ n.src.start(startAt); });
-    if (beatSourceNode) beatSourceNode.start(startAt);
-    isPlaying = true;
-    updatePlayButton();
-    runVisualizer();
   }
   function stopSourceOnly(){
     vocalSourceNodes.forEach(function(n){
@@ -3499,9 +3520,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       masterStatusEl.className = "master-status err";
       return;
     }
-    ensureContext();
-    if (ctx.state === "suspended") ctx.resume();
-    runAutoMaster();
+    withRunningContext(runAutoMaster);
   });
 
   /* ---------- export: real MP3 or 24-bit WAV, downloaded directly ---------- */
@@ -3608,9 +3627,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       exportStatus.className = "export-status err";
       return;
     }
-    ensureContext();
-    if (ctx.state === "suspended") ctx.resume();
-    runExport();
+    withRunningContext(runExport);
   });
 
   async function runExport(){
