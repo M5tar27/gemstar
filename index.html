@@ -281,6 +281,9 @@
   }
   .record-controls{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
   .record-hint{margin:0; color:var(--ink-dim); font-size:0.82rem; max-width:42ch;}
+  .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
+  .record-device-row select{width:100%; padding:9px 14px; font-size:0.74rem;}
+  .record-device-hint{margin:0; color:var(--cyan); font-size:0.72rem; letter-spacing:0.02em; min-height:1em;}
 
   .extra-vocal-add-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;}
   .record-panel-compact{padding:16px 14px; margin-top:10px; gap:10px;}
@@ -776,6 +779,10 @@
           <span class="record-time" id="record-time">00:00</span>
         </div>
         <div class="record-meter-shell"><div class="record-meter-bar" id="record-meter-bar"></div></div>
+        <div class="record-device-row">
+          <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
+          <p class="record-device-hint" id="record-device-hint"></p>
+        </div>
         <div class="record-controls">
           <button type="button" class="pill-btn pill-cyan" id="btn-record-start" data-i18n="recordStart">Start Recording</button>
           <button type="button" class="pill-btn pill-purple" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -819,6 +826,10 @@
             <span class="record-time" id="extra-record-time">00:00</span>
           </div>
           <div class="record-meter-shell"><div class="record-meter-bar" id="extra-record-meter-bar"></div></div>
+          <div class="record-device-row">
+            <select id="extra-record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
+            <p class="record-device-hint" id="extra-record-device-hint"></p>
+          </div>
           <div class="record-controls">
             <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
             <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1049,6 +1060,8 @@
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
       recordAddVocalBtn:"🎤 Record Vocal Track", recordCancel:"Cancel",
+      recordDeviceLabel:"Input device", recordDeviceDefault:"System default",
+      recordDeviceDetected:"Detected: {name}",
       recordCapNote:"Up to {cap} on the {plan} plan.",
       recordCapReached:"You've hit the {max} vocal track limit for the {plan} plan. Remove a track or upgrade to record another.",
       controlsHeading:"Vocal Controls", outputGainLabel:"Output Gain",
@@ -1164,6 +1177,8 @@
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
       recordAddVocalBtn:"🎤 Grabar Pista Vocal", recordCancel:"Cancelar",
+      recordDeviceLabel:"Dispositivo de entrada", recordDeviceDefault:"Predeterminado del sistema",
+      recordDeviceDetected:"Detectado: {name}",
       recordCapNote:"Hasta {cap} en el plan {plan}.",
       recordCapReached:"Llegaste al límite de {max} pistas vocales del plan {plan}. Quita una pista o mejora tu plan para grabar otra.",
       controlsHeading:"Controles Vocales", outputGainLabel:"Ganancia de Salida",
@@ -1311,6 +1326,12 @@
     updateVocalMixerUI();
     updatePlayButton();
     updateAbButton();
+    // Device-picker option text ("System default", "Detected: …") is
+    // language-dependent and built in JS, not via data-i18n -- refresh
+    // whichever panel is currently open so a language switch mid-setup
+    // doesn't leave it showing the old language.
+    if (typeof mainDeviceSelector !== "undefined" && mainDeviceSelector && recordPanel && !recordPanel.hidden) mainDeviceSelector.populate();
+    if (typeof extraDeviceSelector !== "undefined" && extraDeviceSelector && extraRecordPanel && !extraRecordPanel.hidden) extraDeviceSelector.populate();
   }
 
   /* ================= knob definitions ================= */
@@ -2428,6 +2449,73 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     return new Blob([view], { type: "audio/wav" });
   }
 
+  /* Input-device picker: wires a <select> (+ optional hint line) to
+     navigator.mediaDevices, and auto-picks a connected audio interface over
+     the laptop's built-in mic whenever one is present -- the user still has
+     to hit Start to actually record, this only decides which input that
+     recording will come from. Device *labels* are only readable once mic
+     permission has been granted at least once, so if the panel opens and
+     more than one input exists but they're all unlabeled, this quietly does
+     one silent getUserMedia/stop just to unlock the real names, then
+     re-lists them -- no recording happens from that. A manual pick from the
+     dropdown always wins over the auto-pick from then on, until that device
+     disappears again. */
+  function createDeviceSelector(selectEl, hintEl){
+    var userPicked = false;
+    function labelLooksExternal(label){
+      if (!label) return false;
+      return !/built-?in|internal|default|macbook/i.test(label);
+    }
+    function setHint(text){ if (hintEl) hintEl.textContent = text || ""; }
+    async function populate(){
+      if (!selectEl || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      try{
+        var devices = await navigator.mediaDevices.enumerateDevices();
+        var inputs = devices.filter(function(d){ return d.kind === "audioinput"; });
+        var hasLabels = inputs.some(function(d){ return d.label; });
+        if (inputs.length && !hasLabels){
+          try{
+            var tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+            tmp.getTracks().forEach(function(t){ t.stop(); });
+            devices = await navigator.mediaDevices.enumerateDevices();
+            inputs = devices.filter(function(d){ return d.kind === "audioinput"; });
+          } catch(e){ /* permission declined -- fall back to the generic list */ }
+        }
+        var prevValue = selectEl.value;
+        selectEl.innerHTML = "";
+        var defOpt = document.createElement("option");
+        defOpt.value = "";
+        defOpt.textContent = STR[lang].recordDeviceDefault;
+        selectEl.appendChild(defOpt);
+        inputs.forEach(function(d, i){
+          var opt = document.createElement("option");
+          opt.value = d.deviceId;
+          opt.textContent = d.label || ((lang==="es"?"Micrófono ":"Microphone ") + (i+1));
+          selectEl.appendChild(opt);
+        });
+        var stillThere = prevValue && inputs.some(function(d){ return d.deviceId === prevValue; });
+        if (userPicked && stillThere){
+          selectEl.value = prevValue;
+          setHint("");
+          return;
+        }
+        if (userPicked && !stillThere) userPicked = false; // the manually-picked device vanished
+        var externalMatch = inputs.find ? inputs.find(function(d){ return labelLooksExternal(d.label); }) : null;
+        if (externalMatch){
+          selectEl.value = externalMatch.deviceId;
+          setHint(STR[lang].recordDeviceDetected.replace("{name}", externalMatch.label));
+        } else {
+          selectEl.value = "";
+          setHint("");
+        }
+      } catch(e){ /* enumerateDevices unsupported/denied -- leave the default option */ }
+    }
+    if (selectEl){
+      selectEl.addEventListener("change", function(){ userPicked = true; setHint(""); });
+    }
+    return { populate: populate, getSelectedDeviceId: function(){ return selectEl ? selectEl.value : ""; } };
+  }
+
   /* Reusable mic-recorder: wires one set of controls (start/stop/retry/dot/
      timer/meter/hint) to getUserMedia + a raw PCM capture node, and hands
      the finished take to onCaptured(file) as a real File — same object
@@ -2541,6 +2629,58 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       opts.hintEl.textContent = STR[lang].recordHintIdle + " " + note;
     }
 
+    function onStreamAcquired(stream){
+      recordStream = stream;
+      ensureContext();
+
+      if (!ctx.createScriptProcessor){
+        stopStream();
+        alert(STR[lang].recordUnsupported);
+        return;
+      }
+
+      recordSrcNode = ctx.createMediaStreamSource(stream);
+      recordAnalyser = ctx.createAnalyser();
+      recordAnalyser.fftSize = 512;
+      recordSrcNode.connect(recordAnalyser);
+      meterLoop();
+
+      // Captures real Float32 PCM straight off the mic, at the
+      // AudioContext's native sample rate — lossless, no codec in between.
+      // Routed through a silent (gain 0) node to destination: required in
+      // most browsers for the capture callback to fire, but never audible
+      // (avoids feeding the mic back out the speakers while recording).
+      pcmChunks = [];
+      pcmLength = 0;
+      captureNode = ctx.createScriptProcessor(4096, 1, 1);
+      silentGain = ctx.createGain();
+      silentGain.gain.value = 0;
+      recordSrcNode.connect(captureNode);
+      captureNode.connect(silentGain);
+      silentGain.connect(ctx.destination);
+      recording = true;
+      captureNode.onaudioprocess = function(e){
+        if (!recording) return;
+        var input = e.inputBuffer.getChannelData(0);
+        pcmChunks.push(new Float32Array(input));
+        pcmLength += input.length;
+      };
+
+      recordStartTs = Date.now();
+      if (opts.dotEl) opts.dotEl.classList.add("live");
+      opts.startBtn.hidden = true;
+      opts.stopBtn.hidden = false;
+      if (opts.retryBtn) opts.retryBtn.hidden = true;
+      if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintRecording;
+      recordTimerInterval = setInterval(function(){
+        var elapsed = (Date.now()-recordStartTs)/1000;
+        if (opts.timeEl) opts.timeEl.textContent = fmtRecordTime(elapsed) + " / " + fmtRecordTime(capSeconds);
+        if (elapsed >= capSeconds && recording){
+          finishRecording(); // plan's max recording length reached — saves what's captured so far
+        }
+      }, 200);
+    }
+
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
       if (opts.canStart && !opts.canStart()) return;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
@@ -2548,68 +2688,33 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
         return;
       }
       capSeconds = opts.getCapSeconds ? opts.getCapSeconds() : capSeconds;
-      navigator.mediaDevices.getUserMedia({
-        // Raw, unprocessed input: Gemstar's own Clean/Punch/etc. chain does
-        // the noise reduction and leveling, so the browser's built-in
-        // echo-cancellation/noise-suppression/AGC would just fight it —
-        // better to hand it the truest possible signal to work with.
-        audio: {
-          echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-          channelCount:{ideal:1}, sampleRate:{ideal:48000}
-        }
-      }).then(function(stream){
-        recordStream = stream;
-        ensureContext();
-
-        if (!ctx.createScriptProcessor){
-          stopStream();
-          alert(STR[lang].recordUnsupported);
-          return;
-        }
-
-        recordSrcNode = ctx.createMediaStreamSource(stream);
-        recordAnalyser = ctx.createAnalyser();
-        recordAnalyser.fftSize = 512;
-        recordSrcNode.connect(recordAnalyser);
-        meterLoop();
-
-        // Captures real Float32 PCM straight off the mic, at the
-        // AudioContext's native sample rate — lossless, no codec in between.
-        // Routed through a silent (gain 0) node to destination: required in
-        // most browsers for the capture callback to fire, but never audible
-        // (avoids feeding the mic back out the speakers while recording).
-        pcmChunks = [];
-        pcmLength = 0;
-        captureNode = ctx.createScriptProcessor(4096, 1, 1);
-        silentGain = ctx.createGain();
-        silentGain.gain.value = 0;
-        recordSrcNode.connect(captureNode);
-        captureNode.connect(silentGain);
-        silentGain.connect(ctx.destination);
-        recording = true;
-        captureNode.onaudioprocess = function(e){
-          if (!recording) return;
-          var input = e.inputBuffer.getChannelData(0);
-          pcmChunks.push(new Float32Array(input));
-          pcmLength += input.length;
-        };
-
-        recordStartTs = Date.now();
-        if (opts.dotEl) opts.dotEl.classList.add("live");
-        opts.startBtn.hidden = true;
-        opts.stopBtn.hidden = false;
-        if (opts.retryBtn) opts.retryBtn.hidden = true;
-        if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintRecording;
-        recordTimerInterval = setInterval(function(){
-          var elapsed = (Date.now()-recordStartTs)/1000;
-          if (opts.timeEl) opts.timeEl.textContent = fmtRecordTime(elapsed) + " / " + fmtRecordTime(capSeconds);
-          if (elapsed >= capSeconds && recording){
-            finishRecording(); // plan's max recording length reached — saves what's captured so far
+      // Raw, unprocessed input: Gemstar's own Clean/Punch/etc. chain does
+      // the noise reduction and leveling, so the browser's built-in
+      // echo-cancellation/noise-suppression/AGC would just fight it —
+      // better to hand it the truest possible signal to work with.
+      var baseConstraints = {
+        echoCancellation:false, noiseSuppression:false, autoGainControl:false,
+        channelCount:{ideal:1}, sampleRate:{ideal:48000}
+      };
+      var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
+      var audioConstraints = pickedDeviceId
+        ? Object.assign({}, baseConstraints, { deviceId: { exact: pickedDeviceId } })
+        : baseConstraints;
+      navigator.mediaDevices.getUserMedia({ audio: audioConstraints })
+        .then(onStreamAcquired)
+        .catch(function(){
+          // The picked interface may just have been unplugged between
+          // selecting it and hitting Start -- fall back to the system
+          // default mic once before giving up, so a stale dropdown pick
+          // doesn't block recording entirely.
+          if (pickedDeviceId){
+            navigator.mediaDevices.getUserMedia({ audio: baseConstraints })
+              .then(onStreamAcquired)
+              .catch(function(){ alert(STR[lang].recordMicError); });
+          } else {
+            alert(STR[lang].recordMicError);
           }
-        }, 200);
-      }).catch(function(){
-        alert(STR[lang].recordMicError);
-      });
+        });
     });
 
     if (opts.stopBtn) opts.stopBtn.addEventListener("click", function(){
@@ -2624,6 +2729,10 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     return { stop: hardStop, refreshIdleHint: refreshIdleHint };
   }
 
+  var mainDeviceSelector = createDeviceSelector(
+    document.getElementById("record-device-select"),
+    document.getElementById("record-device-hint")
+  );
   var mainRecorder = createVocalRecorder({
     startBtn: document.getElementById("btn-record-start"),
     stopBtn: document.getElementById("btn-record-stop"),
@@ -2633,6 +2742,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     meterBar: document.getElementById("record-meter-bar"),
     hintEl: document.getElementById("record-hint"),
     getCapSeconds: maxRecordSeconds,
+    deviceSelector: mainDeviceSelector,
     onCaptured: function(file){ handleFile(file); }
   });
 
@@ -2647,6 +2757,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       dropzone.hidden = true;
       recordPanel.hidden = false;
       mainRecorder.refreshIdleHint();
+      mainDeviceSelector.populate();
     } else {
       recordPanel.hidden = true;
       dropzone.hidden = false;
@@ -2807,6 +2918,10 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     reader.readAsArrayBuffer(file);
   }
 
+  var extraDeviceSelector = createDeviceSelector(
+    document.getElementById("extra-record-device-select"),
+    document.getElementById("extra-record-device-hint")
+  );
   var extraRecorder = createVocalRecorder({
     startBtn: document.getElementById("extra-btn-record-start"),
     stopBtn: document.getElementById("extra-btn-record-stop"),
@@ -2816,6 +2931,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
     meterBar: document.getElementById("extra-record-meter-bar"),
     hintEl: document.getElementById("extra-record-hint"),
     getCapSeconds: maxRecordSeconds,
+    deviceSelector: extraDeviceSelector,
     canStart: function(){
       if (totalVocalTrackCount() >= maxVocalTracks()){
         alert(STR[lang].recordCapReached
@@ -2841,12 +2957,24 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
       }
       extraRecordPanel.hidden = false;
       extraRecorder.refreshIdleHint();
+      extraDeviceSelector.populate();
     });
   }
   if (extraBtnRecordCancel){
     extraBtnRecordCancel.addEventListener("click", function(){
       extraRecorder.stop();
       extraRecordPanel.hidden = true;
+    });
+  }
+
+  // Live re-detect: if an interface gets plugged in (or unplugged) while a
+  // record panel is already open, refresh whichever picker(s) are visible
+  // so the dropdown catches up without the user having to close and reopen
+  // the panel.
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+    navigator.mediaDevices.addEventListener("devicechange", function(){
+      if (recordPanel && !recordPanel.hidden) mainDeviceSelector.populate();
+      if (extraRecordPanel && !extraRecordPanel.hidden) extraDeviceSelector.populate();
     });
   }
 
