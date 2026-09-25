@@ -1703,30 +1703,50 @@
   // playback to the phone's own speaker/earpiece instead of a connected
   // Bluetooth device (a car stereo, headphones), no matter what's actually
   // selected as the system audio output. This is a documented WebKit quirk,
-  // not anything wrong with the Bluetooth pairing itself.
+  // not anything wrong with the Bluetooth pairing itself. Closing and
+  // recreating the AudioContext is the one thing that reliably makes WebKit
+  // reconsider and drop back to a normal Playback session, so that's kept
+  // as an iOS-only path below.
   //
-  // Fully closing and recreating the AudioContext is the one thing that
-  // reliably makes WebKit reconsider and drop back to a normal Playback
-  // session. This is safe to do here: AudioBuffers (already-decoded PCM --
-  // the uploaded/recorded vocal, beat, etc.) are not tied to a specific
-  // context per the Web Audio spec, so nothing needs to be re-decoded --
-  // only the live node graph (chain) needs rebuilding, and buildChain()
-  // already re-syncs a fresh chain to the current knob values. The pitch
-  // worklet's cached module-load promise is keyed to the old context, so it
-  // has to be cleared too or Auto-Tune would silently stop reconnecting.
+  // Everywhere else, this used to ALSO close and recreate the context on
+  // the (spec-legal, but apparently not universally safe) assumption that
+  // already-decoded AudioBuffers -- the loaded vocal, beat, extra vocals,
+  // cached reverb impulse responses -- would keep working unchanged when
+  // handed to a brand new context's nodes. In practice that's exactly the
+  // kind of cross-context reuse desktop Safari can choke on silently: no
+  // error, the UI still says "playing," nothing comes out. Since nothing
+  // on non-iOS platforms actually needs a new context (the routing bug
+  // above is iOS-specific), the fix is to just never make one: keep the
+  // same context for the whole session there and only rebuild the
+  // processing chain in place, so every buffer this page ever decodes is
+  // always used with the exact context it was decoded on.
+  var IS_IOS_SAFARI = /iP(hone|od|ad)/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
   function resetContextForCleanPlaybackRouting(){
     if (!ctx) return;
     // Never do this while something is actively playing -- there's nothing
     // to gain mid-playback, and it would cut the audio out from under it.
     if (vocalSourceNodes.length || beatSourceNode) return;
-    var oldCtx = ctx;
-    ctx = null;
+
+    if (IS_IOS_SAFARI){
+      var oldCtx = ctx;
+      ctx = null;
+      chain = null;
+      pitchWorkletModulePromise = null;
+      captureWorkletModulePromise = null;
+      analysisWorkletModulePromise = null;
+      reverbBufferCache = {}; // don't hand the new context buffers made by the one just closed
+      try { oldCtx.close(); } catch(e){}
+      ensureContext();
+      return;
+    }
+
+    if (chain){
+      try { chain.analyser.disconnect(); } catch(e){}
+    }
     chain = null;
-    pitchWorkletModulePromise = null;
-    captureWorkletModulePromise = null;
-    analysisWorkletModulePromise = null;
-    try { oldCtx.close(); } catch(e){}
-    ensureContext();
+    buildChain();
   }
 
   function makeGateShaperCurve(amount){
