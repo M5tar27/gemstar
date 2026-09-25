@@ -12,6 +12,7 @@
     --gem:#FF2E88;
     --gem-dim:#A31558;
     --ink:#EAF6FF;
+    --yellow:#FFE600;
     --ink-muted:#8B93A8;
     --ink-dim:#565D72;
     --line:rgba(0,245,255,0.16);
@@ -240,7 +241,8 @@
   .dropzone:hover, .dropzone.drag{background:rgba(0,245,255,0.05); border-color:var(--cyan);}
   .dropzone .dz-icon{margin-bottom:14px;}
   .dropzone h3{
-    font-family:var(--font-display); font-size:1.05rem; margin:0 0 8px; color:var(--ink); letter-spacing:0.02em;
+    font-family:var(--font-display); font-size:1.05rem; margin:0 0 8px; color:var(--yellow); letter-spacing:0.02em;
+    text-shadow:0 0 12px rgba(255,230,0,0.35);
   }
   .dropzone p{margin:0; color:var(--ink-dim); font-size:0.85rem;}
   .dropzone input[type=file]{display:none;}
@@ -294,7 +296,7 @@
   .track-row{
     display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:space-between;
   }
-  .track-name{font-size:0.82rem; color:var(--ink-muted); overflow-wrap:anywhere;}
+  .track-name{font-size:0.9rem; font-weight:700; color:#FFFFFF; overflow-wrap:anywhere;}
   .transport-btns{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .icon-btn{
     display:inline-flex; align-items:center; gap:8px;
@@ -465,7 +467,8 @@
   .beat-drop{
     border:1.5px dashed var(--line); border-radius:10px; padding:18px 16px;
     text-align:center; cursor:pointer; transition:border-color .2s ease, background .2s ease;
-    font-size:0.85rem; color:var(--ink-muted);
+    font-size:0.92rem; font-weight:600; color:var(--yellow); text-shadow:0 0 12px rgba(255,230,0,0.35);
+    font-family:var(--font-display); letter-spacing:0.02em;
   }
   .beat-drop:hover, .beat-drop.drag{background:rgba(0,245,255,0.05); border-color:var(--cyan);}
   .beat-drop input[type=file]{display:none;}
@@ -1954,15 +1957,39 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
   process(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
-    if (!input || input.length === 0) return true;
+    if (!input || input.length === 0 || !output || output.length === 0) return true;
+    // Never let an exception escape process(): a processor that throws is
+    // permanently killed by the browser and outputs silence forever after --
+    // on the live chain that silently mutes ALL playback with no visible error.
+    if (this.failed) { this._passthrough(input, output); return true; }
+    try {
+      this._render(input, output, parameters);
+    } catch (e) {
+      this.failed = true;
+      this._passthrough(input, output);
+    }
+    return true;
+  }
+  _passthrough(input, output) {
+    for (let ch = 0; ch < output.length; ch++) {
+      const src = input[Math.min(ch, input.length - 1)];
+      if (src) output[ch].set(src);
+    }
+  }
+  _render(input, output, parameters) {
     const speed = parameters.speed[0];
     const humanize = parameters.humanize[0];
-    const numChannels = input.length;
-    const frameLen = input[0].length;
+    const inChannels = input.length;
+    // Iterate OUTPUT channels, not input channels. WebKit (Safari) doesn't
+    // always size a worklet's output to match its input the way Chrome does,
+    // so writing output[ch] for every INPUT channel threw on the missing
+    // channel -- that exception killed the processor and muted everything.
+    const numChannels = output.length;
+    const frameLen = output[0].length;
     for (let i = 0; i < frameLen; i++) {
       let monoSample = 0;
-      for (let ch = 0; ch < numChannels; ch++) monoSample += input[ch][i];
-      monoSample /= numChannels;
+      for (let ch = 0; ch < inChannels; ch++) monoSample += input[ch][i];
+      monoSample /= inChannels;
       this.analysisBuf[this.analysisWritePos] = monoSample;
       this.analysisWritePos = (this.analysisWritePos + 1) % this.analysisWinSize;
       this.samplesSinceAnalysis++;
@@ -1978,9 +2005,10 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
       }
       if (!speed || speed <= 0) {
         for (let ch = 0; ch < numChannels; ch++) {
+          const x = input[Math.min(ch, inChannels - 1)][i];
           if (!this.shifters[ch]) this.shifters[ch] = new GranularPitchShifter(this.sr, 80);
-          this.shifters[ch].process(input[ch][i], 1.0);
-          output[ch][i] = input[ch][i];
+          this.shifters[ch].process(x, 1.0);
+          output[ch][i] = x;
         }
         continue;
       }
@@ -1997,11 +2025,11 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
         appliedRatio *= Math.pow(2, cents / 1200);
       }
       for (let ch = 0; ch < numChannels; ch++) {
+        const x = input[Math.min(ch, inChannels - 1)][i];
         if (!this.shifters[ch]) this.shifters[ch] = new GranularPitchShifter(this.sr, 80);
-        output[ch][i] = this.shifters[ch].process(input[ch][i], appliedRatio);
+        output[ch][i] = this.shifters[ch].process(x, appliedRatio);
       }
     }
-    return true;
   }
 }
 registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
@@ -2031,6 +2059,7 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
         return new AudioWorkletNode(audioCtx, "gemstar-pitch-processor", {
           numberOfInputs: 1,
           numberOfOutputs: 1,
+          outputChannelCount: [2], // explicit: WebKit won't infer stereo out from stereo in
           channelCount: 2,
           channelCountMode: "explicit",
           channelCountInterpretation: "speakers"
