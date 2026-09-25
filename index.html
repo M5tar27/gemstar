@@ -241,7 +241,7 @@
   .dropzone:hover, .dropzone.drag{background:rgba(0,245,255,0.05); border-color:var(--cyan);}
   .dropzone .dz-icon{margin-bottom:14px;}
   .dropzone h3{
-    font-family:var(--font-display); font-size:1.05rem; margin:0 0 8px; color:var(--yellow); letter-spacing:0.02em;
+    font-family:var(--font-display); font-size:clamp(1.45rem, 4.2vw, 1.9rem); margin:0 0 10px; color:var(--yellow); letter-spacing:0.02em;
     text-shadow:0 0 12px rgba(255,230,0,0.35);
   }
   .dropzone p{margin:0; color:var(--ink-dim); font-size:0.85rem;}
@@ -319,9 +319,42 @@
   }
   .beat-waveform-shell{height:56px; margin-top:8px; border-color:var(--line-gem);}
 
+  /* timeline: pick a start point / drag a loop section */
+  .timeline-wrap{display:flex; flex-direction:column; gap:8px; margin-top:10px;}
+  .timeline{
+    position:relative; height:34px; border-radius:8px; border:1px solid var(--line-strong);
+    background:linear-gradient(180deg, #0d0d17, #090911); cursor:pointer; touch-action:none;
+    user-select:none; -webkit-user-select:none; overflow:hidden;
+  }
+  .timeline:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .tl-region{position:absolute; top:0; bottom:0; background:rgba(255,230,0,0.18); border-left:2px solid var(--yellow); border-right:2px solid var(--yellow); pointer-events:none;}
+  .tl-cursor{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--gem); box-shadow:0 0 8px var(--gem); pointer-events:none; left:0;}
+  .tl-cursor::before{content:""; position:absolute; top:0; left:-5px; border-left:6px solid transparent; border-right:6px solid transparent; border-top:7px solid var(--gem);}
+  .tl-playhead{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:#fff; opacity:0.85; pointer-events:none; left:0;}
+  .timeline-meta{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .tl-time{font-family:var(--font-display); font-size:0.85rem; color:#fff; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:0.03em;}
+  .tl-hint{margin:0; font-size:0.72rem; color:var(--ink-dim);}
+  #btn-loop.on{border-color:var(--yellow); color:var(--yellow); background:rgba(255,230,0,0.08);}
+  #btn-loop:disabled{opacity:0.45; cursor:not-allowed;}
+
+  /* vocal track rows: lead badge + make-lead + per-track FX */
+  .vocal-track-label{display:flex; align-items:center; gap:8px; min-width:0; flex:0 1 auto;}
+  .vocal-track-name{font-size:0.84rem; font-weight:700; color:#fff; overflow-wrap:anywhere;}
+  .lead-badge{font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase; color:#050508; background:var(--yellow); padding:3px 8px; border-radius:10px; font-weight:700; white-space:nowrap;}
+  .btn-make-lead{white-space:nowrap;}
+  .vocal-track-row{flex-wrap:wrap;}
+  .vocal-track-row .btn-edit-fx.active{border-color:var(--yellow); color:var(--yellow);}
+  .vocal-cap-note.lead-pick-hint{color:var(--yellow);}
+
+  /* per-track FX target picker (above the knobs) */
+  .track-edit-row{display:flex; flex-direction:column; align-items:center; gap:8px; margin:4px 0 2px; text-align:center;}
+  .track-edit-tabs{display:flex; flex-wrap:wrap; justify-content:center; gap:8px;}
+  .track-edit-tabs .icon-btn{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;}
+  .track-edit-tabs .icon-btn.active{border-color:var(--yellow); color:#050508; background:var(--yellow); font-weight:700;}
+
   /* plan (preview) selector + vocal mixer */
   .plan-select-row{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap;
     border:1px solid var(--line); border-radius:10px; padding:11px 16px;
   }
   .plan-select-row select{ appearance:none; -webkit-appearance:none; }
@@ -465,9 +498,9 @@
     padding:4px 11px; border-radius:20px; white-space:nowrap;
   }
   .beat-drop{
-    border:1.5px dashed var(--line); border-radius:10px; padding:18px 16px;
+    border:1.5px dashed var(--line); border-radius:10px; padding:26px 16px;
     text-align:center; cursor:pointer; transition:border-color .2s ease, background .2s ease;
-    font-size:0.92rem; font-weight:600; color:var(--yellow); text-shadow:0 0 12px rgba(255,230,0,0.35);
+    font-size:clamp(1.2rem, 3.6vw, 1.55rem); font-weight:700; color:var(--yellow); text-shadow:0 0 12px rgba(255,230,0,0.35);
     font-family:var(--font-display); letter-spacing:0.02em;
   }
   .beat-drop:hover, .beat-drop.drag{background:rgba(0,245,255,0.05); border-color:var(--cyan);}
@@ -585,6 +618,43 @@
   .form-status{font-size:0.82rem; min-height:1.2em;}
   .form-status.ok{color:var(--ok);}
   .form-status.err{color:var(--danger);}
+
+  /* FAQ + AI chat */
+  .faq-grid{display:grid; grid-template-columns:1.1fr 1fr; gap:24px; align-items:start;}
+  @media (max-width:860px){ .faq-grid{grid-template-columns:1fr;} }
+  .faq-list{display:flex; flex-direction:column; gap:10px;}
+  .faq-item{background:var(--bg-panel); border:1px solid var(--line); border-radius:10px; padding:0 16px;}
+  .faq-item[open]{border-color:var(--line-strong);}
+  .faq-item summary{cursor:pointer; list-style:none; padding:14px 26px 14px 0; position:relative; font-weight:700; color:#fff; font-size:0.95rem;}
+  .faq-item summary::-webkit-details-marker{display:none;}
+  .faq-item summary::after{content:"+"; position:absolute; right:2px; top:12px; color:var(--cyan); font-size:1.2rem; font-weight:400;}
+  .faq-item[open] summary::after{content:"–";}
+  .faq-item p{margin:0 0 14px; color:var(--ink-muted); font-size:0.9rem; line-height:1.55;}
+  .chat-box{background:var(--bg-panel); border:1px solid var(--line-strong); border-radius:12px; display:flex; flex-direction:column;
+    min-height:440px; max-height:560px; overflow:hidden; scroll-margin-top:90px;}
+  .chat-head{display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--line);
+    font-family:var(--font-display); font-weight:700; letter-spacing:0.04em; color:#fff;}
+  .chat-dot{width:9px; height:9px; border-radius:50%; background:#3CF2A0; box-shadow:0 0 8px #3CF2A0;}
+  .chat-log{flex:1 1 auto; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:10px;}
+  .chat-msg{max-width:86%; padding:10px 13px; border-radius:12px; font-size:0.9rem; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere;}
+  .chat-msg.bot{align-self:flex-start; background:#171726; color:var(--ink); border:1px solid var(--line); border-bottom-left-radius:4px;}
+  .chat-msg.user{align-self:flex-end; background:linear-gradient(90deg, rgba(0,245,255,0.18), rgba(255,46,136,0.18)); color:#fff; border-bottom-right-radius:4px;}
+  .chat-msg.thinking{opacity:0.7; font-style:italic;}
+  .chat-msg.err{border-color:rgba(255,80,80,0.45);}
+  .chat-suggest{display:flex; flex-wrap:wrap; gap:8px; padding:0 16px 10px;}
+  .chat-chip{background:transparent; border:1px solid var(--line-strong); color:var(--cyan); border-radius:16px; padding:6px 12px; font-size:0.76rem; cursor:pointer;}
+  .chat-chip:hover{background:rgba(0,245,255,0.08);}
+  .chat-form{display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line);}
+  .chat-form input{flex:1 1 auto; min-width:0; background:var(--bg); border:1px solid var(--line); border-radius:8px;
+    color:var(--ink); font-family:var(--font-body); font-size:16px; padding:10px 12px;}
+  .chat-form input:focus{outline:none; border-color:var(--cyan);}
+  .chat-send{padding:10px 16px;}
+  .chat-note{margin:0; padding:0 16px 12px; font-size:0.7rem; color:var(--ink-dim);}
+  .chat-launcher{position:fixed; right:18px; bottom:18px; z-index:300; display:inline-flex; align-items:center; gap:6px;
+    background:linear-gradient(90deg, var(--cyan), var(--gem)); color:#050508; border:none; border-radius:24px;
+    padding:12px 18px; font-weight:700; font-size:0.88rem; cursor:pointer; box-shadow:0 10px 28px -8px rgba(0,245,255,0.55);}
+  .chat-launcher:hover{transform:translateY(-1px);}
+  .chat-launcher.hide{display:none;}
 
   footer{
     border-top:1px solid var(--line); padding-block:30px 50px;
@@ -773,7 +843,7 @@
         </div>
         <h3 data-i18n="dzTitle">Drop your vocal here</h3>
         <p data-i18n="dzSub">MP3 or WAV &middot; or tap to browse</p>
-        <input type="file" id="file-input" accept="audio/*" />
+        <input type="file" id="file-input" accept="audio/*" multiple />
       </div>
 
       <div class="record-panel" id="record-panel" hidden>
@@ -812,16 +882,18 @@
 
       <div class="vocal-mixer" id="vocal-mixer" hidden>
         <p class="controls-heading" data-i18n="vocalMixerHeading">Vocal Mixer</p>
-        <div class="slider-row">
-          <span class="status-label" data-i18n="leadVocalLabel">Lead Vocal Level</span>
+        <div class="slider-row vocal-track-row lead-row">
+          <span class="vocal-track-label"><span class="lead-badge" data-i18n="leadBadge">★ Lead</span><span class="vocal-track-name" id="lead-track-name"></span></span>
           <input type="range" id="lead-vocal-level" min="0" max="100" value="100" aria-label="Lead vocal level" />
+          <button type="button" class="icon-btn small btn-edit-fx" id="btn-edit-fx-lead" hidden data-i18n="editFxBtn">🎛 FX</button>
         </div>
+        <p class="vocal-cap-note lead-pick-hint" id="lead-pick-hint" hidden data-i18n="leadPickHint">Tap ☆ Make Lead on any track to choose your lead vocal.</p>
         <div id="extra-vocals-list"></div>
         <div class="extra-vocal-add-row">
           <button type="button" class="icon-btn small" id="btn-add-vocal" data-i18n="addVocalBtn">+ Add Vocal Track</button>
           <button type="button" class="icon-btn small" id="btn-record-add-vocal" data-i18n="recordAddVocalBtn">🎙 Record Vocal Track</button>
         </div>
-        <input type="file" id="extra-vocal-input" accept="audio/*" hidden />
+        <input type="file" id="extra-vocal-input" accept="audio/*" multiple hidden />
 
         <div class="record-panel record-panel-compact" id="extra-record-panel" hidden>
           <div class="record-visual">
@@ -860,6 +932,21 @@
           <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
           <canvas id="beat-waveform" width="900" height="56"></canvas>
         </div>
+        <div class="timeline-wrap" id="timeline-wrap">
+          <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+            <div class="tl-region" id="tl-region" hidden></div>
+            <div class="tl-cursor" id="tl-cursor"></div>
+            <div class="tl-playhead" id="tl-playhead" hidden></div>
+          </div>
+          <div class="timeline-meta">
+            <span class="tl-time" id="tl-time">0:00 / 0:00</span>
+            <div class="transport-btns">
+              <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
+              <button class="icon-btn small" id="btn-loop" type="button" disabled>⟲ Loop: Off</button>
+            </div>
+          </div>
+          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop</p>
+        </div>
         <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
         <div class="track-row">
           <div class="transport-btns">
@@ -871,6 +958,11 @@
     </div>
 
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
+    <div class="track-edit-row" id="track-edit-row" hidden>
+      <span class="status-label" data-i18n="editingLabel">Editing FX for</span>
+      <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
+      <p class="vocal-cap-note" data-i18n="perTrackNote">Every vocal gets its own full effects chain. Pick a track, then dial in its knobs.</p>
+    </div>
     <div class="knob-grid" id="knob-grid"><!-- knobs injected by JS --></div>
     <p class="signature-note" data-i18n="signatureNote">M5tar &amp; Jewels: each engineer's own signature touch, dialed in.</p>
 
@@ -1026,6 +1118,42 @@
     </div>
   </section>
 
+  <hr class="divider" />
+
+  <section id="faq">
+    <div class="section-head">
+      <p class="eyebrow" data-i18n="faqEyebrow">Help</p>
+      <h2 data-i18n="faqTitle">Frequently asked questions</h2>
+      <p data-i18n="faqSub">Quick answers below, or ask the Gemstar AI anything about the app.</p>
+    </div>
+    <div class="faq-grid">
+      <div class="faq-list">
+        <details class="faq-item"><summary data-i18n="faqQ1">What is Gemstar?</summary><p data-i18n="faqA1">A vocal processing studio that runs right in your browser, built by engineers M5tar and Jewels. Upload or record a vocal, dial in the knobs or pick a preset, then export an MP3 or 24-bit WAV.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ2">Do I need to install anything?</summary><p data-i18n="faqA2">No. Everything runs live in your browser on your own device, and your audio is never uploaded to a server. An up-to-date Chrome, Safari, Edge or Firefox works best.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ3">Can I record through my audio interface?</summary><p data-i18n="faqA3">Yes. Plug it in, tap Record Vocal, and the input picker under the timer auto-selects your interface. If it still records from the computer mic, choose the interface in that dropdown and allow microphone access for the site.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ4">Can I load more than one vocal?</summary><p data-i18n="faqA4">On Mix (3 tracks) and Unlimited (8 tracks) you can drop several vocal files at once. Tap ☆ Make Lead on any track to choose your lead, and use 🎛 FX to give each vocal its own full effects chain.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ5">How do I play just one part of the song?</summary><p data-i18n="faqA5">Tap the timeline under the waveform to choose where playback starts, or drag across it to select a section. Dragging turns Loop on, so that section repeats while you dial in the knobs.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ6">Why does my vocal sound robotic?</summary><p data-i18n="faqA6">That's the Speed (Tune) knob, which is high in the Auto-Tuned preset. Turn Speed down for a gentler glide and raise Humanize for a more natural sound.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ7">I press Play but hear nothing.</summary><p data-i18n="faqA7">Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ8">What do the plans include?</summary><p data-i18n="faqA8">Starter ($19/mo): the full core vocal chain, 1 vocal track. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, and 3 vocal tracks with their own effects chains. Unlimited ($99/mo): everything in Mix, 8 vocal tracks, unlimited songs.</p></details>
+      </div>
+      <div class="chat-box" id="chat-box">
+        <div class="chat-head"><span class="chat-dot"></span><span data-i18n="chatTitle">Ask Gemstar AI</span></div>
+        <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+        <div class="chat-suggest" id="chat-suggest">
+          <button type="button" class="chat-chip" data-i18n="chatSug1">How do I record with my interface?</button>
+          <button type="button" class="chat-chip" data-i18n="chatSug2">How do I loop part of the song?</button>
+          <button type="button" class="chat-chip" data-i18n="chatSug3">Which plan should I get?</button>
+        </div>
+        <form class="chat-form" id="chat-form" autocomplete="off">
+          <input id="chat-input" type="text" maxlength="1200" placeholder="Ask about knobs, recording, plans…" aria-label="Message" />
+          <button type="submit" class="btn-submit chat-send" id="chat-send" data-i18n="chatSend">Send</button>
+        </form>
+        <p class="chat-note" data-i18n="chatNote">AI answers can be wrong. For billing or account help, email Gemstaraudio@gmail.com.</p>
+      </div>
+    </div>
+  </section>
+
   <footer>
     <span data-i18n="footerText">Gemstar &middot; M5tar Studio x Gemsquad Production</span>
     <span style="display:flex; gap:14px;">
@@ -1036,6 +1164,8 @@
     </span>
   </footer>
 </div>
+
+<button type="button" class="chat-launcher" id="chat-launcher" aria-controls="chat-box"><span aria-hidden="true">💬</span> <span data-i18n="chatLauncher">Ask AI</span></button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 <script>
@@ -1053,7 +1183,7 @@
       jewelsRole:"Gemsquad Production · Vocals & Engineering",
       jewelsBio:"Singer and audio engineer, trained since 2016. Runs Gemsquad Production and shaped the vocal-first side of this chain.",
       subheadline:"Drop in a vocal, dial the chain, hear it change instantly. No sessions, no waiting on an engineer.",
-      dzTitle:"Drop your vocal here", dzSub:"MP3 or WAV · or tap to browse",
+      dzTitle:"Drop your vocals here", dzSub:"MP3 or WAV · drop one or several at once · or tap to browse",
       recordModeUpload:"Upload File", recordModeRecord:"Record Vocal",
       recordStart:"Start Recording", recordStop:"Stop", recordRetry:"Re-record",
       recordHintIdle:"Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.",
@@ -1110,6 +1240,29 @@
       planOptStarter:"Starter · 1 vocal track", planOptMix:"Mix · 3 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
+      tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop",
+      loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
+      leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
+      leadPickHint:"Tap ☆ Make Lead on any track to choose your lead vocal.",
+      uploadCapReached:"Your {plan} plan allows {max} vocal track(s) at once, so the first {max} were loaded. Upgrade to load more.",
+      editingLabel:"Editing FX for", perTrackNote:"Every vocal gets its own full effects chain. Pick a track, then dial in its knobs.",
+      editFxBtn:"🎛 FX",
+      faqEyebrow:"Help", faqTitle:"Frequently asked questions", faqSub:"Quick answers below, or ask the Gemstar AI anything about the app.",
+      faqQ1:"What is Gemstar?", faqA1:"A vocal processing studio that runs right in your browser, built by engineers M5tar and Jewels. Upload or record a vocal, dial in the knobs or pick a preset, then export an MP3 or 24-bit WAV.",
+      faqQ2:"Do I need to install anything?", faqA2:"No. Everything runs live in your browser on your own device, and your audio is never uploaded to a server. An up-to-date Chrome, Safari, Edge or Firefox works best.",
+      faqQ3:"Can I record through my audio interface?", faqA3:"Yes. Plug it in, tap Record Vocal, and the input picker under the timer auto-selects your interface. If it still records from the computer mic, choose the interface in that dropdown and allow microphone access for the site.",
+      faqQ4:"Can I load more than one vocal?", faqA4:"On Mix (3 tracks) and Unlimited (8 tracks) you can drop several vocal files at once. Tap ☆ Make Lead on any track to choose your lead, and use 🎛 FX to give each vocal its own full effects chain.",
+      faqQ5:"How do I play just one part of the song?", faqA5:"Tap the timeline under the waveform to choose where playback starts, or drag across it to select a section. Dragging turns Loop on, so that section repeats while you dial in the knobs.",
+      faqQ6:"Why does my vocal sound robotic?", faqA6:"That's the Speed (Tune) knob, which is high in the Auto-Tuned preset. Turn Speed down for a gentler glide and raise Humanize for a more natural sound.",
+      faqQ7:"I press Play but hear nothing.", faqA7:"Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.",
+      faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 1 vocal track. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, and 3 vocal tracks with their own effects chains. Unlimited ($99/mo): everything in Mix, 8 vocal tracks, unlimited songs.",
+      chatTitle:"Ask Gemstar AI", chatLauncher:"Ask AI", chatSend:"Send", chatPlaceholder:"Ask about knobs, recording, plans…",
+      chatGreeting:"Hey! I'm the Gemstar assistant. Ask me how to use any knob, record through your interface, loop a section, or which plan fits you.",
+      chatNote:"AI answers can be wrong. For billing or account help, email Gemstaraudio@gmail.com.",
+      chatThinking:"Thinking…", chatErrGeneric:"Sorry, I couldn't answer that just now. Try again in a moment, or email Gemstaraudio@gmail.com.",
+      chatErrOff:"The AI assistant isn't switched on yet. Check the FAQ, or email Gemstaraudio@gmail.com and we'll help.",
+      chatErrRate:"You're sending messages quickly. Give it a minute and try again.",
+      chatSug1:"How do I record with my interface?", chatSug2:"How do I loop part of the song?", chatSug3:"Which plan should I get?",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
       knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels"},
       pitchGroupLabel:"Auto-Tune",
@@ -1170,7 +1323,7 @@
       jewelsRole:"Gemsquad Production · Voz e Ingeniería",
       jewelsBio:"Cantante e ingeniera de audio, formada desde 2016. Dirige Gemsquad Production y dio forma al lado vocal de esta cadena.",
       subheadline:"Sube una voz, ajusta la cadena, escucha el cambio al instante. Sin sesiones, sin esperar a un ingeniero.",
-      dzTitle:"Suelta tu voz aquí", dzSub:"MP3 o WAV · o toca para buscar",
+      dzTitle:"Suelta tus voces aquí", dzSub:"MP3 o WAV · una o varias a la vez · o toca para buscar",
       recordModeUpload:"Subir Archivo", recordModeRecord:"Grabar Voz",
       recordStart:"Empezar A Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
       recordHintIdle:"Toca Empezar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
@@ -1227,6 +1380,29 @@
       planOptStarter:"Inicial · 1 pista vocal", planOptMix:"Mix · 3 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
+      tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle",
+      loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
+      leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
+      leadPickHint:"Toca ☆ Hacer Principal en cualquier pista para elegir tu voz principal.",
+      uploadCapReached:"Tu plan {plan} permite {max} pista(s) vocal(es) a la vez, así que cargamos las primeras {max}. Mejora tu plan para cargar más.",
+      editingLabel:"Editando FX de", perTrackNote:"Cada voz tiene su propia cadena de efectos completa. Elige una pista y ajusta sus perillas.",
+      editFxBtn:"🎛 FX",
+      faqEyebrow:"Ayuda", faqTitle:"Preguntas frecuentes", faqSub:"Respuestas rápidas abajo, o pregúntale a la IA de Gemstar lo que sea sobre la app.",
+      faqQ1:"¿Qué es Gemstar?", faqA1:"Un estudio de procesamiento vocal que funciona en tu navegador, creado por los ingenieros M5tar y Jewels. Sube o graba una voz, ajusta las perillas o elige un preset, y exporta un MP3 o WAV de 24 bits.",
+      faqQ2:"¿Necesito instalar algo?", faqA2:"No. Todo funciona en vivo en tu navegador, en tu propio dispositivo, y tu audio nunca se sube a un servidor. Funciona mejor en Chrome, Safari, Edge o Firefox actualizados.",
+      faqQ3:"¿Puedo grabar con mi interfaz de audio?", faqA3:"Sí. Conéctala, toca Grabar Voz y el selector de entrada debajo del temporizador elige tu interfaz automáticamente. Si sigue grabando del micrófono de la computadora, elige la interfaz en ese menú y permite el acceso al micrófono.",
+      faqQ4:"¿Puedo cargar más de una voz?", faqA4:"En Mix (3 pistas) y Unlimited (8 pistas) puedes soltar varios archivos a la vez. Toca ☆ Hacer Principal en cualquier pista para elegir tu voz principal, y usa 🎛 FX para darle a cada voz su propia cadena de efectos.",
+      faqQ5:"¿Cómo reproduzco solo una parte de la canción?", faqA5:"Toca la línea de tiempo debajo de la forma de onda para elegir dónde empieza, o arrastra para seleccionar una sección. Al arrastrar se activa el Bucle y esa sección se repite mientras ajustas.",
+      faqQ6:"¿Por qué mi voz suena robótica?", faqA6:"Es la perilla Speed (Tune), que está alta en el preset Auto-Tuned. Bájala para un deslizamiento más suave y sube Humanize para un sonido más natural.",
+      faqQ7:"Presiono Reproducir y no escucho nada.", faqA7:"Revisa el volumen y que la pestaña no esté silenciada, y recarga la página. Si usas una interfaz de audio, verifica que la salida de sonido de tu computadora sea la que estás escuchando. ¿Sigue sin funcionar? Escribe a Gemstaraudio@gmail.com.",
+      faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 1 pista vocal. Mix ($49/mes): Mezcla Completa con tu beat, las perillas firma de M5tar y Jewels, y 3 pistas vocales con su propia cadena de efectos. Unlimited ($99/mes): todo lo de Mix, 8 pistas vocales, canciones ilimitadas.",
+      chatTitle:"Pregúntale a Gemstar IA", chatLauncher:"Preguntar IA", chatSend:"Enviar", chatPlaceholder:"Pregunta sobre perillas, grabación, planes…",
+      chatGreeting:"¡Hola! Soy el asistente de Gemstar. Pregúntame cómo usar cualquier perilla, grabar con tu interfaz, repetir una sección o qué plan te conviene.",
+      chatNote:"Las respuestas de la IA pueden equivocarse. Para pagos o tu cuenta, escribe a Gemstaraudio@gmail.com.",
+      chatThinking:"Pensando…", chatErrGeneric:"Perdón, no pude responder ahora. Intenta de nuevo en un momento o escribe a Gemstaraudio@gmail.com.",
+      chatErrOff:"El asistente de IA aún no está activado. Revisa las preguntas frecuentes o escribe a Gemstaraudio@gmail.com.",
+      chatErrRate:"Estás enviando mensajes muy rápido. Espera un minuto e intenta de nuevo.",
+      chatSug1:"¿Cómo grabo con mi interfaz?", chatSug2:"¿Cómo repito una parte de la canción?", chatSug3:"¿Qué plan me conviene?",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
       knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels"},
       pitchGroupLabel:"Auto-Tune",
@@ -1329,6 +1505,12 @@
     updateVocalMixerUI();
     updatePlayButton();
     updateAbButton();
+    if (typeof renderTimeline === "function") renderTimeline();
+    var chatInputEl = document.getElementById("chat-input");
+    if (chatInputEl) chatInputEl.placeholder = STR[l].chatPlaceholder;
+    if (typeof refreshChatGreeting === "function") refreshChatGreeting();
+    if (typeof renderExtraVocals === "function") renderExtraVocals();
+    if (typeof renderTrackEditTabs === "function") renderTrackEditTabs();
     // Device-picker option text ("System default", "Detected: …") is
     // language-dependent and built in JS, not via data-i18n -- refresh
     // whichever panel is currently open so a language switch mid-setup
@@ -1364,7 +1546,13 @@
     RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30}
   };
 
+  // `values` is whichever vocal track's knob settings are currently shown on
+  // the knob grid. The lead's settings live in leadValues; on Mix/Unlimited
+  // each extra vocal track carries its own `values` object too, and picking a
+  // track above the knobs just points `values` at that track's object.
   var values = Object.assign({}, DEFAULT_VALUES);
+  var leadValues = values;
+  var editTarget = "lead"; // "lead" or an extra vocal track's id
   var knobEls = {};
   var knobUnitEls = {};
 
@@ -1734,6 +1922,8 @@
 
     if (IS_IOS_SAFARI){
       var oldCtx = ctx;
+      retireVocalChain(chain);
+      extraVocals.forEach(function(t){ if (t.chain){ retireVocalChain(t.chain); t.chain = null; } });
       ctx = null;
       chain = null;
       pitchWorkletModulePromise = null;
@@ -1745,11 +1935,7 @@
       return;
     }
 
-    if (chain){
-      try { chain.analyser.disconnect(); } catch(e){}
-    }
-    chain = null;
-    buildChain();
+    buildChain(); // retires the old chain(s) itself and rebuilds on the same context
   }
 
   function makeGateShaperCurve(amount){
@@ -1948,6 +2134,14 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
     this.voiced = false;
     this.lfoPhase = 0;
     this.lfoRateHz = 5.5;
+    // Lets the main thread retire this processor (e.g. when a vocal track is
+    // removed or the chain is rebuilt after a recording). Without this, a
+    // processor that always returns true keeps running on the audio thread
+    // forever even once it's disconnected -- orphaned copies piling up after
+    // every recording is exactly the kind of creeping CPU load that turns
+    // into lag and glitches.
+    this.stopped = false;
+    this.port.onmessage = (e) => { if (e.data === 'stop') this.stopped = true; };
   }
   _timeConstantSeconds(speed) {
     const s = Math.max(1, Math.min(100, speed));
@@ -1957,6 +2151,7 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
   process(inputs, outputs, parameters) {
     const input = inputs[0];
     const output = outputs[0];
+    if (this.stopped) return false;
     if (!input || input.length === 0 || !output || output.length === 0) return true;
     // Never let an exception escape process(): a processor that throws is
     // permanently killed by the browser and outputs silence forever after --
@@ -1993,7 +2188,12 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
       this.analysisBuf[this.analysisWritePos] = monoSample;
       this.analysisWritePos = (this.analysisWritePos + 1) % this.analysisWinSize;
       this.samplesSinceAnalysis++;
-      if (this.samplesSinceAnalysis >= this.analysisIntervalSamples) {
+      // Autocorrelation pitch detection is by far the heaviest thing on the
+      // audio thread (~hundreds of thousands of multiply-adds every 512
+      // samples). It's only needed while Tune is actually correcting, so skip
+      // it entirely at Tune = 0 -- the rolling buffer above stays filled, so
+      // detection picks up instantly the moment Tune is turned up.
+      if (speed > 0 && this.samplesSinceAnalysis >= this.analysisIntervalSamples) {
         this.samplesSinceAnalysis = 0;
         const ordered = new Float32Array(this.analysisWinSize);
         for (let k = 0; k < this.analysisWinSize; k++) {
@@ -2195,7 +2395,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     });
   }
 
-  function buildChain(){
+  // One vocal channel's complete processing chain (Clean -> ... -> Jewels,
+  // plus its own A/B bypass bus). The lead vocal always uses the one built
+  // into the main chain; on Mix/Unlimited every extra vocal track gets its own
+  // copy too, so each track can be dialed in independently. Returns the node
+  // map; its finalMix output is left unconnected for the caller to route.
+  function buildVocalChain(){
     var g = {};
 
     g.input = ctx.createGain();
@@ -2291,7 +2496,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.pitchBypass.connect(g.pitchOutput);
     g.pitchWorkletNode = null;
     loadPitchWorklet(ctx).then(function(node){
-      if (!node || g !== chain) return; // chain may have been rebuilt already
+      if (!node) return;
+      if (g._dead){ retireWorkletNode(node); return; } // chain was torn down while this loaded
       g.pitchWorkletNode = node;
       g.pitchInput.disconnect(g.pitchBypass);
       g.pitchInput.connect(node);
@@ -2370,10 +2576,6 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.dryBus = ctx.createGain();
     g.wetBus = ctx.createGain();
     g.finalMix = ctx.createGain();
-
-    // ---- meter / output ----
-    g.analyser = ctx.createAnalyser();
-    g.analyser.fftSize = 2048;
 
     // ===== wiring =====
     g.input.connect(g.dryBus);
@@ -2455,6 +2657,85 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.jewelsSum.connect(g.wetBus);
     g.wetBus.connect(g.finalMix);
 
+    return g;
+  }
+
+  function retireWorkletNode(node){
+    if (!node) return;
+    try { node.port.postMessage("stop"); } catch(e){}
+    try { node.disconnect(); } catch(e){}
+  }
+
+  // Tears a vocal chain down for good: stops its always-running LFOs and its
+  // pitch worklet (so none of them keep burning CPU in the background) and
+  // unplugs its output. Safe to call more than once.
+  function retireVocalChain(g){
+    if (!g || g._dead) return;
+    g._dead = true;
+    try { g.finalMix.disconnect(); } catch(e){}
+    ["chorusLfoA","chorusLfoB","jewelsLFO"].forEach(function(k){
+      try { g[k].stop(); } catch(e){}
+      try { g[k].disconnect(); } catch(e){}
+    });
+    retireWorkletNode(g.pitchWorkletNode);
+    g.pitchWorkletNode = null;
+  }
+
+  // ---- per-track effects chains (Mix / Unlimited) ----
+  function perTrackFxEnabled(){ return isTierAtLeast("mix"); }
+
+  function buildTrackChain(){
+    var g = buildVocalChain();
+    g.finalMix.connect(chain.mixSum);
+    g.finalMix.connect(chain.vocalAnalyser);
+    return g;
+  }
+
+  // Makes sure every extra vocal track has its own chain exactly when the
+  // plan allows it (and none otherwise -- they then share the lead's chain).
+  function syncTrackChains(){
+    if (!chain) return;
+    var want = perTrackFxEnabled();
+    var changed = false;
+    extraVocals.forEach(function(t){
+      if (!t.values) t.values = Object.assign({}, leadValues);
+      if (want && (!t.chain || t.chain._dead)){
+        t.chain = buildTrackChain();
+        applyBypassTo(t.chain);
+        applyParamsTo(t.chain, t.values);
+        changed = true;
+      } else if (!want && t.chain){
+        retireVocalChain(t.chain);
+        t.chain = null;
+        changed = true;
+      }
+    });
+    if (!want && editTarget !== "lead") setEditTarget("lead");
+    renderTrackEditTabs();
+    return changed;
+  }
+
+  // Where a vocal track's audio should enter: its own chain if it has one,
+  // otherwise the lead's (shared) chain.
+  function vocalTrackInput(t){
+    return (t && t.chain && !t.chain._dead) ? t.chain.input : chain.input;
+  }
+
+  function buildChain(){
+    // Retire whatever was there before (the lead chain and any per-track
+    // chains) so nothing orphaned keeps processing in the background.
+    if (chain){
+      try { chain.analyser.disconnect(); } catch(e){}
+      retireVocalChain(chain);
+    }
+    extraVocals.forEach(function(t){ if (t.chain){ retireVocalChain(t.chain); t.chain = null; } });
+
+    var g = buildVocalChain();
+
+    // ---- meter / output ----
+    g.analyser = ctx.createAnalyser();
+    g.analyser.fftSize = 2048;
+
     // ---- Mix with Beat (Full Song Mix mode) ----
     // The beat only makes sound once a file is loaded AND Full Song Mix is
     // selected — in Vocal Only mode beatGain/beatDuck stay silent, so this
@@ -2495,21 +2776,43 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.analyser.connect(ctx.destination);
 
     chain = g;
+    syncTrackChains();
     applyBypassGains();
     applyAllParams();
     applyOutputGain();
   }
 
-  function applyBypassGains(){
+  function applyBypassTo(c){
+    if (!c) return;
     var now = ctx.currentTime;
-    chain.dryBus.gain.setTargetAtTime(bypassed ? 1 : 0, now, 0.01);
-    chain.wetBus.gain.setTargetAtTime(bypassed ? 0 : 1, now, 0.01);
+    c.dryBus.gain.setTargetAtTime(bypassed ? 1 : 0, now, 0.01);
+    c.wetBus.gain.setTargetAtTime(bypassed ? 0 : 1, now, 0.01);
+  }
+  function applyBypassGains(){
+    if (!chain) return;
+    applyBypassTo(chain);
+    extraVocals.forEach(function(t){ if (t.chain) applyBypassTo(t.chain); });
   }
 
+  // Pushes every chain's own knob values into its nodes.
   function applyAllParams(){
     if (!chain) return;
+    applyParamsTo(chain, leadValues);
+    extraVocals.forEach(function(t){ if (t.chain && t.values) applyParamsTo(t.chain, t.values); });
+  }
+
+  // Only the chain whose knobs are currently on screen -- what a knob drag
+  // or preset actually changed. Cheaper than re-applying every track's chain.
+  function applyEditTargetParams(){
+    if (!chain) return;
+    var t = editTargetTrack();
+    if (t && t.chain) applyParamsTo(t.chain, t.values);
+    else applyParamsTo(chain, leadValues);
+  }
+
+  function applyParamsTo(chain, v){
+    if (!chain || chain._dead) return;
     var now = ctx.currentTime;
-    var v = values;
     var m5 = v.m5tar/100;
 
     // M5TAR macro: M5tar's own signature chain is a light blend into other
@@ -2596,7 +2899,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function onParamsChanged(){
     ensureContext();
-    applyAllParams();
+    applyEditTargetParams();
   }
 
   /* ---------- file handling ---------- */
@@ -2605,31 +2908,105 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var playerBlock = document.getElementById("player-block");
   var trackNameEl = document.getElementById("track-name");
 
+  function audioReadError(){
+    alert(lang==="es" ? "No se pudo leer ese archivo de audio." : "Couldn't read that audio file.");
+  }
+
+  // Reads + decodes one audio File. Resolves with a normalized AudioBuffer,
+  // or null if it couldn't be decoded (the caller decides how to report it).
+  function decodeAudioFile(file){
+    return new Promise(function(resolve){
+      ensureContext();
+      var reader = new FileReader();
+      reader.onload = function(e){
+        ctx.decodeAudioData(e.target.result.slice(0), function(buf){
+          resolve(autoNormalizeBuffer(buf));
+        }, function(){ resolve(null); });
+      };
+      reader.onerror = function(){ resolve(null); };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function setLeadName(name){
+    trackNameEl.textContent = name;
+    var leadNameEl = document.getElementById("lead-track-name");
+    if (leadNameEl) leadNameEl.textContent = name;
+  }
+
+  function showPlayerForLoadedVocal(){
+    dropzone.hidden = true;
+    if (inputModeRow) inputModeRow.hidden = true;
+    if (recordPanel) recordPanel.hidden = true;
+    playerBlock.hidden = false;
+  }
+
+  function afterVocalSetChanged(){
+    applyPlanLimit();
+    clampTimelineToDuration();
+    drawStaticWaveform();
+    drawBeatWaveformStatic();
+    renderTimeline();
+  }
+
+  // Single file (a recording, or one dropped/picked file): replaces just the
+  // lead vocal and leaves any other loaded vocal tracks in place.
   function handleFile(file){
     if (!file) return;
-    ensureContext();
-    var reader = new FileReader();
-    reader.onload = function(e){
-      ctx.decodeAudioData(e.target.result.slice(0), function(buf){
-        audioBuffer = autoNormalizeBuffer(buf);
-        trackNameEl.textContent = file.name;
-        dropzone.hidden = true;
-        if (inputModeRow) inputModeRow.hidden = true;
-        if (recordPanel) recordPanel.hidden = true;
-        playerBlock.hidden = false;
-        applyPlanLimit();
-        drawStaticWaveform();
-        drawBeatWaveformStatic();
-      }, function(){
-        alert(lang==="es" ? "No se pudo leer ese archivo de audio." : "Couldn't read that audio file.");
-      });
-    };
-    reader.readAsArrayBuffer(file);
+    decodeAudioFile(file).then(function(buf){
+      if (!buf){ audioReadError(); return; }
+      var wasPlaying = isPlaying;
+      if (wasPlaying) stopPlayback();
+      audioBuffer = buf;
+      setLeadName(file.name);
+      tlCursor = 0; tlRegion = null; tlLoop = false;
+      showPlayerForLoadedVocal();
+      afterVocalSetChanged();
+      if (wasPlaying) startPlayback();
+    });
+  }
+
+  // Several files dropped/picked at once: they become the whole vocal set.
+  // The first one starts out as the lead, and the user can then tap
+  // "Make Lead" on any other track to choose which vocal leads. Anything past
+  // the plan's track limit is skipped (with a heads-up).
+  function handleFiles(fileList){
+    var files = Array.prototype.slice.call(fileList || []).filter(Boolean);
+    if (!files.length) return;
+    if (files.length === 1){ handleFile(files[0]); return; }
+    var max = maxVocalTracks();
+    if (files.length > max){
+      alert(STR[lang].uploadCapReached
+        .split("{max}").join(String(max))
+        .replace("{plan}", planLabelFor(currentPlan)));
+      files = files.slice(0, max);
+    }
+    // Decode everything first, then assign in the original order -- decodes
+    // can finish out of order, and the lead should be the first file dropped.
+    Promise.all(files.map(decodeAudioFile)).then(function(bufs){
+      var loaded = [];
+      bufs.forEach(function(b, i){ if (b) loaded.push({name: files[i].name, buffer: b}); });
+      if (!loaded.length){ audioReadError(); return; }
+      if (loaded.length < bufs.length) audioReadError();
+      var wasPlaying = isPlaying;
+      if (wasPlaying) stopPlayback();
+      clearExtraVocals();
+      audioBuffer = loaded[0].buffer;
+      setLeadName(loaded[0].name);
+      mainVocalLevel = 1;
+      if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
+      loaded.slice(1).forEach(function(item){ pushExtraVocal(item.name, item.buffer); });
+      tlCursor = 0; tlRegion = null; tlLoop = false;
+      showPlayerForLoadedVocal();
+      renderExtraVocals();
+      afterVocalSetChanged();
+      if (wasPlaying) startPlayback();
+    });
   }
 
   dropzone.addEventListener("click", function(){ fileInput.click(); });
   dropzone.addEventListener("keydown", function(e){ if (e.key==="Enter" || e.key===" ") fileInput.click(); });
-  fileInput.addEventListener("change", function(e){ handleFile(e.target.files[0]); });
+  fileInput.addEventListener("change", function(e){ handleFiles(e.target.files); e.target.value = ""; });
   ["dragover","dragenter"].forEach(function(evt){
     dropzone.addEventListener(evt, function(e){ e.preventDefault(); dropzone.classList.add("drag"); });
   });
@@ -2637,8 +3014,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dropzone.addEventListener(evt, function(e){ e.preventDefault(); dropzone.classList.remove("drag"); });
   });
   dropzone.addEventListener("drop", function(e){
-    var f = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) handleFile(f);
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   });
   document.getElementById("btn-change").addEventListener("click", function(){
     stopPlayback();
@@ -3143,7 +3519,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function updateVocalMixerUI(){
     if (!vocalMixerEl) return;
-    vocalMixerEl.hidden = (mode !== "full");
+    // Shown in Full Song Mix, and on any plan that allows more than one vocal
+    // track once a vocal is loaded -- that's where you add tracks, balance
+    // them, and pick which one is the lead.
+    vocalMixerEl.hidden = !(mode === "full" || (maxVocalTracks() > 1 && audioBuffer) || extraVocals.length > 0);
+    var leadHint = document.getElementById("lead-pick-hint");
+    if (leadHint) leadHint.hidden = extraVocals.length === 0;
     var count = totalVocalTrackCount();
     var max = maxVocalTracks();
     if (btnAddVocal) btnAddVocal.disabled = count >= max;
@@ -3163,23 +3544,125 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   // Adding a harmony/ad-lib vocal track — shared by the upload input and the
   // "Record Vocal Track" mic recorder below, so both land in the same array.
-  function addExtraVocalFromFile(file){
-    ensureContext();
-    var reader = new FileReader();
-    reader.onload = function(ev){
-      ctx.decodeAudioData(ev.target.result.slice(0), function(buf){
-        extraVocals.push({id: extraVocalIdSeq++, name: file.name, buffer: autoNormalizeBuffer(buf), level: 1, _liveGain: null});
-        renderExtraVocals();
-        updateVocalMixerUI();
-        drawStaticWaveform();
-        drawBeatWaveformStatic();
-        if (isPlaying) startPlayback();
-      }, function(){
-        alert(lang==="es" ? "No se pudo leer ese archivo de audio." : "Couldn't read that audio file.");
-      });
-    };
-    reader.readAsArrayBuffer(file);
+  // New tracks start with a copy of the lead's knob settings so they sound
+  // matched out of the gate; on Mix/Unlimited they then get their own chain.
+  function pushExtraVocal(name, buffer){
+    var t = {id: extraVocalIdSeq++, name: name, buffer: buffer, level: 1, _liveGain: null,
+             values: Object.assign({}, leadValues), chain: null};
+    extraVocals.push(t);
+    syncTrackChains();
+    return t;
   }
+
+  function clearExtraVocals(){
+    extraVocals.forEach(function(t){ if (t.chain) retireVocalChain(t.chain); t.chain = null; });
+    extraVocals.length = 0;
+    if (editTarget !== "lead") setEditTarget("lead");
+    renderTrackEditTabs();
+  }
+
+  function removeExtraVocal(t){
+    var idx = extraVocals.indexOf(t);
+    if (idx < 0) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    if (t.chain) retireVocalChain(t.chain);
+    t.chain = null;
+    extraVocals.splice(idx, 1);
+    if (editTarget === t.id) setEditTarget("lead");
+    renderExtraVocals();
+    afterVocalSetChanged();
+    if (wasPlaying) startPlayback();
+  }
+
+  // Swap which vocal is the lead. Everything that belongs to a track travels
+  // with it -- its audio, name, level fader, and its own knob settings -- so
+  // promoting a track never changes how anything sounds, only which one is
+  // treated as the lead (main waveform, first in the mixer, required to play).
+  function makeLead(t){
+    if (extraVocals.indexOf(t) < 0 || !audioBuffer) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    var old = {name: trackNameEl.textContent, buffer: audioBuffer, level: mainVocalLevel, values: leadValues};
+    audioBuffer = t.buffer;
+    setLeadName(t.name);
+    mainVocalLevel = t.level;
+    leadValues = t.values || Object.assign({}, old.values);
+    t.buffer = old.buffer; t.name = old.name; t.level = old.level; t.values = old.values;
+    if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
+    setEditTarget("lead");
+    applyAllParams();
+    renderExtraVocals();
+    afterVocalSetChanged();
+    if (wasPlaying) startPlayback();
+  }
+
+  function addExtraVocalFromFile(file){
+    decodeAudioFile(file).then(function(buf){
+      if (!buf){ audioReadError(); return; }
+      if (totalVocalTrackCount() >= maxVocalTracks()) return;
+      var wasPlaying = isPlaying;
+      if (wasPlaying) stopPlayback();
+      pushExtraVocal(file.name, buf);
+      renderExtraVocals();
+      afterVocalSetChanged();
+      if (wasPlaying) startPlayback();
+    });
+  }
+
+  /* ---- per-track FX target (which track the knobs are editing) ---- */
+  var trackEditRowEl = document.getElementById("track-edit-row");
+  var trackEditTabsEl = document.getElementById("track-edit-tabs");
+
+  function editTargetTrack(){
+    if (editTarget === "lead") return null;
+    for (var i=0;i<extraVocals.length;i++) if (extraVocals[i].id === editTarget) return extraVocals[i];
+    return null;
+  }
+
+  function setEditTarget(target){
+    var t = null;
+    if (target !== "lead"){
+      for (var i=0;i<extraVocals.length;i++) if (extraVocals[i].id === target) t = extraVocals[i];
+      if (!t || !perTrackFxEnabled()) target = "lead";
+    }
+    editTarget = target;
+    values = (target === "lead") ? leadValues : t.values;
+    // Presets are per-track now too -- clear the dropdown so it doesn't
+    // claim the newly shown track is on a preset it isn't.
+    var presetSel = document.getElementById("preset-select");
+    if (presetSel) presetSel.value = "";
+    if (typeof refreshKnobLocks === "function") refreshKnobLocks(); // re-clamps locked signature knobs for this track
+    renderAllKnobs();
+    renderTrackEditTabs();
+    renderExtraVocals();
+  }
+
+  function renderTrackEditTabs(){
+    if (!trackEditRowEl || !trackEditTabsEl) return;
+    var show = perTrackFxEnabled() && extraVocals.length > 0 && !!audioBuffer;
+    trackEditRowEl.hidden = !show;
+    var leadFxBtn = document.getElementById("btn-edit-fx-lead");
+    if (leadFxBtn){ leadFxBtn.hidden = !show; leadFxBtn.classList.toggle("active", show && editTarget === "lead"); }
+    trackEditTabsEl.innerHTML = "";
+    if (!show) return;
+    function tab(label, target){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "icon-btn small" + (editTarget === target ? " active" : "");
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(editTarget === target));
+      b.textContent = label;
+      b.title = label;
+      b.addEventListener("click", function(){ setEditTarget(target); });
+      trackEditTabsEl.appendChild(b);
+    }
+    tab(STR[lang].leadBadge + " · " + (trackNameEl.textContent || ""), "lead");
+    extraVocals.forEach(function(t){ tab(t.name, t.id); });
+  }
+
+  var leadFxBtnEl = document.getElementById("btn-edit-fx-lead");
+  if (leadFxBtnEl) leadFxBtnEl.addEventListener("click", function(){ setEditTarget("lead"); });
 
   var extraDeviceSelector = createDeviceSelector(
     document.getElementById("extra-record-device-select"),
@@ -3244,13 +3727,38 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function renderExtraVocals(){
     if (!extraVocalsListEl) return;
     extraVocalsListEl.innerHTML = "";
+    var perTrack = perTrackFxEnabled();
     extraVocals.forEach(function(t, idx){
       var row = document.createElement("div");
-      row.className = "slider-row extra-vocal-row";
+      row.className = "slider-row extra-vocal-row vocal-track-row";
 
       var nameSpan = document.createElement("span");
-      nameSpan.className = "status-label";
-      nameSpan.textContent = t.name;
+      nameSpan.className = "vocal-track-label";
+      var nameText = document.createElement("span");
+      nameText.className = "vocal-track-name";
+      nameText.textContent = t.name;
+      nameSpan.appendChild(nameText);
+
+      var leadBtn = document.createElement("button");
+      leadBtn.type = "button";
+      leadBtn.className = "icon-btn small btn-make-lead";
+      leadBtn.textContent = STR[lang].makeLeadBtn;
+      leadBtn.setAttribute("aria-label", STR[lang].makeLeadAria + " " + t.name);
+      leadBtn.addEventListener("click", function(){ makeLead(t); });
+
+      var fxBtn = null;
+      if (perTrack){
+        fxBtn = document.createElement("button");
+        fxBtn.type = "button";
+        fxBtn.className = "icon-btn small btn-edit-fx" + (editTarget === t.id ? " active" : "");
+        fxBtn.textContent = STR[lang].editFxBtn;
+        fxBtn.setAttribute("aria-label", STR[lang].editingLabel + " " + t.name);
+        fxBtn.addEventListener("click", function(){
+          setEditTarget(t.id);
+          var grid = document.getElementById("track-edit-row");
+          if (grid && grid.scrollIntoView) grid.scrollIntoView({behavior:"smooth", block:"center"});
+        });
+      }
 
       var slider = document.createElement("input");
       slider.type = "range"; slider.min = "0"; slider.max = "100";
@@ -3266,17 +3774,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       rmBtn.className = "icon-btn small btn-remove-vocal";
       rmBtn.textContent = "✕";
       rmBtn.setAttribute("aria-label", STR[lang].removeVocalTrack + " " + t.name);
-      rmBtn.addEventListener("click", function(){
-        extraVocals.splice(idx, 1);
-        renderExtraVocals();
-        updateVocalMixerUI();
-        drawStaticWaveform();
-        drawBeatWaveformStatic();
-        if (isPlaying) startPlayback();
-      });
+      rmBtn.addEventListener("click", function(){ removeExtraVocal(t); });
 
       row.appendChild(nameSpan);
       row.appendChild(slider);
+      row.appendChild(leadBtn);
+      if (fxBtn) row.appendChild(fxBtn);
       row.appendChild(rmBtn);
       extraVocalsListEl.appendChild(row);
     });
@@ -3285,16 +3788,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function applyPlanLimit(){
     var max = maxVocalTracks();
     var allowedExtra = Math.max(0, max - (audioBuffer ? 1 : 0));
-    if (extraVocals.length > allowedExtra){
-      extraVocals.length = allowedExtra; // trim most-recently-added tracks first
+    while (extraVocals.length > allowedExtra){
+      var dropped = extraVocals.pop(); // trim most-recently-added tracks first
+      if (dropped.chain) retireVocalChain(dropped.chain);
+      dropped.chain = null;
     }
+    if (editTarget !== "lead" && !editTargetTrack()) setEditTarget("lead");
+    syncTrackChains();
     renderExtraVocals();
     updateVocalMixerUI();
+    renderTrackEditTabs();
   }
 
   // The dropdown is now a read-only reflection of your verified plan, not a
   // free "pick any tier to preview" control — see window.gemstarApplyTier.
   function applyCurrentPlanSideEffects(){
+    if (isPlaying) stopPlayback();
     applyPlanLimit();
     drawStaticWaveform();
     drawBeatWaveformStatic();
@@ -3343,11 +3852,31 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   if (extraVocalInput){
     extraVocalInput.addEventListener("change", function(e){
-      var f = e.target.files[0];
+      var files = Array.prototype.slice.call(e.target.files || []);
       e.target.value = "";
-      if (!f) return;
-      if (totalVocalTrackCount() >= maxVocalTracks()) return;
-      addExtraVocalFromFile(f);
+      if (!files.length) return;
+      var room = maxVocalTracks() - totalVocalTrackCount();
+      if (room <= 0) return;
+      if (files.length > room){
+        alert(STR[lang].uploadCapReached
+          .split("{max}").join(String(maxVocalTracks()))
+          .replace("{plan}", planLabelFor(currentPlan)));
+        files = files.slice(0, room);
+      }
+      // Decode all, then add in the order picked.
+      Promise.all(files.map(decodeAudioFile)).then(function(bufs){
+        var wasPlaying = isPlaying;
+        if (wasPlaying) stopPlayback();
+        var anyBad = false;
+        bufs.forEach(function(b, i){
+          if (!b){ anyBad = true; return; }
+          if (totalVocalTrackCount() < maxVocalTracks()) pushExtraVocal(files[i].name, b);
+        });
+        if (anyBad) audioReadError();
+        renderExtraVocals();
+        afterVocalSetChanged();
+        if (wasPlaying) startPlayback();
+      });
     });
   }
 
@@ -3376,6 +3905,50 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   function updateAbButton(){ btnAb.textContent = bypassed ? STR[lang].abBefore : STR[lang].ab; }
 
+  /* ---- timeline: where playback starts, and an optional loop section ---- */
+  var tlCursor = 0;        // seconds -- where Play starts from (Pause leaves it where you stopped)
+  var tlRegion = null;     // {start, end} in seconds, or null
+  var tlLoop = false;      // loop tlRegion instead of playing through
+  var playStartCtxTime = 0, playStartOffset = 0, playRegion = null;
+
+  function fmtClock(sec){
+    sec = Math.max(0, sec || 0);
+    var m = Math.floor(sec/60), s2 = Math.floor(sec%60);
+    return m + ":" + (s2<10?"0":"") + s2;
+  }
+
+  // Where the playhead is right now (or where Play would start, if stopped).
+  function currentPlayPosition(){
+    if (!isPlaying || !ctx) return tlCursor;
+    var elapsed = Math.max(0, ctx.currentTime - playStartCtxTime);
+    if (playRegion){
+      var len = Math.max(0.01, playRegion.end - playRegion.start);
+      return playRegion.start + ((playStartOffset - playRegion.start + elapsed) % len);
+    }
+    var total = currentTotalDuration();
+    return total > 0 ? (playStartOffset + elapsed) % total : 0;
+  }
+
+  // One looping source for a buffer, honoring the start point / loop section.
+  // Returns null if this buffer has no audio at that point (e.g. a short ad-lib
+  // track when you've looped a section later in the song).
+  function makeTimedSource(buffer, offset, region){
+    var src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    var dur = buffer.duration;
+    if (region){
+      if (region.start >= dur - 0.01) return null;
+      src.loopStart = region.start;
+      src.loopEnd = Math.min(region.end, dur);
+      if (offset >= src.loopEnd) offset = region.start;
+      src._offset = offset;
+    } else {
+      src._offset = dur > 0 ? (offset % dur) : 0;
+    }
+    return src;
+  }
+
   function startPlayback(){
     if (!audioBuffer) return;
     withRunningContext(function(){
@@ -3385,45 +3958,63 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       stopSourceOnly();
       stopBeatSourceOnly();
 
-      // Vocal mixer bus: every loaded vocal track (lead + extras) gets its own
-      // level-gain "channel" and they all sum into the same chain.input — one
-      // shared 10-knob chain then processes the combined vocal signal together.
+      var total = currentTotalDuration();
+      var region = (tlLoop && tlRegion) ? {start: tlRegion.start, end: tlRegion.end} : null;
+      var offset = tlCursor;
+      if (region && (offset < region.start || offset >= region.end)) offset = region.start;
+      if (!region && offset >= total - 0.05) offset = 0;
+
+      // Vocal mixer: every loaded vocal track gets its own level "channel".
+      // The lead always runs through the main chain; on Mix/Unlimited each
+      // extra track runs through its OWN full chain (vocalTrackInput), so its
+      // knobs are independent -- otherwise extras share the lead's chain.
       vocalSourceNodes = [];
-      var leadSrc = ctx.createBufferSource();
-      leadSrc.buffer = audioBuffer;
-      leadSrc.loop = true;
-      var leadGain = ctx.createGain();
-      leadGain.gain.value = mainVocalLevel;
-      leadSrc.connect(leadGain);
-      leadGain.connect(chain.input);
-      vocalSourceNodes.push({src:leadSrc, gain:leadGain, ref:null});
+      var leadSrc = makeTimedSource(audioBuffer, offset, region);
+      if (leadSrc){
+        var leadGain = ctx.createGain();
+        leadGain.gain.value = mainVocalLevel;
+        leadSrc.connect(leadGain);
+        leadGain.connect(chain.input);
+        vocalSourceNodes.push({src:leadSrc, gain:leadGain, ref:null});
+      }
 
       extraVocals.forEach(function(t){
-        var src = ctx.createBufferSource();
-        src.buffer = t.buffer;
-        src.loop = true;
+        var src = makeTimedSource(t.buffer, offset, region);
+        if (!src) return;
         var g = ctx.createGain();
         g.gain.value = t.level;
         src.connect(g);
-        g.connect(chain.input);
+        g.connect(vocalTrackInput(t));
         t._liveGain = g;
         vocalSourceNodes.push({src:src, gain:g, ref:t});
       });
 
       if (beatBuffer){
-        beatSourceNode = ctx.createBufferSource();
-        beatSourceNode.buffer = beatBuffer;
-        beatSourceNode.loop = true;
-        beatSourceNode.connect(chain.beatGain);
+        beatSourceNode = makeTimedSource(beatBuffer, offset, region);
+        if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
       // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
       var startAt = ctx.currentTime + 0.03;
-      vocalSourceNodes.forEach(function(n){ n.src.start(startAt); });
-      if (beatSourceNode) beatSourceNode.start(startAt);
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt, n.src._offset); });
+      if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
+      playStartCtxTime = startAt;
+      playStartOffset = offset;
+      playRegion = region;
       isPlaying = true;
       updatePlayButton();
+      renderTimeline();
       runVisualizer();
     });
+  }
+
+  // Jump playback to wherever tlCursor now points (used after seeking or
+  // changing the loop while something is already playing).
+  function restartPlaybackFromCursor(){
+    if (!isPlaying) { renderTimeline(); return; }
+    stopSourceOnly();
+    stopBeatSourceOnly();
+    isPlaying = false;
+    startPlayback();
   }
   function stopSourceOnly(){
     vocalSourceNodes.forEach(function(n){
@@ -3442,10 +4033,146 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
   }
   function stopPlayback(){
+    if (isPlaying && ctx) tlCursor = currentPlayPosition(); // Pause remembers where you were
     stopSourceOnly();
     stopBeatSourceOnly();
     isPlaying = false;
     updatePlayButton();
+    renderTimeline();
+  }
+
+  /* ---- timeline UI ---- */
+  var timelineEl = document.getElementById("timeline");
+  var tlRegionEl = document.getElementById("tl-region");
+  var tlCursorEl = document.getElementById("tl-cursor");
+  var tlPlayheadEl = document.getElementById("tl-playhead");
+  var tlTimeEl = document.getElementById("tl-time");
+  var btnLoop = document.getElementById("btn-loop");
+  var btnTlStart = document.getElementById("btn-tl-start");
+
+  function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
+
+  function updateLoopButton(){
+    if (!btnLoop) return;
+    btnLoop.disabled = !tlRegion;
+    btnLoop.classList.toggle("on", !!(tlLoop && tlRegion));
+    btnLoop.textContent = (tlLoop && tlRegion) ? STR[lang].loopOn : STR[lang].loopOff;
+    btnLoop.setAttribute("aria-pressed", String(!!(tlLoop && tlRegion)));
+  }
+
+  function updatePlayheadUI(){
+    if (!timelineEl) return;
+    var total = currentTotalDuration();
+    var pos = currentPlayPosition();
+    if (tlPlayheadEl){
+      tlPlayheadEl.hidden = !isPlaying;
+      if (isPlaying) tlPlayheadEl.style.left = pct(pos, total) + "%";
+    }
+    if (tlTimeEl) tlTimeEl.textContent = fmtClock(pos) + " / " + fmtClock(total);
+  }
+
+  function renderTimeline(){
+    if (!timelineEl) return;
+    if (!isPlaying) clampTimelineToDuration();
+    var total = currentTotalDuration();
+    if (tlCursorEl) tlCursorEl.style.left = pct(tlCursor, total) + "%";
+    if (tlRegionEl){
+      tlRegionEl.hidden = !tlRegion;
+      if (tlRegion){
+        tlRegionEl.style.left = pct(tlRegion.start, total) + "%";
+        tlRegionEl.style.width = Math.max(0.5, pct(tlRegion.end, total) - pct(tlRegion.start, total)) + "%";
+      }
+    }
+    timelineEl.setAttribute("aria-valuemax", String(Math.round(total)));
+    timelineEl.setAttribute("aria-valuenow", String(Math.round(tlCursor)));
+    timelineEl.setAttribute("aria-valuetext", fmtClock(tlCursor) + " / " + fmtClock(total));
+    updateLoopButton();
+    updatePlayheadUI();
+  }
+
+  function resetTimeline(){
+    tlCursor = 0; tlRegion = null; tlLoop = false;
+    renderTimeline();
+  }
+
+  // Keeps the start point / loop inside the song after tracks change length.
+  function clampTimelineToDuration(){
+    var total = currentTotalDuration();
+    if (tlCursor > total) tlCursor = 0;
+    if (tlRegion){
+      if (tlRegion.start >= total) { tlRegion = null; tlLoop = false; }
+      else tlRegion.end = Math.min(tlRegion.end, total);
+    }
+  }
+
+  if (timelineEl){
+    var tlPress = null; // {id, x, t, dragging}
+    function tlTimeAt(clientX){
+      var r = timelineEl.getBoundingClientRect();
+      var frac = r.width > 0 ? (clientX - r.left) / r.width : 0;
+      return Math.max(0, Math.min(1, frac)) * currentTotalDuration();
+    }
+    timelineEl.addEventListener("pointerdown", function(e){
+      if (!audioBuffer || currentTotalDuration() <= 0) return;
+      e.preventDefault();
+      try { timelineEl.setPointerCapture(e.pointerId); } catch(err){}
+      tlPress = {id: e.pointerId, x: e.clientX, t: tlTimeAt(e.clientX), dragging: false};
+    });
+    timelineEl.addEventListener("pointermove", function(e){
+      if (!tlPress || e.pointerId !== tlPress.id) return;
+      if (!tlPress.dragging && Math.abs(e.clientX - tlPress.x) > 6) tlPress.dragging = true;
+      if (tlPress.dragging){
+        var t = tlTimeAt(e.clientX);
+        tlRegion = {start: Math.min(tlPress.t, t), end: Math.max(tlPress.t, t)};
+        renderTimeline();
+      }
+    });
+    function endPress(e, cancelled){
+      if (!tlPress || e.pointerId !== tlPress.id) return;
+      var press = tlPress; tlPress = null;
+      if (cancelled) { renderTimeline(); return; }
+      if (press.dragging){
+        if (tlRegion && tlRegion.end - tlRegion.start >= 0.25){
+          tlLoop = true;               // dragging out a section means "loop this"
+          tlCursor = tlRegion.start;
+        } else {
+          tlRegion = null; tlLoop = false;
+        }
+      } else {
+        tlCursor = press.t;            // a tap just moves the start point
+        if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+      }
+      restartPlaybackFromCursor();
+    }
+    timelineEl.addEventListener("pointerup", function(e){ endPress(e, false); });
+    timelineEl.addEventListener("pointercancel", function(e){ endPress(e, true); });
+    timelineEl.addEventListener("keydown", function(e){
+      var total = currentTotalDuration();
+      if (!total) return;
+      var step = e.shiftKey ? 5 : 1, handled = true;
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") tlCursor = Math.min(total, currentPlayPosition() + step);
+      else if (e.key === "ArrowLeft" || e.key === "ArrowDown") tlCursor = Math.max(0, currentPlayPosition() - step);
+      else if (e.key === "Home") tlCursor = 0;
+      else handled = false;
+      if (!handled) return;
+      e.preventDefault();
+      if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+      restartPlaybackFromCursor();
+    });
+  }
+  if (btnLoop){
+    btnLoop.addEventListener("click", function(){
+      if (!tlRegion) return;
+      if (isPlaying) tlCursor = currentPlayPosition();
+      tlLoop = !tlLoop;
+      restartPlaybackFromCursor();
+    });
+  }
+  if (btnTlStart){
+    btnTlStart.addEventListener("click", function(){
+      tlCursor = (tlLoop && tlRegion) ? tlRegion.start : 0;
+      restartPlaybackFromCursor();
+    });
   }
 
   btnPlay.addEventListener("click", function(){
@@ -3532,11 +4259,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
 
   function drawStaticWaveform(){
+    if (typeof renderTimeline === "function") renderTimeline(); // total length may have changed
     if (!audioBuffer) return;
     drawBufferWaveform(canvas, cctx, audioBuffer, "rgba(0,245,255,0.35)", currentTotalDuration());
   }
 
   function drawBeatWaveformStatic(){
+    if (typeof renderTimeline === "function") renderTimeline();
     if (!beatBuffer){ beatCctx.clearRect(0,0,beatCanvas.width,beatCanvas.height); return; }
     drawBufferWaveform(beatCanvas, beatCctx, beatBuffer, "rgba(194,76,255,0.4)", currentTotalDuration());
   }
@@ -3549,7 +4278,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var duckData = new Uint8Array(duckLen);
 
     function frame(){
-      if (!isPlaying) { rafId = null; return; }
+      if (!isPlaying) { rafId = null; updatePlayheadUI(); return; }
+      updatePlayheadUI();
 
       // auto-duck the beat under the vocal: watch the processed-vocal
       // envelope and pull the beat down while the vocal is present
@@ -3643,7 +4373,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         var g = ctx.createGain();
         g.gain.value = t.level;
         src.connect(g);
-        g.connect(chain.input);
+        g.connect(vocalTrackInput(t));
         vocalNodes.push(src);
       });
 
@@ -4286,6 +5016,99 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   renderMidiStatus();
 
   /* ---------- init ---------- */
+  /* ---------- FAQ: "Ask Gemstar AI" chat ---------- */
+  // Talks to /api/chat (a Vercel function that calls the AI model with the
+  // Gemstar knowledge base). Only the conversation text is sent -- never
+  // audio or account details. Replies are rendered as plain text.
+  var chatLogEl = document.getElementById("chat-log");
+  var chatFormEl = document.getElementById("chat-form");
+  var chatInputEl2 = document.getElementById("chat-input");
+  var chatSendEl = document.getElementById("chat-send");
+  var chatSuggestEl = document.getElementById("chat-suggest");
+  var chatLauncherEl = document.getElementById("chat-launcher");
+  var chatBoxEl = document.getElementById("chat-box");
+  var chatHistory = [];      // [{role:"user"|"assistant", content}]
+  var chatBusy = false;
+  var chatGreetingEl = null;
+
+  function chatBubble(text, cls){
+    var el = document.createElement("div");
+    el.className = "chat-msg " + cls;
+    el.textContent = text;
+    chatLogEl.appendChild(el);
+    chatLogEl.scrollTop = chatLogEl.scrollHeight;
+    return el;
+  }
+  function refreshChatGreeting(){
+    if (!chatLogEl) return;
+    if (!chatGreetingEl){ chatGreetingEl = chatBubble(STR[lang].chatGreeting, "bot"); return; }
+    chatGreetingEl.textContent = STR[lang].chatGreeting;
+  }
+  function sendChat(text){
+    text = (text || "").trim();
+    if (!text || chatBusy || !chatLogEl) return;
+    chatBusy = true;
+    if (chatSendEl) chatSendEl.disabled = true;
+    if (chatSuggestEl) chatSuggestEl.hidden = true;
+    chatBubble(text, "user");
+    chatHistory.push({role:"user", content:text.slice(0, 1200)});
+    chatHistory = chatHistory.slice(-12);
+    var thinking = chatBubble(STR[lang].chatThinking, "bot thinking");
+    fetch("/api/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({messages: chatHistory})
+    }).then(function(r){
+      return r.json().catch(function(){ return {}; }).then(function(d){ return {status:r.status, data:d}; });
+    }).then(function(res){
+      thinking.remove();
+      if (res.data && res.data.ok && res.data.reply){
+        chatBubble(res.data.reply, "bot");
+        chatHistory.push({role:"assistant", content:res.data.reply});
+      } else {
+        // drop the unanswered question so the next try stays a clean user/assistant alternation
+        chatHistory.pop();
+        var msg = res.status === 503 ? STR[lang].chatErrOff
+                : res.status === 429 ? STR[lang].chatErrRate
+                : STR[lang].chatErrGeneric;
+        chatBubble(msg, "bot err");
+      }
+    }).catch(function(){
+      thinking.remove();
+      chatHistory.pop();
+      chatBubble(STR[lang].chatErrGeneric, "bot err");
+    }).then(function(){
+      chatBusy = false;
+      if (chatSendEl) chatSendEl.disabled = false;
+    });
+  }
+  if (chatFormEl){
+    chatFormEl.addEventListener("submit", function(e){
+      e.preventDefault();
+      var t = chatInputEl2.value;
+      chatInputEl2.value = "";
+      sendChat(t);
+    });
+  }
+  if (chatSuggestEl){
+    chatSuggestEl.addEventListener("click", function(e){
+      var chip = e.target.closest ? e.target.closest(".chat-chip") : null;
+      if (chip) sendChat(chip.textContent);
+    });
+  }
+  if (chatLauncherEl && chatBoxEl){
+    chatLauncherEl.addEventListener("click", function(){
+      chatBoxEl.scrollIntoView({behavior:"smooth", block:"center"});
+      setTimeout(function(){ try { chatInputEl2.focus({preventScroll:true}); } catch(e){ chatInputEl2.focus(); } }, 450);
+    });
+    // Hide the floating button while the chat itself is on screen.
+    if ("IntersectionObserver" in window){
+      new IntersectionObserver(function(entries){
+        entries.forEach(function(en){ chatLauncherEl.classList.toggle("hide", en.isIntersecting); });
+      }, {threshold: 0.25}).observe(chatBoxEl);
+    }
+  }
+
   buildKnobs();
   applyLang("en");
   (function(){
