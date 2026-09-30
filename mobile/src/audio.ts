@@ -16,6 +16,8 @@ interface GemstarAudioNative {
 const native: GemstarAudioNative = NativeModules.GemstarAudio;
 
 export async function ensureMicPermission(): Promise<boolean> {
+  // iOS asks inside the native start() (system prompt on first use).
+  if (Platform.OS === 'ios') return true;
   if (Platform.OS !== 'android') return false;
   const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO, {
     title: 'Microphone access',

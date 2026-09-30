@@ -1,11 +1,11 @@
 // Host-side checks for the native DSP (no Android needed):
-//   g++ -O2 -std=c++17 -I../dsp chain_test.cpp -o chain_test && ./chain_test
+//   g++ -O2 -std=c++17 -I.. chain_test.cpp -o chain_test && ./chain_test
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <random>
 
-#include "vocal_chain.h"
+#include "engine_core.h"
 
 using namespace gemstar;
 
@@ -135,12 +135,44 @@ static void testBypassAndTiming() {
   CHECK(10.0 / secs > 8.0, "chain runs faster than 8x realtime on host");
 }
 
+static void testKnobIds() {
+  const char* order[] = {"clean", "punch", "bass", "voice", "highs", "smooth", "tune",
+                         "space", "wide", "radio", "m5tar", "jewels", "humanize", "delay"};
+  bool ok = true;
+  for (int i = 0; i < 14; i++) ok = ok && Knobs::indexOf(order[i]) == i;
+  CHECK(ok && Knobs::indexOf("nope") == -1 && Knobs::indexOf("clea") == -1, "knob id -> index mapping matches struct order");
+}
+
+static void testEngineCore() {
+  const float sr = 48000;
+  EngineCore a, b;
+  a.prepare(sr); b.prepare(sr);
+  for (EngineCore* e : {&a, &b}) { e->setKnob(0, 45); e->setKnob(1, 65); e->setKnob(7, 25); e->setOutputGainDb(0); }
+  const int n = 4800;
+  std::vector<float> in(n), inter(2 * n), l(n), r(n);
+  for (int i = 0; i < n; i++) in[i] = 0.3f * std::sin(2 * kPi * 220 * i / sr);
+  a.renderInterleaved(in.data(), inter.data(), n);
+  b.renderPlanar(in.data(), l.data(), r.data(), n);
+  float maxDiff = 0;
+  for (int i = 0; i < n; i++) maxDiff = std::max(maxDiff, std::max(std::fabs(inter[2 * i] - l[i]), std::fabs(inter[2 * i + 1] - r[i])));
+  CHECK(maxDiff < 1e-6f, "interleaved (Android) and planar (iOS) render paths match (diff %.1e)", maxDiff);
+  const float pk = a.takePeak();
+  CHECK(pk > 0.05f && pk <= 1.0f && a.takePeak() == 0.0f, "peak meter reports %.3f then resets", pk);
+  std::vector<float> silent(2 * n);
+  EngineCore c; c.prepare(sr);
+  c.renderInterleaved(nullptr, silent.data(), n);
+  float mx = 0; for (float v : silent) mx = std::max(mx, std::fabs(v));
+  CHECK(mx < 1e-3f, "null input renders silence (%.1e)", mx);
+}
+
 int main() {
   testBiquads();
   testConvolver();
   testCompressor();
   testChain();
   testBypassAndTiming();
+  testKnobIds();
+  testEngineCore();
   std::printf(failures ? "\n%d FAILED\n" : "\nall passed\n", failures);
   return failures ? 1 : 0;
 }

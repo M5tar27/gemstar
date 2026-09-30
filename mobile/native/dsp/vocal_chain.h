@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -28,6 +29,17 @@ struct Knobs {
   float clean = 0, punch = 0, bass = 0, voice = 0, highs = 0, smooth = 0, tune = 0,
         space = 0, wide = 0, radio = 0, m5tar = 0, jewels = 0, humanize = 0, delay = 0;
   static constexpr int kCount = 14;
+  // Knob ids in struct order (same names the web app and the JS side use).
+  static int indexOf(const char* id) {
+    static const char* const kIds[kCount] = {"clean", "punch", "bass", "voice", "highs", "smooth", "tune",
+                                             "space", "wide", "radio", "m5tar", "jewels", "humanize", "delay"};
+    for (int i = 0; i < kCount; i++) {
+      const char* a = kIds[i]; const char* b = id;
+      while (*a && *a == *b) { a++; b++; }
+      if (*a == 0 && *b == 0) return i;
+    }
+    return -1;
+  }
   float* data() { return &clean; }
   const float* data() const { return &clean; }
 };

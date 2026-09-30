@@ -13,7 +13,7 @@
 #include <thread>
 #include <vector>
 
-#include "dsp/vocal_chain.h"
+#include "engine_core.h"
 
 #define LOG_TAG "GemstarEngine"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -24,13 +24,11 @@ using namespace gemstar;
 class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErrorCallback {
  public:
   // ---- control surface (any thread) ----
-  void setKnob(int index, float value) {
-    if (index >= 0 && index < Knobs::kCount) knobs_[index].store(value, std::memory_order_relaxed);
-  }
-  void setBypass(bool b) { bypass_.store(b, std::memory_order_relaxed); }
-  void setOutputGainDb(float db) { gainDb_.store(db, std::memory_order_relaxed); }
-  void setScaleMask(int mask12) { scaleMask_.store(mask12, std::memory_order_relaxed); }
-  float takePeak() { return peak_.exchange(0.0f, std::memory_order_relaxed); }
+  void setKnob(int index, float value) { core_.setKnob(index, value); }
+  void setBypass(bool b) { core_.setBypass(b); }
+  void setOutputGainDb(float db) { core_.setOutputGainDb(db); }
+  void setScaleMask(int mask12) { core_.setScaleMask(mask12); }
+  float takePeak() { return core_.takePeak(); }
   int sampleRate() const { return sampleRate_; }
   bool running() const { return running_.load(); }
   float latencyMs() const {
@@ -71,8 +69,7 @@ class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErr
     }
 
     sampleRate_ = out_->getSampleRate();
-    chain_.init(static_cast<float>(sampleRate_));
-    outStage_.init(static_cast<float>(sampleRate_));
+    core_.prepare(static_cast<float>(sampleRate_));
     // Small-burst buffering keeps latency low; grow if the device underruns.
     out_->setBufferSizeInFrames(out_->getFramesPerBurst() * 2);
     inScratch_.assign(4096, 0.0f);
@@ -106,31 +103,8 @@ class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErr
     }
     for (int i = got; i < frames; i++) inScratch_[i] = 0.0f;
 
-    Knobs k;
-    float* kd = k.data();
-    for (int i = 0; i < Knobs::kCount; i++) kd[i] = knobs_[i].load(std::memory_order_relaxed);
-    chain_.setTargets(k);
-    chain_.setBypass(bypass_.load(std::memory_order_relaxed));
-    outStage_.setGainDb(gainDb_.load(std::memory_order_relaxed));
-    const int mask = scaleMask_.load(std::memory_order_relaxed);
-    if (mask != appliedMask_) {
-      bool m[12];
-      for (int i = 0; i < 12; i++) m[i] = (mask >> i) & 1;
-      chain_.setScale(m);
-      appliedMask_ = mask;
-    }
-
-    float pk = 0;
-    for (int i = 0; i < frames; i++) {
-      float l, r;
-      chain_.process(inScratch_[i], l, r);
-      outStage_.process(l, r);
-      out[2 * i] = l; out[2 * i + 1] = r;
-      pk = std::max(pk, std::max(std::fabs(l), std::fabs(r)));
-    }
+    core_.renderInterleaved(inScratch_.data(), out, frames);
     for (int i = frames; i < numFrames; i++) { out[2 * i] = 0; out[2 * i + 1] = 0; }
-    float prev = peak_.load(std::memory_order_relaxed);
-    if (pk > prev) peak_.store(pk, std::memory_order_relaxed);
     return oboe::DataCallbackResult::Continue;
   }
 
@@ -150,14 +124,9 @@ class Engine : public oboe::AudioStreamDataCallback, public oboe::AudioStreamErr
 
   std::mutex mu_;
   std::shared_ptr<oboe::AudioStream> in_, out_;
-  VocalChain chain_;
-  OutputStage outStage_;
+  EngineCore core_;
   std::vector<float> inScratch_;
-  std::atomic<float> knobs_[Knobs::kCount] = {};
-  std::atomic<bool> bypass_{false}, running_{false};
-  std::atomic<float> gainDb_{3.0f}, peak_{0.0f};
-  std::atomic<int> scaleMask_{0};
-  int appliedMask_ = 0;
+  std::atomic<bool> running_{false};
   int sampleRate_ = 48000;
 };
 
