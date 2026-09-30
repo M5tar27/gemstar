@@ -463,6 +463,15 @@
   }
 
   .knob-unit{display:flex; flex-direction:column; align-items:center; gap:10px;}
+  .knob-mini-meter{
+    display:flex; align-items:flex-end; justify-content:center; gap:1.5px;
+    width:34px; height:12px; margin-top:-4px;
+  }
+  .knob-mini-meter span{
+    flex:1; min-width:2px; height:15%; border-radius:1px;
+    background:var(--knob-color, #00F5FF); opacity:0.25;
+    transition:height .07s linear, opacity .07s linear;
+  }
   .knob{
     position:relative; width:clamp(52px,9vw,74px); aspect-ratio:1; touch-action:none; cursor:grab;
     --glow:0.15; --knob-color:var(--cyan);
@@ -1625,6 +1634,8 @@
   var editTarget = "lead"; // "lead" or an extra vocal track's id
   var knobEls = {};
   var knobUnitEls = {};
+  var knobMiniMeterEls = {};
+  var KNOB_MINI_METER_BANDS = 6;
 
   function buildKnobs(){
     var grid = document.getElementById("knob-grid");
@@ -1654,6 +1665,7 @@
       var unit = document.createElement("div");
       unit.className = "knob-unit" + (def.group === "signature" ? " signature" : "");
       unit.title = STR[lang].knobDesc[def.id];
+      unit.style.setProperty("--knob-color", def.color);
 
       var knob = document.createElement("div");
       knob.className = "knob" + (def.big ? " knob-big" : "");
@@ -1678,11 +1690,22 @@
       label.dataset.key = def.id;
       label.textContent = STR[lang].knobs[def.id];
 
+      // small live frequency meter right under each knob -- same source as
+      // the big spectrum box above, just a compact per-knob glance so you
+      // don't have to look away from the knob you're actually turning.
+      var miniMeter = document.createElement("div");
+      miniMeter.className = "knob-mini-meter";
+      for (var mb = 0; mb < KNOB_MINI_METER_BANDS; mb++){
+        miniMeter.appendChild(document.createElement("span"));
+      }
+
       unit.appendChild(knob);
+      unit.appendChild(miniMeter);
       unit.appendChild(label);
       row.appendChild(unit);
       knobEls[def.id] = knob;
       knobUnitEls[def.id] = unit;
+      knobMiniMeterEls[def.id] = miniMeter;
 
       wireKnobDrag(knob, def.id);
     });
@@ -4699,6 +4722,36 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
   }
 
+  // Every knob gets its own tiny 6-bar meter (same log-spaced bands as the
+  // big spectrum box) so there's live frequency feedback right where your
+  // eyes already are while you're turning that specific knob.
+  var MINI_METER_HZ = [80, 250, 700, 2000, 6000, 14000];
+  function updateKnobMiniMeters(freqData, binHz){
+    var n = freqData.length;
+    KNOB_DEFS.forEach(function(def){
+      var meter = knobMiniMeterEls[def.id];
+      if (!meter) return;
+      var bars = meter.children;
+      for (var i = 0; i < bars.length; i++){
+        var bin = Math.min(n - 1, Math.round(MINI_METER_HZ[i] / binHz));
+        var v = freqData[bin] / 255;
+        bars[i].style.height = Math.max(15, v * 100) + "%";
+        bars[i].style.opacity = (0.25 + v * 0.75).toFixed(2);
+      }
+    });
+  }
+  function resetKnobMiniMeters(){
+    KNOB_DEFS.forEach(function(def){
+      var meter = knobMiniMeterEls[def.id];
+      if (!meter) return;
+      var bars = meter.children;
+      for (var i = 0; i < bars.length; i++){
+        bars[i].style.height = "15%";
+        bars[i].style.opacity = "0.25";
+      }
+    });
+  }
+
   // shared-timescale draw: a buffer shorter than the combined vocal+beat
   // duration only fills its proportional share of the canvas width, so the
   // two waveforms stay aligned to a common clock instead of each being
@@ -4763,7 +4816,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var binHz = ctx.sampleRate / chain.analyser.fftSize;
 
     function frame(){
-      if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; return; }
+      if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; resetKnobMiniMeters(); return; }
       updatePlayheadUI();
 
       // auto-duck the beat under the vocal: watch the processed-vocal
@@ -4800,6 +4853,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       chain.analyser.getByteFrequencyData(freqData);
       drawSpectrum(freqData, binHz);
+      updateKnobMiniMeters(freqData, binHz);
 
       rafId = requestAnimationFrame(frame);
     }
