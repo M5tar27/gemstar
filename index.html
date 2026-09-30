@@ -319,6 +319,27 @@
   }
   .beat-waveform-shell{height:56px; margin-top:8px; border-color:var(--line-gem);}
 
+  .all-vocals-strip{margin-top:10px;}
+  .all-vocals-strip-label{
+    font-size:0.68rem; letter-spacing:0.03em; color:var(--ink-dim); text-align:center; margin:0 0 6px;
+  }
+  .all-vocals-row{
+    position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden;
+    background:#07070d; height:42px; margin-bottom:6px; cursor:pointer;
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  .all-vocals-row canvas{display:block; width:100%; height:100%;}
+  .all-vocals-row .wf-label{
+    position:absolute; top:3px; left:7px; font-size:0.6rem; letter-spacing:0.06em;
+    color:#fff; pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,0.85); z-index:2;
+    max-width:calc(100% - 14px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .all-vocals-row:hover{border-color:var(--cyan);}
+  .all-vocals-row.active{
+    border-color:var(--yellow); box-shadow:0 0 0 1px var(--yellow), 0 0 12px rgba(255,224,102,0.35);
+  }
+  .all-vocals-row.active .wf-label{color:var(--yellow);}
+
   .spectrum-shell{
     position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
     background:#07070d; height:90px; margin-bottom:14px;
@@ -433,6 +454,13 @@
     display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start; gap:16px 8px;
   }
   .knob.knob-big{ width:clamp(64px,11vw,92px); }
+  .knob.knob-vol{ width:34px; cursor:grab; }
+  .mini-knob-wrap{
+    display:flex; flex-direction:column; align-items:center; gap:2px; flex-shrink:0;
+  }
+  .mini-knob-readout{
+    font-size:0.6rem; color:var(--ink-dim); font-variant-numeric:tabular-nums; letter-spacing:0.02em;
+  }
   .knob-group-box{
     display:flex; flex-direction:column; align-items:center; gap:10px;
     padding:14px 16px 16px; border-radius:16px;
@@ -978,6 +1006,10 @@
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
           <canvas id="waveform" width="900" height="110"></canvas>
         </div>
+        <div class="all-vocals-strip" id="all-vocals-strip" hidden>
+          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">All vocals — tap one to pull up its knobs (no tab-switching needed)</p>
+          <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
+        </div>
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
           <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
           <canvas id="beat-waveform" width="900" height="56"></canvas>
@@ -1303,6 +1335,8 @@
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"One booth. <em>Two engineers.</em>",
       wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency",
+      allVocalsLabel:"All vocals — tap one to pull up its knobs (no tab-switching needed)",
+      volumeKnobLabel:"Volume",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
       planOptStarter:"Starter · 1 vocal track", planOptMix:"Mix · 3 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
@@ -1454,6 +1488,8 @@
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"Una cabina. <em>Dos ingenieros.</em>",
       wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia",
+      allVocalsLabel:"Todas las voces — toca una para ajustar sus perillas (sin cambiar de pestaña)",
+      volumeKnobLabel:"Volumen",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
       planOptStarter:"Inicial · 1 pista vocal", planOptMix:"Mix · 3 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
@@ -3210,6 +3246,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     drawStaticWaveform();
     drawBeatWaveformStatic();
     renderTimeline();
+    if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
   }
 
   // Single file (a recording, or one dropped/picked file): replaces just the
@@ -4067,14 +4104,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         });
       }
 
-      var slider = document.createElement("input");
-      slider.type = "range"; slider.min = "0"; slider.max = "100";
-      slider.value = String(Math.round(t.level*100));
-      slider.setAttribute("aria-label", t.name + " level");
-      slider.addEventListener("input", function(){
-        t.level = parseFloat(slider.value)/100;
-        refreshLiveMix();
-      });
+      var volKnob = buildVolumeKnob(t, t.name, refreshLiveMix);
 
       var rmBtn = document.createElement("button");
       rmBtn.type = "button";
@@ -4084,7 +4114,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       rmBtn.addEventListener("click", function(){ removeExtraVocal(t); });
 
       row.appendChild(nameSpan);
-      row.appendChild(slider);
+      row.appendChild(volKnob);
       row.appendChild(buildTrackCtl(t, row));
       row.appendChild(leadBtn);
       if (fxBtn) row.appendChild(fxBtn);
@@ -4093,11 +4123,134 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       extraVocalsListEl.appendChild(row);
     });
     renderLeadCtl();
+    renderAllVocalsStrip();
+  }
+
+  // Shows every vocal track's waveform at once (lead + every background/extra
+  // vocal) so you don't have to flip through the FX tabs just to see what's
+  // where -- tap any row to jump the knob grid to that track, and whichever
+  // one you're currently editing gets a highlighted border.
+  var allVocalsStripEl = document.getElementById("all-vocals-strip");
+  var allVocalsRowsEl = document.getElementById("all-vocals-rows");
+  function renderAllVocalsStrip(){
+    if (!allVocalsStripEl || !allVocalsRowsEl) return;
+    var show = extraVocals.length > 0 && !!audioBuffer;
+    allVocalsStripEl.hidden = !show;
+    if (!show) return;
+    allVocalsRowsEl.innerHTML = "";
+    var total = currentTotalDuration();
+
+    function addRow(name, buffer, id){
+      var row = document.createElement("div");
+      row.className = "all-vocals-row" + (editTarget === id ? " active" : "");
+      var label = document.createElement("span");
+      label.className = "wf-label";
+      label.textContent = name;
+      var canvas = document.createElement("canvas");
+      canvas.width = 600; canvas.height = 42;
+      row.appendChild(label);
+      row.appendChild(canvas);
+      row.addEventListener("click", function(){ setEditTarget(id); });
+      allVocalsRowsEl.appendChild(row);
+      drawBufferWaveform(canvas, canvas.getContext("2d"), buffer,
+        editTarget === id ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)", total);
+    }
+
+    addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead");
+    extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id); });
   }
 
   function panLabel(p){
     var v = Math.round((p || 0) * 100);
     return v === 0 ? "C" : (v < 0 ? "L" + (-v) : "R" + v);
+  }
+
+  // A small rotary volume knob for one vocal/background track in the mixer
+  // list -- same look and press-and-slide gesture as the main effect knobs
+  // (reuses the .knob CSS), just bound to that track's level (0-1) instead
+  // of an effect parameter. Long-press resets it to 100% (unity).
+  function buildVolumeKnob(track, name, onChange){
+    var wrap = document.createElement("div");
+    wrap.className = "mini-knob-wrap";
+
+    var knob = document.createElement("div");
+    knob.className = "knob knob-vol";
+    knob.style.setProperty("--knob-color", "#00F5FF");
+    knob.tabIndex = 0;
+    knob.setAttribute("role", "slider");
+    knob.setAttribute("aria-valuemin", "0");
+    knob.setAttribute("aria-valuemax", "100");
+    knob.setAttribute("aria-label", (STR[lang].volumeKnobLabel || "Volume") + " " + name);
+    knob.title = (STR[lang].volumeKnobLabel || "Volume") + " — " + name;
+    knob.innerHTML =
+      '<svg viewBox="0 0 100 100">' +
+        '<path class="track" pathLength="270" d="M21.72 21.72 A 40 40 0 1 1 21.72 78.28" stroke-dasharray="270 0"/>' +
+        '<path class="value-arc" pathLength="270" d="M21.72 21.72 A 40 40 0 1 1 21.72 78.28"/>' +
+      '</svg>' +
+      '<div class="hub"></div>' +
+      '<div class="pointer"></div>';
+
+    var readout = document.createElement("span");
+    readout.className = "mini-knob-readout";
+
+    function render(){
+      var v = Math.round((track.level == null ? 1 : track.level) * 100);
+      var arc = knob.querySelector(".value-arc");
+      var deg = (v/100)*270;
+      arc.setAttribute("stroke-dasharray", deg.toFixed(2) + " 270");
+      knob.querySelector(".pointer").style.transform = "rotate(" + (-135+deg) + "deg)";
+      knob.setAttribute("aria-valuenow", String(v));
+      readout.textContent = v + "%";
+    }
+    function setVal(v){
+      v = Math.max(0, Math.min(100, Math.round(v)));
+      track.level = v/100;
+      render();
+      onChange();
+    }
+
+    var dragging=false, startY=0, startVal=0, downY=0, moved=false;
+    var longPressTimer=null;
+    var RANGE_PX=140, LP_MS=450, LP_TOL=6;
+    function clearLP(){ if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer=null; } }
+    knob.addEventListener("pointerdown", function(e){
+      dragging=true; startY=e.clientY; startVal=Math.round((track.level==null?1:track.level)*100);
+      downY=e.clientY; moved=false;
+      knob.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      clearLP();
+      longPressTimer=setTimeout(function(){
+        longPressTimer=null; dragging=false;
+        setVal(100); // long-press = reset to unity volume
+      }, LP_MS);
+    });
+    knob.addEventListener("pointermove", function(e){
+      if (Math.abs(e.clientY-downY) > LP_TOL){ moved=true; clearLP(); }
+      if (dragging){
+        var delta = startY - e.clientY;
+        setVal(startVal + (delta/RANGE_PX)*100);
+      }
+    });
+    function endDrag(){ dragging=false; clearLP(); }
+    knob.addEventListener("pointerup", endDrag);
+    knob.addEventListener("pointercancel", endDrag);
+    knob.addEventListener("wheel", function(e){
+      e.preventDefault();
+      setVal(Math.round((track.level==null?1:track.level)*100) + (e.deltaY < 0 ? 2 : -2));
+    }, {passive:false});
+    knob.addEventListener("keydown", function(e){
+      var isArrow = e.key==="ArrowUp"||e.key==="ArrowRight"||e.key==="ArrowDown"||e.key==="ArrowLeft";
+      if (!isArrow) return;
+      var step = e.shiftKey ? 10 : 2;
+      var dir = (e.key==="ArrowUp"||e.key==="ArrowRight") ? 1 : -1;
+      setVal(Math.round((track.level==null?1:track.level)*100) + dir*step);
+      e.preventDefault();
+    });
+
+    render();
+    wrap.appendChild(knob);
+    wrap.appendChild(readout);
+    return wrap;
   }
 
   // Role picker + pan + mute/solo for one track (lead or extra).
