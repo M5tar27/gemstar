@@ -1989,6 +1989,17 @@
   var outputGainDb = 3;      // Loud is now this fader, not a knob
   var isPlaying = false;
   var bypassed = false;
+  // True while either mic recorder (main or extra-vocal) has an active
+  // capture running. The heavy per-frame visualizers added alongside the
+  // Hz meter/mini-meters (drawSpectrum + updateKnobMiniMeters, both called
+  // every animation frame from runVisualizer's frame() loop below) are
+  // skipped while this is true -- recording capture itself already runs on
+  // the dedicated AudioWorklet audio thread (see loadCaptureWorklet) so it
+  // can't glitch from main-thread JS, but singing along to a playing beat
+  // while recording means that extra canvas/array work was competing with
+  // recording for the main thread the whole time, showing up as UI lag
+  // (sluggish knobs, stuttering meters) right when the user is recording.
+  var isMicRecording = false;
 
   function lerp(v, x0, x1, y0, y1){
     if (v <= x0) return y0;
@@ -3503,6 +3514,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
     function stopCapture(){
       recording = false;
+      isMicRecording = false;
       if (captureNode){
         if (captureNode.port){ try{ captureNode.port.onmessage = null; }catch(e){} }
         else { captureNode.onaudioprocess = null; }
@@ -3511,13 +3523,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       }
       if (silentGain){ try{ silentGain.disconnect(); }catch(e){} silentGain = null; }
     }
+    var meterData = null; // allocated once per recorder when the analyser is created, not every frame
     function meterLoop(){
       if (!recordAnalyser) return;
-      var data = new Uint8Array(recordAnalyser.fftSize);
-      recordAnalyser.getByteTimeDomainData(data);
+      if (!meterData || meterData.length !== recordAnalyser.fftSize) meterData = new Uint8Array(recordAnalyser.fftSize);
+      recordAnalyser.getByteTimeDomainData(meterData);
       var peak = 0;
-      for (var i=0;i<data.length;i++){
-        var v = Math.abs(data[i]-128)/128;
+      for (var i=0;i<meterData.length;i++){
+        var v = Math.abs(meterData[i]-128)/128;
         if (v>peak) peak = v;
       }
       opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
@@ -3606,6 +3619,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         captureNode.connect(silentGain);
         silentGain.connect(ctx.destination);
         recording = true;
+        isMicRecording = true;
         if (captureNode.port){
           // AudioWorkletNode path — runs on the audio thread, samples arrive
           // here already sliced into per-quantum Float32Arrays.
@@ -5037,9 +5051,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       cctx.stroke();
       cctx.shadowBlur = 0;
 
-      chain.analyser.getByteFrequencyData(freqData);
-      drawSpectrum(freqData, binHz);
-      updateKnobMiniMeters(freqData, binHz);
+      // Skip the Hz spectrum + per-knob mini-meters while a mic recording is
+      // in progress (e.g. singing an extra take along to the beat) -- this is
+      // the single biggest chunk of the extra per-frame work those features
+      // added, and freeing it up during exactly the recording window is what
+      // fixes the lag/latency reported while recording. The meters just
+      // freeze at their last value and pick back up once recording stops.
+      if (!isMicRecording){
+        chain.analyser.getByteFrequencyData(freqData);
+        drawSpectrum(freqData, binHz);
+        updateKnobMiniMeters(freqData, binHz);
+      }
 
       rafId = requestAnimationFrame(frame);
     }
