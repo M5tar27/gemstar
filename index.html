@@ -319,6 +319,26 @@
   }
   .beat-waveform-shell{height:56px; margin-top:8px; border-color:var(--line-gem);}
 
+  .spectrum-shell{
+    position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
+    background:#07070d; height:90px; margin-bottom:14px;
+  }
+  .spectrum-shell canvas{display:block; width:100%; height:100%;}
+  .spectrum-shell .spectrum-readout{
+    position:absolute; top:6px; right:8px; font-size:0.68rem; letter-spacing:0.03em;
+    color:var(--cyan); pointer-events:none; font-variant-numeric:tabular-nums;
+  }
+
+  .knob-info-tooltip{
+    position:fixed; transform:translate(-50%,-100%); max-width:220px;
+    background:#0d0d17; border:1px solid var(--cyan); border-radius:8px;
+    padding:8px 10px; font-size:0.72rem; line-height:1.35; color:var(--ink);
+    pointer-events:none; z-index:500; opacity:0; transition:opacity .15s ease;
+    box-shadow:0 4px 18px rgba(0,0,0,0.5);
+  }
+  .knob-info-tooltip.show{opacity:1;}
+  .knob-info-tooltip strong{color:var(--cyan); display:block; margin-bottom:2px; font-size:0.74rem;}
+
   /* timeline: pick a start point / drag a loop section */
   .timeline-wrap{display:flex; flex-direction:column; gap:8px; margin-top:10px;}
   .timeline{
@@ -878,6 +898,18 @@
           <span class="status-label" data-i18n="beatLevel">Beat Level</span>
           <input type="range" id="beat-level" min="0" max="100" value="70" aria-label="Beat level" />
         </div>
+        <div class="slider-row beat-eq-row">
+          <span class="status-label" data-i18n="beatLow">Low</span>
+          <input type="range" id="beat-eq-low" min="-12" max="12" step="1" value="0" aria-label="Beat low EQ" />
+        </div>
+        <div class="slider-row beat-eq-row">
+          <span class="status-label" data-i18n="beatMid">Mid</span>
+          <input type="range" id="beat-eq-mid" min="-12" max="12" step="1" value="0" aria-label="Beat mid EQ" />
+        </div>
+        <div class="slider-row beat-eq-row">
+          <span class="status-label" data-i18n="beatHigh">High</span>
+          <input type="range" id="beat-eq-high" min="-12" max="12" step="1" value="0" aria-label="Beat high EQ" />
+        </div>
       </div>
 
       <div class="vocal-mixer" id="vocal-mixer" hidden>
@@ -962,6 +994,11 @@
     </div>
 
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
+    <div class="spectrum-shell" id="spectrum-shell">
+      <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
+      <span class="spectrum-readout" id="spectrum-readout">-- Hz</span>
+      <canvas id="spectrum-canvas" width="900" height="90"></canvas>
+    </div>
     <div class="track-edit-row" id="track-edit-row" hidden>
       <span class="status-label" data-i18n="editingLabel">Editing FX for</span>
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
@@ -1214,6 +1251,7 @@
       preset:"Preset", reset:"Reset to Default", bypass:"Bypass",
       modeVocal:"Vocal Only", modeFull:"Full Song Mix",
       beatDzTitle:"Drop your beat here (MP3/WAV)", removeBeat:"Remove Beat", beatLevel:"Beat Level",
+      beatLow:"Low", beatMid:"Mid", beatHigh:"High",
       masterHeading:"Auto-Master (LUFS)",
       masterDesc:"Plays the track through, measures real integrated loudness (ITU-R BS.1770), and sets Output Gain to hit your target.",
       masterBtn:"Analyze & Master",
@@ -1249,7 +1287,7 @@
       wlErr:"Couldn't save that — email Gemstaraudio@gmail.com and we'll add you.",
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"One booth. <em>Two engineers.</em>",
-      wfLabelVocal:"Vocal", wfLabelBeat:"Beat",
+      wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
       planOptStarter:"Starter · 1 vocal track", planOptMix:"Mix · 3 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
@@ -1282,7 +1320,7 @@
       faqQ7:"I press Play but hear nothing.", faqA7:"Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.",
       faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 1 vocal track. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, and 3 vocal tracks with their own effects chains. Unlimited ($99/mo): everything in Mix, 8 vocal tracks, unlimited songs.",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
-      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Delay"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
         clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
@@ -1293,11 +1331,12 @@
         smooth:"Smooth: de-esses harsh S's and sibilance.",
         tune:"Speed: real pitch correction that snaps the vocal to the nearest note — low is a gentle glide, high is the classic hard, robotic T-Pain snap.",
         humanize:"Humanize: adds a touch of natural vibrato back on top of the correction so it doesn't sound stiff — 0 is glass-clean, higher adds more wobble.",
-        space:"Space: reverb + delay — 0% dry, up to a huge hall at 100%.",
+        space:"Space: reverb only — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
         radio:"Radio: fast, dense parallel compression for that polished radio/pop vocal push, plus a lifted top end for airiness — blends under the dry tone instead of squashing it flat.",
-        m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch, Voice & Jewels together, plus subtle warmth.",
-        jewels:"Jewels: high-shelf air/sparkle exciter with vocal doubling — sparkles visually past 60%."
+        m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch & Voice together, plus subtle saturation and warmth. No delay or chorus in this one.",
+        jewels:"Jewels: high-shelf air/sparkle exciter with a true chorus shimmer — sparkles visually past 60%.",
+        delay:"Delay: a standalone slapback echo/repeat, kept separate from every other knob — Space is reverb-only, M5tar and Jewels don't add any delay of their own."
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
       helpIntro:"A quick rundown of the basics — every knob also shows this same text if you press and hold it (or hover, on desktop).",
@@ -1362,6 +1401,7 @@
       preset:"Preajuste", reset:"Restablecer", bypass:"Anular",
       modeVocal:"Solo Voz", modeFull:"Mezcla De Canción Completa",
       beatDzTitle:"Suelta tu beat aquí (MP3/WAV)", removeBeat:"Quitar Beat", beatLevel:"Nivel Del Beat",
+      beatLow:"Graves", beatMid:"Medios", beatHigh:"Agudos",
       masterHeading:"Auto-Masterizar (LUFS)",
       masterDesc:"Reproduce la pista completa, mide la sonoridad integrada real (ITU-R BS.1770) y ajusta la Ganancia de Salida para alcanzar tu objetivo.",
       masterBtn:"Analizar y Masterizar",
@@ -1397,7 +1437,7 @@
       wlErr:"No se pudo guardar — escribe a Gemstaraudio@gmail.com y te agregamos.",
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"Una cabina. <em>Dos ingenieros.</em>",
-      wfLabelVocal:"Voz", wfLabelBeat:"Beat",
+      wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
       planOptStarter:"Inicial · 1 pista vocal", planOptMix:"Mix · 3 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
@@ -1430,7 +1470,7 @@
       faqQ7:"Presiono Reproducir y no escucho nada.", faqA7:"Revisa el volumen y que la pestaña no esté silenciada, y recarga la página. Si usas una interfaz de audio, verifica que la salida de sonido de tu computadora sea la que estás escuchando. ¿Sigue sin funcionar? Escribe a Gemstaraudio@gmail.com.",
       faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 1 pista vocal. Mix ($49/mes): Mezcla Completa con tu beat, las perillas firma de M5tar y Jewels, y 3 pistas vocales con su propia cadena de efectos. Unlimited ($99/mes): todo lo de Mix, 8 pistas vocales, canciones ilimitadas.",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
-      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels"},
+      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Retardo"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
         clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
@@ -1441,11 +1481,12 @@
         smooth:"Suave: quita eses ásperas y sibilancia.",
         tune:"Velocidad: corrección de tono real que ajusta la voz a la nota más cercana — bajo es un deslizamiento suave, alto es el clásico efecto robótico tipo T-Pain.",
         humanize:"Humanizar: agrega un toque de vibrato natural sobre la corrección para que no suene rígido — 0 es limpio y cristalino, más alto agrega más vibrato.",
-        space:"Espacio: reverb + delay — 0% seco, hasta un salón enorme al 100%.",
+        space:"Espacio: solo reverb — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
         radio:"Radio: compresión paralela rápida y densa para ese empuje de voz pulido tipo radio/pop, más un realce en los agudos para dar aire — se mezcla bajo el tono original en vez de aplastarlo.",
-        m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada, Voz y Jewels juntos, más calidez sutil.",
-        jewels:"Jewels: exciter de brillo en agudos con doblaje vocal — brilla visualmente por encima del 60%."
+        m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada y Voz juntos, más saturación y calidez sutil. Sin delay ni chorus en esta perilla.",
+        jewels:"Jewels: exciter de brillo en agudos con un chorus real — brilla visualmente por encima del 60%.",
+        delay:"Retardo: un eco/repetición independiente, separado de las demás perillas — Espacio es solo reverb, y M5tar y Jewels no agregan ningún delay propio."
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
       helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la mantienes presionada (o pasas el cursor, en escritorio).",
@@ -1560,18 +1601,19 @@
     {id:"space", group:"finish", color:"#14C8B8"},
     {id:"wide",  group:"finish", color:"#C24CFF"},
     {id:"radio", group:"finish", color:"#FFB020"},
+    {id:"delay", group:"finish", color:"#FF7A45"},
     {id:"tune",     group:"pitch", color:"#FF4CD6"},
     {id:"humanize", group:"pitch", color:"#FF8FE0"}
   ];
 
-  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  radio:0,  m5tar:0,  jewels:0, humanize:0};
+  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  radio:0,  m5tar:0,  jewels:0, humanize:0, delay:0};
   var PRESETS = {
-    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, radio:25, m5tar:70, jewels:0,  humanize:15},
-    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, radio:20, m5tar:0,  jewels:70, humanize:20},
-    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, radio:15, m5tar:0,  jewels:40, humanize:25},
-    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  radio:45, m5tar:40, jewels:0,  humanize:10},
-    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, radio:35, m5tar:15, jewels:15, humanize:5},
-    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30}
+    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, radio:25, m5tar:70, jewels:0,  humanize:15, delay:0},
+    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, radio:20, m5tar:0,  jewels:70, humanize:20, delay:0},
+    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, radio:15, m5tar:0,  jewels:40, humanize:25, delay:0},
+    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  radio:45, m5tar:40, jewels:0,  humanize:10, delay:0},
+    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, radio:35, m5tar:15, jewels:15, humanize:5,  delay:0},
+    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30, delay:0}
   };
 
   // `values` is whichever vocal track's knob settings are currently shown on
@@ -1684,13 +1726,51 @@
   }
   function renderAllKnobs(){ KNOB_DEFS.forEach(function(d){ renderKnob(d.id); }); }
 
+  // Long-press-to-show-description: double-click/double-tap is already taken
+  // (resets the knob to its default), so on mobile -- where hover tooltips
+  // (the `title` attribute) never show -- holding a knob still without
+  // dragging it pops up the same name + description text in a small bubble.
+  // Works with a mouse too (press and hold), it just doesn't fire during a
+  // normal quick click/drag.
+  var LONG_PRESS_MS = 450, LONG_PRESS_TOLERANCE = 6;
+  var knobInfoEl = null, knobInfoHideTimer = null;
+  function ensureKnobInfoEl(){
+    if (!knobInfoEl){
+      knobInfoEl = document.createElement("div");
+      knobInfoEl.className = "knob-info-tooltip";
+      document.body.appendChild(knobInfoEl);
+    }
+    return knobInfoEl;
+  }
+  function showKnobInfo(id, knobEl){
+    var el = ensureKnobInfoEl();
+    el.innerHTML = "<strong>" + STR[lang].knobs[id] + "</strong>" + STR[lang].knobDesc[id];
+    var rect = knobEl.getBoundingClientRect();
+    var halfW = 110, margin = 8;
+    var x = Math.max(halfW + margin, Math.min(window.innerWidth - halfW - margin, rect.left + rect.width/2));
+    el.style.left = x + "px";
+    el.style.top = Math.max(8, rect.top - 10) + "px";
+    el.classList.add("show");
+    if (window.navigator && navigator.vibrate){ try{ navigator.vibrate(15); }catch(e){} }
+    clearTimeout(knobInfoHideTimer);
+    knobInfoHideTimer = setTimeout(hideKnobInfo, 3000);
+  }
+  function hideKnobInfo(){
+    if (knobInfoEl) knobInfoEl.classList.remove("show");
+    clearTimeout(knobInfoHideTimer);
+  }
+
   function wireKnobDrag(knob, id){
     var dragging = false, startY = 0, startVal = 0;
     var RANGE_PX = 160;
+    var longPressTimer = null, downX = 0, downY = 0;
 
     function move(clientY){
       var delta = startY - clientY;
       setKnob(id, startVal + (delta/RANGE_PX)*100);
+    }
+    function clearLongPress(){
+      if (longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; }
     }
     knob.addEventListener("pointerdown", function(e){
       if (isKnobLocked(id)){
@@ -1706,10 +1786,23 @@
       dragging = true; startY = e.clientY; startVal = values[id];
       knob.setPointerCapture(e.pointerId);
       e.preventDefault();
+
+      downX = e.clientX; downY = e.clientY;
+      clearLongPress();
+      longPressTimer = setTimeout(function(){
+        longPressTimer = null;
+        dragging = false; // holding still shouldn't also nudge the value
+        showKnobInfo(id, knob);
+      }, LONG_PRESS_MS);
     });
-    knob.addEventListener("pointermove", function(e){ if (dragging) move(e.clientY); });
-    knob.addEventListener("pointerup", function(){ dragging = false; });
-    knob.addEventListener("pointercancel", function(){ dragging = false; });
+    knob.addEventListener("pointermove", function(e){
+      if (longPressTimer && (Math.abs(e.clientX - downX) > LONG_PRESS_TOLERANCE || Math.abs(e.clientY - downY) > LONG_PRESS_TOLERANCE)){
+        clearLongPress();
+      }
+      if (dragging) move(e.clientY);
+    });
+    knob.addEventListener("pointerup", function(){ dragging = false; clearLongPress(); hideKnobInfo(); });
+    knob.addEventListener("pointercancel", function(){ dragging = false; clearLongPress(); hideKnobInfo(); });
     knob.addEventListener("dblclick", function(){ if (isKnobLocked(id)) return; setKnob(id, DEFAULT_VALUES[id]); });
     knob.addEventListener("wheel", function(e){
       e.preventDefault();
@@ -2486,14 +2579,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.punchComp.release.value = 0.25;
     g.punchMakeup = ctx.createGain();
 
-    g.glueComp = ctx.createDynamicsCompressor();
-    g.glueComp.threshold.value = -20;
-    g.glueComp.knee.value = 12;
-    g.glueComp.ratio.value = 2.5;
-    g.glueComp.attack.value = 0.012;
-    g.glueComp.release.value = 0.35;
-    g.glueMakeup = ctx.createGain();
-    g.glueMakeup.gain.value = dbToGain(1.5);
+    // (No fixed "glue" stage anymore -- vocals should stay raw when Punch is
+    // at 0, not get a second always-on compressor no knob controls.)
 
     // ---- Bass / Voice EQ ----
     g.bassFilter = ctx.createBiquadFilter();
@@ -2560,7 +2647,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       applyAllParams();
     });
 
-    // ---- Wide: room / hall+delay / chorus ----
+    // ---- shared wet bus: room/hall reverb (Space), slapback echo (Delay),
+    // and chorus (Wide) all sum here, each driven by its own knob ----
     g.wideDry = ctx.createGain();
     g.convSmall = ctx.createConvolver();
     g.convSmall.buffer = getReverbBuffer(0.9, 2.2, 1);
@@ -2570,6 +2658,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.convHall.buffer = getReverbBuffer(2.4, 1.6, 7);
     g.hallWet = ctx.createGain();
 
+    // Slapback echo, driven by its own standalone Delay knob (not Space) --
+    // fixed 280ms/32% feedback, the knob just controls how much comes through.
     g.echoDelay = ctx.createDelay(0.5);
     g.echoDelay.delayTime.value = 0.28;
     g.echoFeedback = ctx.createGain();
@@ -2609,20 +2699,29 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.m5tarWet = ctx.createGain();
     g.m5tarSum = ctx.createGain();
 
-    // ---- Jewels: signature air + doubling shimmer ----
+    // ---- Jewels: signature air + true two-tap chorus ----
+    // (No single-tap "doubling" delay anymore -- two independently
+    // modulated taps panned L/R is a real chorus, same technique as Wide's,
+    // just its own instance so the two knobs stay independent.)
     g.jewelsAir = ctx.createBiquadFilter();
     g.jewelsAir.type = "highshelf";
     g.jewelsAir.frequency.value = 9500;
-    g.jewelsDelay = ctx.createDelay(0.03);
-    g.jewelsDelay.delayTime.value = 0.012;
-    g.jewelsLFO = ctx.createOscillator();
-    g.jewelsLFO.type = "sine";
-    g.jewelsLFO.frequency.value = 1.1;
-    g.jewelsDepth = ctx.createGain();
-    g.jewelsDepth.gain.value = 0;
-    g.jewelsLFO.connect(g.jewelsDepth);
-    g.jewelsDepth.connect(g.jewelsDelay.delayTime);
-    g.jewelsLFO.start();
+
+    g.jewelsChorusA = ctx.createDelay(0.03);
+    g.jewelsChorusA.delayTime.value = 0.009;
+    g.jewelsChorusLfoA = ctx.createOscillator(); g.jewelsChorusLfoA.type = "sine"; g.jewelsChorusLfoA.frequency.value = 0.8;
+    g.jewelsChorusDepthA = ctx.createGain(); g.jewelsChorusDepthA.gain.value = 0;
+    g.jewelsChorusLfoA.connect(g.jewelsChorusDepthA); g.jewelsChorusDepthA.connect(g.jewelsChorusA.delayTime); g.jewelsChorusLfoA.start();
+
+    g.jewelsChorusB = ctx.createDelay(0.03);
+    g.jewelsChorusB.delayTime.value = 0.015;
+    g.jewelsChorusLfoB = ctx.createOscillator(); g.jewelsChorusLfoB.type = "sine"; g.jewelsChorusLfoB.frequency.value = 1.3;
+    g.jewelsChorusDepthB = ctx.createGain(); g.jewelsChorusDepthB.gain.value = 0;
+    g.jewelsChorusLfoB.connect(g.jewelsChorusDepthB); g.jewelsChorusDepthB.connect(g.jewelsChorusB.delayTime); g.jewelsChorusLfoB.start();
+
+    g.jewelsChorusPanA = ctx.createStereoPanner(); g.jewelsChorusPanA.pan.value = -0.6;
+    g.jewelsChorusPanB = ctx.createStereoPanner(); g.jewelsChorusPanB.pan.value = 0.6;
+
     g.jewelsDry = ctx.createGain();
     g.jewelsWet = ctx.createGain();
     g.jewelsSum = ctx.createGain();
@@ -2641,9 +2740,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.gateShaper.connect(g.hissFilter);
     g.hissFilter.connect(g.punchComp);
     g.punchComp.connect(g.punchMakeup);
-    g.punchMakeup.connect(g.glueComp);
-    g.glueComp.connect(g.glueMakeup);
-    g.glueMakeup.connect(g.bassFilter);
+    g.punchMakeup.connect(g.bassFilter);
     g.bassFilter.connect(g.voiceFilter);
 
     // de-esser: dry + inverted sibilant band
@@ -2701,12 +2798,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.m5tarDry.connect(g.m5tarSum);
     g.m5tarWet.connect(g.m5tarSum);
 
-    // jewels: dry + airy doubled blend
+    // jewels: dry + airy true-chorus blend (two independently modulated
+    // taps panned L/R, summed into the wet path)
     g.m5tarSum.connect(g.jewelsDry);
-    g.m5tarSum.connect(g.jewelsAir);
-    g.jewelsAir.connect(g.jewelsDelay);
-    g.jewelsDelay.connect(g.jewelsWet);
     g.jewelsDry.connect(g.jewelsSum);
+
+    g.m5tarSum.connect(g.jewelsAir);
+    g.jewelsAir.connect(g.jewelsChorusA);
+    g.jewelsAir.connect(g.jewelsChorusB);
+    g.jewelsChorusA.connect(g.jewelsChorusPanA);
+    g.jewelsChorusB.connect(g.jewelsChorusPanB);
+    g.jewelsChorusPanA.connect(g.jewelsWet);
+    g.jewelsChorusPanB.connect(g.jewelsWet);
     g.jewelsWet.connect(g.jewelsSum);
 
     g.jewelsSum.connect(g.wetBus);
@@ -2728,7 +2831,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!g || g._dead) return;
     g._dead = true;
     try { g.finalMix.disconnect(); } catch(e){}
-    ["chorusLfoA","chorusLfoB","jewelsLFO"].forEach(function(k){
+    ["chorusLfoA","chorusLfoB","jewelsChorusLfoA","jewelsChorusLfoB"].forEach(function(k){
       try { g[k].stop(); } catch(e){}
       try { g[k].disconnect(); } catch(e){}
     });
@@ -2797,9 +2900,26 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // sums to just the vocal, unaffected.
     g.beatGain = ctx.createGain();
     g.beatGain.gain.value = 0.77; // ~70% slider default
+
+    // Simple 3-band EQ on the beat only (High/Mid/Low), independent of the
+    // vocal chain's own EQ knobs.
+    g.beatLow = ctx.createBiquadFilter();
+    g.beatLow.type = "lowshelf";
+    g.beatLow.frequency.value = 150;
+    g.beatMid = ctx.createBiquadFilter();
+    g.beatMid.type = "peaking";
+    g.beatMid.frequency.value = 1000;
+    g.beatMid.Q.value = 0.9;
+    g.beatHigh = ctx.createBiquadFilter();
+    g.beatHigh.type = "highshelf";
+    g.beatHigh.frequency.value = 6500;
+
     g.beatDuck = ctx.createGain();
     g.beatDuck.gain.value = 0;
-    g.beatGain.connect(g.beatDuck);
+    g.beatGain.connect(g.beatLow);
+    g.beatLow.connect(g.beatMid);
+    g.beatMid.connect(g.beatHigh);
+    g.beatHigh.connect(g.beatDuck);
 
     g.mixSum = ctx.createGain();
     g.finalMix.connect(g.mixSum);
@@ -2818,9 +2938,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // harder, which is how the loudness target actually gets hit.
     g.outputGain = ctx.createGain();
     g.outputGain.gain.value = 1;
+    // This is a true-peak safety ceiling now, not a vocal limiter -- it sits
+    // right at the edge of clipping so raw/unprocessed vocals pass through
+    // completely untouched and it only ever catches a genuine overload.
     g.finalLimiter = ctx.createDynamicsCompressor();
-    g.finalLimiter.threshold.value = -3;
-    g.finalLimiter.knee.value = 1;
+    g.finalLimiter.threshold.value = -0.3;
+    g.finalLimiter.knee.value = 0;
     g.finalLimiter.ratio.value = 20;
     g.finalLimiter.attack.value = 0.002;
     g.finalLimiter.release.value = 0.2;
@@ -2835,6 +2958,21 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     applyBypassGains();
     applyAllParams();
     applyOutputGain();
+    applyBeatEQ();
+  }
+
+  // Reads the Low/Mid/High beat-EQ sliders and applies them to whatever
+  // chain currently exists -- called on chain (re)build and on each slider
+  // move so a tier switch or similar rebuild never silently resets them.
+  function applyBeatEQ(){
+    if (!chain) return;
+    var now = ctx.currentTime;
+    var lowEl = document.getElementById("beat-eq-low");
+    var midEl = document.getElementById("beat-eq-mid");
+    var highEl = document.getElementById("beat-eq-high");
+    if (lowEl) chain.beatLow.gain.setTargetAtTime(parseFloat(lowEl.value) || 0, now, 0.02);
+    if (midEl) chain.beatMid.gain.setTargetAtTime(parseFloat(midEl.value) || 0, now, 0.02);
+    if (highEl) chain.beatHigh.gain.setTargetAtTime(parseFloat(highEl.value) || 0, now, 0.02);
   }
 
   function applyBypassTo(c){
@@ -2873,19 +3011,23 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // M5TAR macro: M5tar's own signature chain is a light blend into other
     // stages, on top of wherever the user has those knobs — it never moves
     // another knob's visual position, only nudges its processed amount.
-    // Tune +20%, Punch +40%, Voice +60%, Jewels +50% at full M5tar.
+    // Tune +20%, Punch +40%, Voice +60% at full M5tar. It deliberately does
+    // NOT reach into Jewels -- M5tar is saturation + warmth only now, with
+    // no path into any delay/chorus-flavored processing.
     var effTune   = Math.min(100, v.tune   + m5*20);
     var effPunch  = Math.min(100, v.punch  + m5*40);
     var effVoice  = Math.min(100, v.voice  + m5*60);
-    var effJewels = Math.min(100, v.jewels + m5*50);
+    var effJewels = v.jewels;
 
     chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
     var newGateCurve = getGateShaperCurve(v.clean/100);
     if (chain.gateShaper.curve !== newGateCurve) chain.gateShaper.curve = newGateCurve;
     chain.hissFilter.gain.setTargetAtTime(lerp(v.clean,0,100,0,-6), now, 0.02);
 
-    chain.punchComp.threshold.setTargetAtTime(lerp(effPunch,0,100,-8,-30), now, 0.02);
-    chain.punchComp.ratio.setTargetAtTime(lerp(effPunch,0,100,2,10), now, 0.02);
+    // At Punch = 0 this is a true pass-through (0dB threshold, 1:1 ratio) --
+    // no compression sneaks in just because a vocal was loaded.
+    chain.punchComp.threshold.setTargetAtTime(lerp(effPunch,0,100,0,-30), now, 0.02);
+    chain.punchComp.ratio.setTargetAtTime(lerp(effPunch,0,100,1,10), now, 0.02);
     chain.punchMakeup.gain.setTargetAtTime(dbToGain(lerp(effPunch,0,100,0,4)), now, 0.02);
 
     chain.bassFilter.gain.setTargetAtTime(lerp(v.bass,0,100,-6,9), now, 0.02);
@@ -2916,20 +3058,25 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       chain.pitchWorkletNode.parameters.get("humanize").setTargetAtTime(v.humanize, now, 0.05);
     }
 
-    // Space: room / hall reverb + delay (dedicated)
+    // Space: room / hall reverb only -- no delay in here anymore
     var sp = v.space;
     chain.smallWet.gain.setTargetAtTime(
       sp<=30 ? lerp(sp,0,30,0,0.35) : lerp(sp,30,100,0.35,0.06), now, 0.02);
     chain.hallWet.gain.setTargetAtTime(lerp(sp,20,100,0,0.45), now, 0.02);
-    chain.echoWet.gain.setTargetAtTime(lerp(sp,25,100,0,0.35), now, 0.02);
 
     // Wide: chorus / width (dedicated, for singers)
     var wd = v.wide;
     chain.chorusWet.gain.setTargetAtTime(lerp(wd,0,100,0,0.6), now, 0.02);
 
-    // shared dry blend so space+wide together never drown the vocal
-    var spaceWideDry = 1 - (sp/100)*0.3 - (wd/100)*0.25;
-    chain.wideDry.gain.setTargetAtTime(Math.max(0.4, spaceWideDry), now, 0.02);
+    // Delay: standalone slapback echo -- the ONLY source of delay in the
+    // whole chain now. Fixed 280ms time / 32% feedback (set where the node
+    // is created); this knob just controls how much of it is blended in.
+    var dl = v.delay;
+    chain.echoWet.gain.setTargetAtTime(lerp(dl,0,100,0,0.4), now, 0.02);
+
+    // shared dry blend so space+wide+delay together never drown the vocal
+    var spaceWideDry = 1 - (sp/100)*0.3 - (wd/100)*0.25 - (dl/100)*0.2;
+    chain.wideDry.gain.setTargetAtTime(Math.max(0.35, spaceWideDry), now, 0.02);
 
     // M5tar: signature grit + low-mid warmth (its own light touch, plus
     // the parameter blend above)
@@ -2939,10 +3086,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     chain.m5tarDry.gain.setTargetAtTime(1 - m5*0.5, now, 0.02);
     chain.m5tarWet.gain.setTargetAtTime(m5, now, 0.02);
 
-    // Jewels: signature air + doubling shimmer (blended with M5tar above)
+    // Jewels: signature air + true chorus (blended with M5tar above)
     var jw = effJewels/100;
     chain.jewelsAir.gain.setTargetAtTime(lerp(effJewels,0,100,0,8), now, 0.02);
-    chain.jewelsDepth.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.0025), now, 0.02);
+    chain.jewelsChorusDepthA.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.003), now, 0.02);
+    chain.jewelsChorusDepthB.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.004), now, 0.02);
     chain.jewelsDry.gain.setTargetAtTime(1 - jw*0.4, now, 0.02);
     chain.jewelsWet.gain.setTargetAtTime(jw, now, 0.02);
   }
@@ -3581,6 +3729,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     chain.beatGain.gain.setTargetAtTime(val * 1.1, ctx.currentTime, 0.03);
   });
 
+  ["beat-eq-low", "beat-eq-mid", "beat-eq-high"].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("input", applyBeatEQ);
+  });
+
   document.getElementById("btn-beat-remove").addEventListener("click", function(){
     beatBuffer = null;
     stopBeatSourceOnly();
@@ -3699,7 +3852,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (totalVocalTrackCount() >= maxVocalTracks()) return;
       var wasPlaying = isPlaying;
       if (wasPlaying) stopPlayback();
-      pushExtraVocal(file.name, buf);
+      var t = pushExtraVocal(file.name, buf);
+      setEditTarget(t.id); // jump straight to it so its waveform shows right away
       renderExtraVocals();
       afterVocalSetChanged();
       if (wasPlaying) startPlayback();
@@ -3732,6 +3886,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     renderAllKnobs();
     renderTrackEditTabs();
     renderExtraVocals();
+    if (typeof drawStaticWaveform === "function") drawStaticWaveform(); // waveform follows whichever track you're on
   }
 
   function renderTrackEditTabs(){
@@ -4435,6 +4590,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   btnPlay.addEventListener("click", function(){
     if (isPlaying) stopPlayback(); else startPlayback();
   });
+
+  // Spacebar toggles play/pause from anywhere on the page, as long as focus
+  // isn't in a text field, a native form control (sliders included), or a
+  // button -- those keep their own normal space-bar behavior.
+  document.addEventListener("keydown", function(e){
+    if (e.code !== "Space" && e.key !== " " && e.key !== "Spacebar") return;
+    var el = document.activeElement;
+    var tag = el && el.tagName;
+    var isFormEl = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || (el && el.isContentEditable);
+    if (isFormEl) return;
+    e.preventDefault();
+    btnPlay.click();
+  });
   btnAb.addEventListener("click", function(){
     bypassed = !bypassed;
     ensureContext();
@@ -4476,7 +4644,60 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var cctx = canvas.getContext("2d");
   var beatCanvas = document.getElementById("beat-waveform");
   var beatCctx = beatCanvas.getContext("2d");
+  var specCanvas = document.getElementById("spectrum-canvas");
+  var specCctx = specCanvas.getContext("2d");
+  var specReadout = document.getElementById("spectrum-readout");
   var rafId = null;
+
+  // Log-scale Hz meter: shows the live frequency content of the final,
+  // fully-processed output (post every knob, post beat, post limiter) so
+  // turning a knob shows exactly which part of the spectrum it's touching.
+  // Reuses chain.analyser -- it's already tapped right before ctx.destination.
+  var SPEC_MIN_HZ = 30, SPEC_MAX_HZ = 16000;
+  var SPEC_GRID_HZ = [60, 250, 1000, 4000, 12000];
+  function specLabel(hz){
+    return hz >= 1000 ? (hz/1000) + "k" : String(hz);
+  }
+  function hzToX(hz, w){
+    var lo = Math.log(SPEC_MIN_HZ), hi = Math.log(SPEC_MAX_HZ);
+    var t = (Math.log(Math.max(SPEC_MIN_HZ, Math.min(SPEC_MAX_HZ, hz))) - lo) / (hi - lo);
+    return t * w;
+  }
+  function drawSpectrum(freqData, binHz){
+    var w = specCanvas.width, h = specCanvas.height;
+    specCctx.clearRect(0, 0, w, h);
+    var n = freqData.length;
+    var peakBin = -1, peakVal = 0;
+    specCctx.fillStyle = "rgba(0,245,255,0.55)";
+    for (var x = 0; x < w; x++){
+      var lo = Math.log(SPEC_MIN_HZ), hiL = Math.log(SPEC_MAX_HZ);
+      var hz = Math.exp(lo + (x / w) * (hiL - lo));
+      var bin = Math.min(n - 1, Math.round(hz / binHz));
+      var v = freqData[bin] / 255;
+      if (freqData[bin] > peakVal){ peakVal = freqData[bin]; peakBin = bin; }
+      var barH = v * h;
+      specCctx.fillRect(x, h - barH, 1, barH);
+    }
+    // gridlines + Hz labels
+    specCctx.strokeStyle = "rgba(255,255,255,0.08)";
+    specCctx.fillStyle = "rgba(255,255,255,0.35)";
+    specCctx.font = "9px sans-serif";
+    specCctx.lineWidth = 1;
+    SPEC_GRID_HZ.forEach(function(hz){
+      var gx = hzToX(hz, w);
+      specCctx.beginPath();
+      specCctx.moveTo(gx, 0);
+      specCctx.lineTo(gx, h);
+      specCctx.stroke();
+      specCctx.fillText(specLabel(hz) + "Hz", Math.min(w - 30, gx + 3), h - 4);
+    });
+    if (peakVal > 12){ // ignore near-silent noise floor
+      var peakHz = Math.round(peakBin * binHz);
+      specReadout.textContent = peakHz.toLocaleString() + " Hz";
+    } else {
+      specReadout.textContent = "-- Hz";
+    }
+  }
 
   // shared-timescale draw: a buffer shorter than the combined vocal+beat
   // duration only fills its proportional share of the canvas width, so the
@@ -4517,8 +4738,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function drawStaticWaveform(){
     if (typeof renderTimeline === "function") renderTimeline(); // total length may have changed
-    if (!audioBuffer) return;
-    drawBufferWaveform(canvas, cctx, audioBuffer, "rgba(0,245,255,0.35)", currentTotalDuration());
+    // Show whichever vocal is currently selected for editing (lead, or an
+    // extra/background track) -- not always the lead -- so the waveform
+    // actually follows you when you switch tracks or just dropped one in.
+    var t = (typeof editTargetTrack === "function") ? editTargetTrack() : null;
+    var shownBuffer = (t && t.buffer) ? t.buffer : audioBuffer;
+    if (!shownBuffer) return;
+    drawBufferWaveform(canvas, cctx, shownBuffer, "rgba(0,245,255,0.35)", currentTotalDuration());
   }
 
   function drawBeatWaveformStatic(){
@@ -4533,9 +4759,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var data = new Uint8Array(bufferLen);
     var duckLen = chain.vocalAnalyser.fftSize;
     var duckData = new Uint8Array(duckLen);
+    var freqData = new Uint8Array(chain.analyser.frequencyBinCount);
+    var binHz = ctx.sampleRate / chain.analyser.fftSize;
 
     function frame(){
-      if (!isPlaying) { rafId = null; updatePlayheadUI(); return; }
+      if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; return; }
       updatePlayheadUI();
 
       // auto-duck the beat under the vocal: watch the processed-vocal
@@ -4569,6 +4797,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       }
       cctx.stroke();
       cctx.shadowBlur = 0;
+
+      chain.analyser.getByteFrequencyData(freqData);
+      drawSpectrum(freqData, binHz);
+
       rafId = requestAnimationFrame(frame);
     }
     if (!rafId) rafId = requestAnimationFrame(frame);
@@ -5792,9 +6024,25 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var gateTitleEl = document.getElementById("gate-title");
   var gateDescEl = document.getElementById("gate-desc");
   var STORE_KEY = "gemstar_access_token";
+  var DEVICE_KEY = "gemstar_device_id";
   var pendingAction = "export";
   var currentChallenge = null;
   var currentEmail = "";
+
+  // A persistent random ID for this browser/device, used server-side to cap
+  // how many distinct devices one subscription can be active on. Not tied
+  // to hardware or identity -- just a random token stored locally so the
+  // same browser looks the same across visits.
+  function getDeviceId(){
+    var id;
+    try{ id = localStorage.getItem(DEVICE_KEY); }catch(e){ id = null; }
+    if (!id){
+      id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : "dev-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+      try{ localStorage.setItem(DEVICE_KEY, id); }catch(e){}
+    }
+    return id;
+  }
 
   window.gemstarHasAccess = false;
 
@@ -5888,7 +6136,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if(!saved){ return; }
     fetch("/api/verify-token", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ token: saved })
+      body: JSON.stringify({ token: saved, deviceId: getDeviceId() })
     }).then(function(r){ return r.json(); }).then(function(data){
       if(data && data.valid){
         window.gemstarHasAccess = true;
@@ -5902,7 +6150,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function requestCode(email, statusEl, btnEl){
     return fetch("/api/check-access", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ email: email })
+      body: JSON.stringify({ email: email, deviceId: getDeviceId() })
     }).then(function(r){ return r.json(); }).then(function(data){
       if(btnEl) btnEl.disabled = false;
       if(data && data.access && data.token){
@@ -5941,7 +6189,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     setCodeStatus("Verifying…");
     fetch("/api/verify-code", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ challenge: currentChallenge, code: code })
+      body: JSON.stringify({ challenge: currentChallenge, code: code, deviceId: getDeviceId() })
     }).then(function(r){ return r.json(); }).then(function(data){
       codeSubmitBtn.disabled = false;
       if(data && data.access && data.token){
