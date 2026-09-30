@@ -50,10 +50,13 @@ function normalizeTier(tier) {
   return VALID_TIERS.indexOf(tier) === -1 ? "starter" : tier;
 }
 
-function signToken(email, tier) {
+// deviceId travels inside the token now (see /api/verify-token) so a token
+// can only ever be replayed from the device it was issued to. "*" is the
+// wildcard used for allowlisted founders, who aren't device-limited.
+function signToken(email, tier, deviceId) {
   const secret = process.env.ACCESS_TOKEN_SECRET;
   const expiry = Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS;
-  const payload = `${b64url(email.toLowerCase())}.${normalizeTier(tier)}.${expiry}`;
+  const payload = `${b64url(email.toLowerCase())}.${normalizeTier(tier)}.${b64url(deviceId || "*")}.${expiry}`;
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
   return `${payload}.${sig}`;
 }
@@ -137,9 +140,10 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // Founders: instant access at the top tier, no code needed.
+  // Founders: instant access at the top tier, no code needed, and not
+  // subject to the per-account device cap (wildcard deviceId).
   if (ALLOWLIST.includes(email)) {
-    const token = signToken(email, ALLOWLIST_TIER);
+    const token = signToken(email, ALLOWLIST_TIER, "*");
     res.status(200).json({ access: true, token, tier: ALLOWLIST_TIER });
     return;
   }
