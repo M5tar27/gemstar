@@ -415,6 +415,11 @@
     font-size:0.7rem; letter-spacing:0.04em; color:var(--ink-dim); margin:0;
   }
 
+  .knob-howto{
+    font-size:0.72rem; letter-spacing:0.02em; color:var(--ink-dim); text-align:center;
+    margin:0 0 10px; padding:0 8px;
+  }
+
   /* knob grid */
   .controls-heading{
     text-align:center; font-family:var(--font-display); font-size:0.72rem; letter-spacing:0.32em;
@@ -1013,6 +1018,7 @@
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
       <p class="vocal-cap-note" data-i18n="perTrackNote">Every vocal gets its own full effects chain. Pick a track, then dial in its knobs.</p>
     </div>
+    <p class="knob-howto" data-i18n="knobHowto">Gently press and hold a knob, then slide up to increase the effect or slide down to decrease it.</p>
     <div class="knob-grid" id="knob-grid"><!-- knobs injected by JS --></div>
     <div class="tune-key-row" id="tune-key-row">
       <span class="status-label" data-i18n="tuneKeyLabel">Auto-Tune Key</span>
@@ -1307,6 +1313,7 @@
       leadPickHint:"Tap ☆ Make Lead on any track to choose your lead vocal.",
       uploadCapReached:"Your {plan} plan allows {max} vocal track(s) at once, so the first {max} were loaded. Upgrade to load more.",
       editingLabel:"Editing FX for", perTrackNote:"Every vocal gets its own full effects chain. Pick a track, then dial in its knobs.",
+      knobHowto:"Gently press and hold a knob, then slide up to increase the effect or slide down to decrease it. Double-tap a knob for a description (hover over it on computer).",
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Drag left/right to place this vocal in the stereo field. Double-click to center.",
       muteBtn:"M", soloBtn:"S", muteAria:"Mute", soloAria:"Solo",
@@ -1348,7 +1355,7 @@
         delay:"Delay: a standalone slapback echo/repeat, kept separate from every other knob — Space is reverb-only, M5tar and Jewels don't add any delay of their own."
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
-      helpIntro:"A quick rundown of the basics — every knob also shows this same text if you press and hold it (or hover, on desktop).",
+      helpIntro:"A quick rundown of the basics — every knob also shows this same text if you double-tap it (or hover over it on computer).",
       helpTip1:"Record straight from your mic or upload a file — either way, Gemstar processes it right in your browser, nothing to install.",
       helpTip2:"Use the A/B button to flip between your raw vocal (“Before”) and the processed version (“After”) so you can hear exactly what the knobs are doing.",
       helpTip3:"Try a Preset from the dropdown for a quick starting point, or start from scratch — every knob starts at 0 until you move it.",
@@ -1457,6 +1464,7 @@
       leadPickHint:"Toca ☆ Hacer Principal en cualquier pista para elegir tu voz principal.",
       uploadCapReached:"Tu plan {plan} permite {max} pista(s) vocal(es) a la vez, así que cargamos las primeras {max}. Mejora tu plan para cargar más.",
       editingLabel:"Editando FX de", perTrackNote:"Cada voz tiene su propia cadena de efectos completa. Elige una pista y ajusta sus perillas.",
+      knobHowto:"Presiona suavemente y mantén una perilla, luego desliza hacia arriba para aumentar el efecto o hacia abajo para disminuirlo. Toca dos veces una perilla para ver su descripción (o pasa el cursor sobre ella en computadora).",
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Arrastra a la izquierda o derecha para ubicar esta voz en el estéreo. Doble clic para centrar.",
       muteBtn:"M", soloBtn:"S", muteAria:"Silenciar", soloAria:"Solo",
@@ -1498,7 +1506,7 @@
         delay:"Retardo: un eco/repetición independiente, separado de las demás perillas — Espacio es solo reverb, y M5tar y Jewels no agregan ningún delay propio."
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
-      helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la mantienes presionada (o pasas el cursor, en escritorio).",
+      helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la tocas dos veces (o pasas el cursor sobre ella en computadora).",
       helpTip1:"Graba directo desde tu micrófono o sube un archivo — en ambos casos, Gemstar procesa todo en tu navegador, sin instalar nada.",
       helpTip2:"Usa el botón A/B para alternar entre tu voz sin procesar (“Antes”) y la versión procesada (“Después”) para escuchar exactamente lo que hacen las perillas.",
       helpTip3:"Prueba un Preset del menú desplegable para un punto de partida rápido, o empieza desde cero — cada perilla comienza en 0 hasta que la muevas.",
@@ -1749,12 +1757,11 @@
   }
   function renderAllKnobs(){ KNOB_DEFS.forEach(function(d){ renderKnob(d.id); }); }
 
-  // Long-press-to-show-description: double-click/double-tap is already taken
-  // (resets the knob to its default), so on mobile -- where hover tooltips
-  // (the `title` attribute) never show -- holding a knob still without
-  // dragging it pops up the same name + description text in a small bubble.
-  // Works with a mouse too (press and hold), it just doesn't fire during a
-  // normal quick click/drag.
+  // Double-click/double-tap shows the knob's name + description in a small
+  // bubble (mirrors the native `title` hover tooltip, which never shows on
+  // mobile). Long-press (hold still without dragging) resets the knob to
+  // its default instead -- swapped off of double-click so double-tap could
+  // be the description gesture on mobile.
   var LONG_PRESS_MS = 450, LONG_PRESS_TOLERANCE = 6;
   var knobInfoEl = null, knobInfoHideTimer = null;
   function ensureKnobInfoEl(){
@@ -1815,7 +1822,8 @@
       longPressTimer = setTimeout(function(){
         longPressTimer = null;
         dragging = false; // holding still shouldn't also nudge the value
-        showKnobInfo(id, knob);
+        if (isKnobLocked(id)) return;
+        setKnob(id, DEFAULT_VALUES[id]); // long-press = reset to default
       }, LONG_PRESS_MS);
     });
     knob.addEventListener("pointermove", function(e){
@@ -1824,9 +1832,10 @@
       }
       if (dragging) move(e.clientY);
     });
-    knob.addEventListener("pointerup", function(){ dragging = false; clearLongPress(); hideKnobInfo(); });
-    knob.addEventListener("pointercancel", function(){ dragging = false; clearLongPress(); hideKnobInfo(); });
-    knob.addEventListener("dblclick", function(){ if (isKnobLocked(id)) return; setKnob(id, DEFAULT_VALUES[id]); });
+    knob.addEventListener("pointerup", function(){ dragging = false; clearLongPress(); });
+    knob.addEventListener("pointercancel", function(){ dragging = false; clearLongPress(); });
+    // double-click / double-tap = show the knob's name + description
+    knob.addEventListener("dblclick", function(){ showKnobInfo(id, knob); });
     knob.addEventListener("wheel", function(e){
       e.preventDefault();
       if (isKnobLocked(id)){ openTierGate("knob:" + id); return; }
