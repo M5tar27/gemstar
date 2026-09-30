@@ -416,8 +416,8 @@
   }
 
   .knob-howto{
-    font-size:0.72rem; letter-spacing:0.02em; color:var(--ink-dim); text-align:center;
-    margin:0 0 10px; padding:0 8px;
+    font-size:0.82rem; letter-spacing:0.03em; color:#FFE066; text-align:center;
+    font-weight:700; margin:0 0 10px; padding:0 8px; line-height:1.5;
   }
 
   /* knob grid */
@@ -1018,7 +1018,7 @@
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
       <p class="vocal-cap-note" data-i18n="perTrackNote">Every vocal gets its own full effects chain. Pick a track, then dial in its knobs.</p>
     </div>
-    <p class="knob-howto" data-i18n="knobHowto">Gently press and hold a knob, then slide up to increase the effect or slide down to decrease it.</p>
+    <p class="knob-howto" data-i18n-html="knobHowto">Gently press and hold a knob, then slide up to increase the effect or slide down to decrease it.<br>Hover over a knob on computer, or double-tap it on mobile, to see its description.</p>
     <div class="knob-grid" id="knob-grid"><!-- knobs injected by JS --></div>
     <div class="tune-key-row" id="tune-key-row">
       <span class="status-label" data-i18n="tuneKeyLabel">Auto-Tune Key</span>
@@ -1313,7 +1313,7 @@
       leadPickHint:"Tap ☆ Make Lead on any track to choose your lead vocal.",
       uploadCapReached:"Your {plan} plan allows {max} vocal track(s) at once, so the first {max} were loaded. Upgrade to load more.",
       editingLabel:"Editing FX for", perTrackNote:"Every vocal gets its own full effects chain. Pick a track, then dial in its knobs.",
-      knobHowto:"Gently press and hold a knob, then slide up to increase the effect or slide down to decrease it. Double-tap a knob for a description (hover over it on computer).",
+      knobHowto:"Gently press and hold a knob, then slide up to increase the effect or slide down to decrease it.<br>Hover over a knob on computer, or double-tap it on mobile, to see its description.",
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Drag left/right to place this vocal in the stereo field. Double-click to center.",
       muteBtn:"M", soloBtn:"S", muteAria:"Mute", soloAria:"Solo",
@@ -1793,7 +1793,9 @@
   function wireKnobDrag(knob, id){
     var dragging = false, startY = 0, startVal = 0;
     var RANGE_PX = 160;
-    var longPressTimer = null, downX = 0, downY = 0;
+    var longPressTimer = null, longPressFired = false, downX = 0, downY = 0, moved = false;
+    var lastTapTime = 0;
+    var DOUBLE_TAP_MS = 350;
 
     function move(clientY){
       var delta = startY - clientY;
@@ -1818,23 +1820,45 @@
       e.preventDefault();
 
       downX = e.clientX; downY = e.clientY;
+      moved = false; longPressFired = false;
       clearLongPress();
       longPressTimer = setTimeout(function(){
         longPressTimer = null;
+        longPressFired = true;
         dragging = false; // holding still shouldn't also nudge the value
         if (isKnobLocked(id)) return;
         setKnob(id, DEFAULT_VALUES[id]); // long-press = reset to default
       }, LONG_PRESS_MS);
     });
     knob.addEventListener("pointermove", function(e){
-      if (longPressTimer && (Math.abs(e.clientX - downX) > LONG_PRESS_TOLERANCE || Math.abs(e.clientY - downY) > LONG_PRESS_TOLERANCE)){
+      if (Math.abs(e.clientX - downX) > LONG_PRESS_TOLERANCE || Math.abs(e.clientY - downY) > LONG_PRESS_TOLERANCE){
+        moved = true;
         clearLongPress();
       }
       if (dragging) move(e.clientY);
     });
-    knob.addEventListener("pointerup", function(){ dragging = false; clearLongPress(); });
+    // Double-tap detection is done by hand rather than relying on the
+    // browser's native `dblclick`: calling preventDefault() on pointerdown
+    // above (required so dragging a knob doesn't also scroll the page on
+    // touch) stops mobile browsers from ever synthesizing a dblclick from
+    // two taps, so double-tap would otherwise silently do nothing on mobile.
+    // A quick tap (no drag, no long-press) that lands within DOUBLE_TAP_MS
+    // of the previous one counts as a double-tap. Works for mouse too.
+    knob.addEventListener("pointerup", function(){
+      dragging = false;
+      clearLongPress();
+      if (!moved && !longPressFired){
+        var now = Date.now();
+        if (now - lastTapTime < DOUBLE_TAP_MS){
+          lastTapTime = 0;
+          showKnobInfo(id, knob);
+        } else {
+          lastTapTime = now;
+        }
+      }
+    });
     knob.addEventListener("pointercancel", function(){ dragging = false; clearLongPress(); });
-    // double-click / double-tap = show the knob's name + description
+    // native dblclick as a harmless fallback (fires for real mouse double-clicks)
     knob.addEventListener("dblclick", function(){ showKnobInfo(id, knob); });
     knob.addEventListener("wheel", function(e){
       e.preventDefault();
