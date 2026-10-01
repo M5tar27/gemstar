@@ -433,6 +433,21 @@
   .track-edit-tabs .icon-btn{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block;}
   .track-edit-tabs .icon-btn.active{border-color:var(--yellow); color:#050508; background:var(--yellow); font-weight:700;}
 
+  /* Save Project button: deliberately louder than the other export-row
+     buttons -- it's the one action that protects the user's work, so it
+     gets its own color (green = "safe"), bold text, and a slow breathing
+     glow to catch the eye without being an annoying/urgent-looking alert. */
+  #btn-save-project{
+    border:1px solid var(--ok); color:var(--ok); background:rgba(60,242,160,0.08);
+    font-weight:700; animation:save-btn-glow 2.6s ease-in-out infinite;
+  }
+  #btn-save-project:hover{ background:var(--ok); color:#050508; }
+  @keyframes save-btn-glow{
+    0%{ box-shadow:0 0 0 0 rgba(60,242,160,0.45); }
+    50%{ box-shadow:0 0 14px 2px rgba(60,242,160,0.55); }
+    100%{ box-shadow:0 0 0 0 rgba(60,242,160,0.45); }
+  }
+
   /* plan (preview) selector + vocal mixer */
   .plan-select-row{
     display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap;
@@ -1142,7 +1157,7 @@
       </select>
       <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
       <button class="icon-btn" id="btn-export-stems" type="button" data-i18n="stemsBtn">⬇ Export Stems</button>
-      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">Save</button>
+      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">💾 Save Project</button>
     </div>
     <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-note" data-i18n="stemsNote">Unlimited: Export Stems downloads every processed vocal as its own 24-bit WAV (in one .zip), lined up from the start of the song, so you can finish the mix in any DAW.</p>
@@ -1345,7 +1360,7 @@
       exportEncoding:"Encoding…",
       exportedOk:"Exported — check your downloads.",
       exportErr:"Export needs a loaded track first.",
-      saveProjectBtn:"Save", savingProject:"Saving…", savedProjectOk:"Saved.", savedProjectErr:"Couldn't save — your browser may be in private mode.",
+      saveProjectBtn:"💾 Save Project", savingProject:"Saving…", savedProjectOk:"Saved.", savedProjectErr:"Couldn't save — your browser may be in private mode.",
       resumeProjectText:"You have a saved session from last time.", resumeProjectYes:"Resume", resumeProjectNo:"Discard",
       pricingEyebrow:"Plans", pricingTitle:"Pick your monthly chain",
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
@@ -1500,7 +1515,7 @@
       exportEncoding:"Codificando…",
       exportedOk:"Exportado — revisa tus descargas.",
       exportErr:"Primero carga una pista para exportar.",
-      saveProjectBtn:"Guardar", savingProject:"Guardando…", savedProjectOk:"Guardado.", savedProjectErr:"No se pudo guardar — tu navegador puede estar en modo privado.",
+      saveProjectBtn:"💾 Guardar Proyecto", savingProject:"Guardando…", savedProjectOk:"Guardado.", savedProjectErr:"No se pudo guardar — tu navegador puede estar en modo privado.",
       resumeProjectText:"Tienes una sesión guardada de la última vez.", resumeProjectYes:"Continuar", resumeProjectNo:"Descartar",
       pricingEyebrow:"Planes", pricingTitle:"Elige tu cadena mensual",
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
