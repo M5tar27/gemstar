@@ -3083,16 +3083,37 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // it the instant that ends. See the comment in buildChain() above for why.
   var activeMixUsers = 0;
   function wireFinalMixIfNeeded(g){
-    if (!g || g._mixWired || g._dead) return;
+    if (!g || g._dead) return;
+    if (g._unwireTimer){ clearTimeout(g._unwireTimer); g._unwireTimer = null; }
+    if (g._mixWired){
+      // Still physically connected from before -- possibly mid fade-out
+      // from an unwireFinalMix() that hasn't fired its disconnect yet.
+      // Bringing the gain back up (itself a smooth ramp, not a jump) is
+      // all that's needed; connecting again would just double the edge.
+      try { g.finalMix.gain.setTargetAtTime(1, ctx.currentTime, 0.006); } catch(e){}
+      return;
+    }
     try { g.finalMix.connect(chain.mixSum); } catch(e){}
     try { g.finalMix.connect(chain.vocalAnalyser); } catch(e){}
+    try { g.finalMix.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
     g._mixWired = true;
   }
   function unwireFinalMix(g){
-    if (!g || !g._mixWired) return;
-    try { g.finalMix.disconnect(chain.mixSum); } catch(e){}
-    try { g.finalMix.disconnect(chain.vocalAnalyser); } catch(e){}
-    g._mixWired = false;
+    if (!g || !g._mixWired || g._unwireTimer) return;
+    // Don't yank finalMix off the mix bus while it may still be carrying
+    // live signal (a reverb tail, a limiter/compressor still settling) --
+    // that abrupt discontinuity is exactly what was causing an audible
+    // pop/click right as recording/playback stopped. Fade it to silence
+    // first, then disconnect once it's actually quiet.
+    var now = ctx.currentTime;
+    try { g.finalMix.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    g._unwireTimer = setTimeout(function(){
+      g._unwireTimer = null;
+      g._mixWired = false;
+      try { g.finalMix.disconnect(chain.mixSum); } catch(e){}
+      try { g.finalMix.disconnect(chain.vocalAnalyser); } catch(e){}
+      try { g.finalMix.gain.setValueAtTime(1, ctx.currentTime); } catch(e){} // reset for next time
+    }, 40);
   }
   function connectAllFinalMixes(){
     if (!chain) return;
@@ -4182,11 +4203,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   // Adding a harmony/ad-lib vocal track — shared by the upload input and the
   // "Record Vocal Track" mic recorder below, so both land in the same array.
-  // New tracks start with a copy of the lead's knob settings so they sound
-  // matched out of the gate; on Mix/Unlimited they then get their own chain.
+  // New tracks start completely raw (no knob/FX, no role) -- a fresh
+  // recording should never sound auto-processed. The user picks a Role or a
+  // Preset themselves if/when they want one; on Mix/Unlimited each track
+  // then gets its own chain to carry whatever they dial in.
   function pushExtraVocal(name, buffer){
     var t = {id: extraVocalIdSeq++, name: name, buffer: buffer, level: 1, _liveGain: null,
-             values: Object.assign({}, leadValues), chain: null,
+             values: Object.assign({}, DEFAULT_VALUES), chain: null,
              pan: 0, muted: false, solo: false, role: ""};
     applySavedTrackSettings(t, name);
     extraVocals.push(t);
