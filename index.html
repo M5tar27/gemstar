@@ -156,6 +156,23 @@
   }
   #midi-learn-cancel:hover{background:rgba(255,46,136,0.12);}
 
+  #resume-project-banner{
+    display:none; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;
+    position:fixed; left:50%; top:14px; transform:translateX(-50%); z-index:500;
+    max-width:min(92vw, 480px); padding:12px 16px; border-radius:12px;
+    background:var(--bg-panel); border:1px solid var(--cyan); box-shadow:0 12px 34px rgba(0,0,0,0.45);
+    font-size:0.82rem; color:var(--ink);
+  }
+  #resume-project-banner.show{display:flex;}
+  #resume-project-text{color:var(--ink-muted);}
+  #resume-project-yes, #resume-project-no{
+    border-radius:999px; padding:6px 14px; font-size:0.76rem; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  #resume-project-yes{background:var(--cyan); border:1px solid var(--cyan); color:#06060c; font-weight:700;}
+  #resume-project-no{background:none; border:1px solid var(--line); color:var(--ink-muted);}
+  #resume-project-yes:hover{opacity:0.88;}
+  #resume-project-no:hover{color:var(--ink);}
+
   #welcome-overlay{
     display:none; position:fixed; inset:0; z-index:420;
     align-items:center; justify-content:center; padding:20px;
@@ -824,6 +841,12 @@
     <button type="button" id="midi-learn-cancel" data-i18n="midiLearnBtnActive">Cancel Mapping</button>
   </div>
 
+  <div id="resume-project-banner">
+    <span id="resume-project-text" data-i18n="resumeProjectText">You have a saved session from last time.</span>
+    <button type="button" id="resume-project-yes" data-i18n="resumeProjectYes">Resume</button>
+    <button type="button" id="resume-project-no" data-i18n="resumeProjectNo">Discard</button>
+  </div>
+
   <div id="welcome-overlay">
     <div class="welcome-card">
       <button type="button" class="welcome-skip" id="welcome-skip" data-i18n="welcomeSkip">Skip</button>
@@ -1119,6 +1142,7 @@
       </select>
       <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
       <button class="icon-btn" id="btn-export-stems" type="button" data-i18n="stemsBtn">⬇ Export Stems</button>
+      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">Save</button>
     </div>
     <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-note" data-i18n="stemsNote">Unlimited: Export Stems downloads every processed vocal as its own 24-bit WAV (in one .zip), lined up from the start of the song, so you can finish the mix in any DAW.</p>
@@ -1321,6 +1345,8 @@
       exportEncoding:"Encoding…",
       exportedOk:"Exported — check your downloads.",
       exportErr:"Export needs a loaded track first.",
+      saveProjectBtn:"Save", savingProject:"Saving…", savedProjectOk:"Saved.", savedProjectErr:"Couldn't save — your browser may be in private mode.",
+      resumeProjectText:"You have a saved session from last time.", resumeProjectYes:"Resume", resumeProjectNo:"Discard",
       pricingEyebrow:"Plans", pricingTitle:"Pick your monthly chain",
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
       starterName:"Starter", starterSub:"For the bedroom studio — dial in one vocal at a time (1 vocal track, no Full Song Mix yet).", starter1:"Full vocal chain — 11 core knobs", starter2:"Pitch correction with key & scale lock", starter3:"Recordings up to 3 minutes, 1 vocal track", starter4:"Standard MP3/WAV export",
@@ -1474,6 +1500,8 @@
       exportEncoding:"Codificando…",
       exportedOk:"Exportado — revisa tus descargas.",
       exportErr:"Primero carga una pista para exportar.",
+      saveProjectBtn:"Guardar", savingProject:"Guardando…", savedProjectOk:"Guardado.", savedProjectErr:"No se pudo guardar — tu navegador puede estar en modo privado.",
+      resumeProjectText:"Tienes una sesión guardada de la última vez.", resumeProjectYes:"Continuar", resumeProjectNo:"Descartar",
       pricingEyebrow:"Planes", pricingTitle:"Elige tu cadena mensual",
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
       starterName:"Inicial", starterSub:"Para el estudio casero — ajusta una voz a la vez (1 pista vocal, sin Mezcla De Canción Completa todavía).", starter1:"Cadena vocal completa — 11 perillas base", starter2:"Corrección de tono con bloqueo de tonalidad y escala", starter3:"Grabaciones de hasta 3 minutos, 1 pista vocal", starter4:"Exportación estándar en MP3/WAV",
@@ -1923,7 +1951,7 @@
   var extraVocalIdSeq = 1;
   // Mix settings for the lead vocal (its level is mainVocalLevel). Extra
   // tracks carry the same pan/muted/solo/role fields on their own objects.
-  var leadTrack = {id:"lead", pan:0, muted:false, solo:false, role:""};
+  var leadTrack = {id:"lead", pan:0, muted:false, solo:false, role:"", _file:null};
 
   /* Silent, automatic input gain-staging — no user-facing knob. Every recorded
      or uploaded vocal comes in at wildly different levels (quiet phone mic
@@ -3344,6 +3372,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (wasPlaying) stopPlayback();
       audioBuffer = buf;
       leadTrack.originalBuffer = null;
+      leadTrack._file = file;
       setLeadName(file.name);
       applySavedLeadSettings(file.name);
       tlCursor = 0; tlRegion = null; tlLoop = false;
@@ -3372,7 +3401,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // can finish out of order, and the lead should be the first file dropped.
     Promise.all(files.map(decodeAudioFile)).then(function(bufs){
       var loaded = [];
-      bufs.forEach(function(b, i){ if (b) loaded.push({name: files[i].name, buffer: b}); });
+      bufs.forEach(function(b, i){ if (b) loaded.push({name: files[i].name, buffer: b, file: files[i]}); });
       // If one of these was your lead last time, it's the lead again.
       var prevLead = savedSession && savedSession.leadName;
       for (var li = 1; li < loaded.length; li++){
@@ -3385,12 +3414,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       clearExtraVocals();
       audioBuffer = loaded[0].buffer;
       leadTrack.originalBuffer = null;
+      leadTrack._file = loaded[0].file;
       leadTrack.pan = 0; leadTrack.muted = false; leadTrack.solo = false; leadTrack.role = "";
       setLeadName(loaded[0].name);
       mainVocalLevel = 1;
       if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
       applySavedLeadSettings(loaded[0].name);
-      loaded.slice(1).forEach(function(item){ pushExtraVocal(item.name, item.buffer); });
+      loaded.slice(1).forEach(function(item){ pushExtraVocal(item.name, item.buffer)._file = item.file; });
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
       renderExtraVocals();
@@ -4011,12 +4041,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (extraVocals.indexOf(t) < 0 || !audioBuffer) return;
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
-    var old = {name: trackNameEl.textContent, buffer: audioBuffer, level: mainVocalLevel, values: leadValues};
+    var old = {name: trackNameEl.textContent, buffer: audioBuffer, level: mainVocalLevel, values: leadValues, file: leadTrack._file};
     audioBuffer = t.buffer;
     setLeadName(t.name);
     mainVocalLevel = t.level;
     leadValues = t.values || Object.assign({}, old.values);
     t.buffer = old.buffer; t.name = old.name; t.level = old.level; t.values = old.values;
+    leadTrack._file = t._file; t._file = old.file;
     ["pan","muted","solo","role"].forEach(function(k){ var tmp = leadTrack[k]; leadTrack[k] = t[k]; t[k] = tmp; });
     var ob = leadTrack.originalBuffer; leadTrack.originalBuffer = t.originalBuffer; t.originalBuffer = ob;
     if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
@@ -4034,6 +4065,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var wasPlaying = isPlaying;
       if (wasPlaying) stopPlayback();
       var t = pushExtraVocal(file.name, buf);
+      t._file = file;
       setEditTarget(t.id); // jump straight to it so its waveform shows right away
       renderExtraVocals();
       afterVocalSetChanged();
@@ -4428,11 +4460,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // leaving headroom under the Radio knob's own parallel compression means
   // that push does the loudness work instead of just raising the fader,
   // which is what actually sounds like a polished radio/pop mix instead of
-  // a clipped one. Clean is set to 25 (its sweet spot) across every role:
-  // enough to tame rumble/hiss without thinning the tone out.
+  // a clipped one. Clean is set to 25 (its sweet spot) across most roles:
+  // enough to tame rumble/hiss without thinning the tone out. Background
+  // vocals get Clean turned down lower (10) since they're meant to sit
+  // further back/blended rather than sound as de-noised/forward as the lead.
   var ROLE_PRESETS = {
     lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
-    background: {level:0.6,  pan:0,    knobs:{clean:25, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
+    background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
     doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
     doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
     adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
@@ -4547,7 +4581,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         var anyBad = false;
         bufs.forEach(function(b, i){
           if (!b){ anyBad = true; return; }
-          if (totalVocalTrackCount() < maxVocalTracks()) pushExtraVocal(files[i].name, b);
+          if (totalVocalTrackCount() < maxVocalTracks()) pushExtraVocal(files[i].name, b)._file = files[i];
         });
         if (anyBad) audioReadError();
         renderExtraVocals();
@@ -6267,6 +6301,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!sessionReady) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveSessionNow, 400);
+    scheduleProjectSave(); // also keep the actual audio saved (see below) -- same trigger, no new call sites
   }
   function saveSessionNow(){
     try {
@@ -6290,6 +6325,132 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(savedSession));
     } catch(e){ /* private mode / storage full: saving is best-effort */ }
   }
+
+  // ---------- Save your PROJECT (the actual audio, this browser) ----------
+  // The settings save above never covered the audio itself -- too big for
+  // localStorage, so a reload meant re-uploading. IndexedDB has no such
+  // practical limit and stores files natively, so this keeps the actual
+  // uploaded/recorded audio too, using the SAME autosave trigger as the
+  // settings (scheduleSave, above) rather than inventing a new one. Just one
+  // "current project" slot -- this is about not losing your work, not a
+  // library of named saves.
+  var PROJECT_DB_NAME = "gemstar-project", PROJECT_DB_VERSION = 1, PROJECT_STORE = "files", PROJECT_KEY = "current";
+  var projectDbPromise = null;
+  function openProjectDb(){
+    if (projectDbPromise) return projectDbPromise;
+    projectDbPromise = new Promise(function(resolve, reject){
+      if (!window.indexedDB){ reject(new Error("no indexedDB")); return; }
+      var req = indexedDB.open(PROJECT_DB_NAME, PROJECT_DB_VERSION);
+      req.onupgradeneeded = function(){
+        if (!req.result.objectStoreNames.contains(PROJECT_STORE)) req.result.createObjectStore(PROJECT_STORE);
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+    return projectDbPromise;
+  }
+  function idbPut(key, value){
+    return openProjectDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(PROJECT_STORE, "readwrite");
+        tx.objectStore(PROJECT_STORE).put(value, key);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function idbGet(key){
+    return openProjectDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var req = db.transaction(PROJECT_STORE, "readonly").objectStore(PROJECT_STORE).get(key);
+        req.onsuccess = function(){ resolve(req.result); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    });
+  }
+  function idbDelete(key){
+    return openProjectDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(PROJECT_STORE, "readwrite");
+        tx.objectStore(PROJECT_STORE).delete(key);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+
+  var projectSaveTimer = null, projectSaveInFlight = false, projectSavePending = false;
+  function scheduleProjectSave(){
+    if (!sessionReady) return;
+    clearTimeout(projectSaveTimer);
+    // audio writes are heavier than the settings-only save above, so this
+    // debounces a bit longer -- no point re-writing megabytes of audio on
+    // every single knob tick when it hasn't changed.
+    projectSaveTimer = setTimeout(function(){ saveProjectNow(); }, 1200);
+  }
+  function saveProjectNow(){
+    if (!audioBuffer) return idbDelete(PROJECT_KEY).catch(function(){});
+    if (projectSaveInFlight){ projectSavePending = true; return Promise.resolve(); }
+    projectSaveInFlight = true;
+    var record = {
+      v: 1, at: Date.now(),
+      lead: leadTrack._file ? {name: leadTrack._file.name, type: leadTrack._file.type, blob: leadTrack._file} : null,
+      extras: extraVocals.filter(function(t){ return t._file; })
+        .map(function(t){ return {name: t._file.name, type: t._file.type, blob: t._file}; })
+    };
+    return idbPut(PROJECT_KEY, record).then(
+      function(){ updateSaveStatus(true); },
+      function(){ updateSaveStatus(false); }
+    ).then(function(){
+      projectSaveInFlight = false;
+      if (projectSavePending){ projectSavePending = false; return saveProjectNow(); }
+    });
+  }
+  function updateSaveStatus(ok){
+    if (!exportStatus) return;
+    exportStatus.textContent = ok ? STR[lang].savedProjectOk : STR[lang].savedProjectErr;
+    exportStatus.className = "export-status" + (ok ? " ok" : " err");
+  }
+  var btnSaveProject = document.getElementById("btn-save-project");
+  if (btnSaveProject) btnSaveProject.addEventListener("click", function(){
+    if (!audioBuffer){
+      exportStatus.textContent = STR[lang].exportErr;
+      exportStatus.className = "export-status err";
+      return;
+    }
+    exportStatus.textContent = STR[lang].savingProject;
+    exportStatus.className = "export-status";
+    saveProjectNow();
+  });
+
+  // Offered once on load, before the welcome screen, so a returning user
+  // sees it first. "Resume" rebuilds the saved file(s) as real Files and
+  // hands them to the exact same upload path a hand-dropped file goes
+  // through -- which is also what already re-applies the saved knobs/
+  // levels/pan/role for a file of that name, so nothing extra is needed here.
+  function offerProjectResume(){
+    idbGet(PROJECT_KEY).then(function(rec){
+      if (!rec || (!rec.lead && (!rec.extras || !rec.extras.length))) return;
+      var banner = document.getElementById("resume-project-banner");
+      var yesBtn = document.getElementById("resume-project-yes");
+      var noBtn = document.getElementById("resume-project-no");
+      if (!banner) return;
+      banner.classList.add("show");
+      function hide(){ banner.classList.remove("show"); }
+      if (yesBtn) yesBtn.addEventListener("click", function(){
+        hide();
+        if (rec.lead) handleFile(new File([rec.lead.blob], rec.lead.name, {type: rec.lead.blob.type || rec.lead.type || ""}));
+        (rec.extras || []).forEach(function(e){
+          addExtraVocalFromFile(new File([e.blob], e.name, {type: e.blob.type || e.type || ""}));
+        });
+      }, {once:true});
+      if (noBtn) noBtn.addEventListener("click", function(){
+        hide();
+        idbDelete(PROJECT_KEY).catch(function(){});
+      }, {once:true});
+    }).catch(function(){});
+  }
+
   function savedTrack(name){
     return (savedSession && savedSession.tracks && name && savedSession.tracks[name]) || null;
   }
@@ -6360,6 +6521,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   applyLang("en");
   syncTuneKeyUI();
   restoreSession();
+  offerProjectResume();
   (function(){
     var seen = false;
     try { seen = localStorage.getItem(WELCOME_SEEN_KEY) === "1"; } catch(e){}
