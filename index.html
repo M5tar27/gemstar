@@ -335,6 +335,8 @@
     text-transform:uppercase; color:var(--ink-dim); pointer-events:none;
   }
   .beat-waveform-shell{height:56px; margin-top:8px; border-color:var(--line-gem);}
+  .record-waveform-shell{height:80px; margin:10px 0; border-color:rgba(255,92,122,0.4);}
+  .record-panel-compact .record-waveform-shell{height:60px;}
 
   .all-vocals-strip{margin-top:10px;}
   .all-vocals-strip-label{
@@ -951,6 +953,10 @@
           <div class="record-dot" id="record-dot"></div>
           <span class="record-time" id="record-time">00:00</span>
         </div>
+        <div class="waveform-shell record-waveform-shell">
+          <span class="wf-label" data-i18n="wfLabelRecording">Recording</span>
+          <canvas id="record-waveform" width="900" height="80"></canvas>
+        </div>
         <div class="record-meter-shell"><div class="record-meter-bar" id="record-meter-bar"></div></div>
         <div class="record-device-row">
           <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
@@ -977,6 +983,8 @@
         <div class="slider-row">
           <span class="status-label" data-i18n="beatLevel">Beat Level</span>
           <input type="range" id="beat-level" min="0" max="100" value="70" aria-label="Beat level" />
+          <button type="button" class="trk-btn trk-mute" id="btn-beat-mute" data-i18n="muteBtn" aria-label="Mute Beat" data-i18n-aria="muteBeatAria">M</button>
+          <button type="button" class="trk-btn trk-solo" id="btn-beat-solo" data-i18n="soloBtn" aria-label="Solo Beat" data-i18n-aria="soloBeatAria">S</button>
         </div>
         <div class="slider-row beat-eq-row">
           <span class="status-label" data-i18n="beatLow">Low</span>
@@ -997,6 +1005,8 @@
         <div class="slider-row vocal-track-row lead-row">
           <span class="vocal-track-label"><span class="lead-badge" data-i18n="leadBadge">★ Lead</span><span class="vocal-track-name" id="lead-track-name"></span></span>
           <input type="range" id="lead-vocal-level" min="0" max="100" value="100" aria-label="Lead vocal level" />
+          <button type="button" class="trk-btn trk-mute" id="btn-vocal-mute" hidden data-i18n="muteBtn" aria-label="Mute Vocal" data-i18n-aria="muteVocalAria">M</button>
+          <button type="button" class="trk-btn trk-solo" id="btn-vocal-solo" hidden data-i18n="soloBtn" aria-label="Solo Vocal" data-i18n-aria="soloVocalAria">S</button>
           <div class="track-ctl-slot" id="lead-track-ctl" hidden></div>
           <button type="button" class="icon-btn small btn-edit-fx" id="btn-edit-fx-lead" hidden data-i18n="editFxBtn">🎛 FX</button>
         </div>
@@ -1015,6 +1025,10 @@
           <div class="record-visual">
             <div class="record-dot" id="extra-record-dot"></div>
             <span class="record-time" id="extra-record-time">00:00</span>
+          </div>
+          <div class="waveform-shell record-waveform-shell">
+            <span class="wf-label" data-i18n="wfLabelRecording">Recording</span>
+            <canvas id="extra-record-waveform" width="900" height="60"></canvas>
           </div>
           <div class="record-meter-shell"><div class="record-meter-bar" id="extra-record-meter-bar"></div></div>
           <div class="record-device-row">
@@ -1375,7 +1389,7 @@
       wlErr:"Couldn't save that — email Gemstaraudio@gmail.com and we'll add you.",
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"One booth. <em>Two engineers.</em>",
-      wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency",
+      wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency", wfLabelRecording:"Recording",
       allVocalsLabel:"All vocals — tap one to pull up its knobs (no tab-switching needed)",
       volumeKnobLabel:"Volume",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
@@ -1392,6 +1406,8 @@
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Drag left/right to place this vocal in the stereo field. Double-click to center.",
       muteBtn:"M", soloBtn:"S", muteAria:"Mute", soloAria:"Solo",
+      muteVocalAria:"Mute Vocal", soloVocalAria:"Solo Vocal (hear the vocal alone)",
+      muteBeatAria:"Mute Beat", soloBeatAria:"Solo Beat (hear the beat alone)",
       roleLabel:"Role for", roleNone:"Role…", roleLead:"Lead", roleBackground:"Background", roleDoubleL:"Double (Left)", roleDoubleR:"Double (Right)", roleAdlib:"Ad-lib",
       cleanBtn:"✂ Clean Silence", cleanUndoBtn:"↺ Undo Clean", cleanWorking:"Cleaning up dead air…",
       cleanHint:"Mutes the dead air between phrases (hiss, room noise, stray breaths) on every vocal, without moving anything in time.",
@@ -1530,7 +1546,7 @@
       wlErr:"No se pudo guardar — escribe a Gemstaraudio@gmail.com y te agregamos.",
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"Una cabina. <em>Dos ingenieros.</em>",
-      wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia",
+      wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia", wfLabelRecording:"Grabando",
       allVocalsLabel:"Todas las voces — toca una para ajustar sus perillas (sin cambiar de pestaña)",
       volumeKnobLabel:"Volumen",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
@@ -1547,6 +1563,8 @@
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Arrastra a la izquierda o derecha para ubicar esta voz en el estéreo. Doble clic para centrar.",
       muteBtn:"M", soloBtn:"S", muteAria:"Silenciar", soloAria:"Solo",
+      muteVocalAria:"Silenciar Voz", soloVocalAria:"Solo Voz (escuchar solo la voz)",
+      muteBeatAria:"Silenciar Beat", soloBeatAria:"Solo Beat (escuchar solo el beat)",
       roleLabel:"Rol para", roleNone:"Rol…", roleLead:"Principal", roleBackground:"Coros", roleDoubleL:"Doble (Izquierda)", roleDoubleR:"Doble (Derecha)", roleAdlib:"Ad-lib",
       cleanBtn:"✂ Limpiar Silencios", cleanUndoBtn:"↺ Deshacer Limpieza", cleanWorking:"Limpiando silencios…",
       cleanHint:"Silencia el aire muerto entre frases (siseo, ruido de cuarto, respiraciones) en cada voz, sin mover nada en el tiempo.",
@@ -2027,6 +2045,12 @@
   }
   var beatSourceNode = null; // beat/instrumental AudioBufferSourceNode
   var beatBuffer = null;
+  // Simple beat-vs-vocal audition controls -- independent of (and on top
+  // of) the existing per-extra-track mute/solo, which is for balancing
+  // vocal tracks against EACH OTHER. These two are specifically for
+  // isolating "the beat" from "the vocals" as a whole.
+  var beatMuted = false, beatSolo = false;
+  var vocalGroupMuted = false, vocalGroupSolo = false;
   var mixEnabled = false;    // true when mode === "full" (Full Song Mix)
   var mode = "vocal";        // "vocal" | "full"
   var outputGainDb = 3;      // Loud is now this fader, not a knob
@@ -3045,9 +3069,52 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function buildTrackChain(){
     var g = buildVocalChain();
-    g.finalMix.connect(chain.mixSum);
-    g.finalMix.connect(chain.vocalAnalyser);
+    // Not wired to chain.mixSum/vocalAnalyser yet -- see wireFinalMixIfNeeded().
+    // If something is already actively using the mix (playback or export in
+    // progress) when this new per-track chain gets built, wire it in right
+    // away so it joins what's already playing instead of going silent.
+    if (activeMixUsers > 0) wireFinalMixIfNeeded(g);
     return g;
+  }
+
+  // ---- lazy finalMix wiring: only connect each vocal chain's expensive
+  // convolver/compressor rack to the mix bus while it's actually needed
+  // (live playback or an export/analysis pass in progress), and disconnect
+  // it the instant that ends. See the comment in buildChain() above for why.
+  var activeMixUsers = 0;
+  function wireFinalMixIfNeeded(g){
+    if (!g || g._mixWired || g._dead) return;
+    try { g.finalMix.connect(chain.mixSum); } catch(e){}
+    try { g.finalMix.connect(chain.vocalAnalyser); } catch(e){}
+    g._mixWired = true;
+  }
+  function unwireFinalMix(g){
+    if (!g || !g._mixWired) return;
+    try { g.finalMix.disconnect(chain.mixSum); } catch(e){}
+    try { g.finalMix.disconnect(chain.vocalAnalyser); } catch(e){}
+    g._mixWired = false;
+  }
+  function connectAllFinalMixes(){
+    if (!chain) return;
+    wireFinalMixIfNeeded(chain);
+    extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) wireFinalMixIfNeeded(t.chain); });
+  }
+  function disconnectAllFinalMixes(){
+    if (!chain) return;
+    unwireFinalMix(chain);
+    extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) unwireFinalMix(t.chain); });
+  }
+  // Call retainMixWiring() right before anything starts sourcing audio
+  // through the chains (playback, export, auto-master), and releaseMixWiring()
+  // the moment that's done. Ref-counted so playback and an export triggered
+  // mid-playback don't tear the connection out from under each other.
+  function retainMixWiring(){
+    activeMixUsers++;
+    if (activeMixUsers === 1) connectAllFinalMixes();
+  }
+  function releaseMixWiring(){
+    activeMixUsers = Math.max(0, activeMixUsers - 1);
+    if (activeMixUsers === 0) disconnectAllFinalMixes();
   }
 
   // Makes sure every extra vocal track has its own chain exactly when the
@@ -3123,13 +3190,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.beatHigh.connect(g.beatDuck);
 
     g.mixSum = ctx.createGain();
-    g.finalMix.connect(g.mixSum);
     g.beatDuck.connect(g.mixSum);
+    // g.finalMix is deliberately NOT connected to mixSum here -- see
+    // wireFinalMixIfNeeded()/retainMixWiring() below. Every vocal chain
+    // (this lead one, plus any per-track chain) has its own convolvers
+    // (reverb) and 4 DynamicsCompressors; a WebAudio node graph still
+    // renders every node reachable from destination each quantum even
+    // with dead silence coming in, so wiring this permanently at build
+    // time -- as it used to be -- meant that whole rack ran flat-out on
+    // the real-time audio thread 24/7, including while nothing was
+    // playing, and that's exactly the CPU load competing with the
+    // mic-capture AudioWorklet for the same thread's time budget and
+    // causing the static/underruns reported during recording.
 
     // tap for vocal-envelope detection, used to auto-duck the beat under it
     g.vocalAnalyser = ctx.createAnalyser();
     g.vocalAnalyser.fftSize = 512;
-    g.finalMix.connect(g.vocalAnalyser);
 
     // ---- Loud: Output Gain fader driving a final safety limiter ----
     // Loudness is now a fader at the bottom of the console, not a knob.
@@ -3619,11 +3695,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function stopTimer(){
       if (recordTimerInterval){ clearInterval(recordTimerInterval); recordTimerInterval = null; }
     }
+    var wfCtx = opts.waveformCanvas ? opts.waveformCanvas.getContext("2d") : null;
+    function clearWaveform(){
+      if (!wfCtx) return;
+      wfCtx.clearRect(0, 0, opts.waveformCanvas.width, opts.waveformCanvas.height);
+    }
     function stopMeter(){
       if (recordMeterRAF){ cancelAnimationFrame(recordMeterRAF); recordMeterRAF = null; }
       if (opts.meterBar) opts.meterBar.style.width = "0%";
       if (recordSrcNode){ try{ recordSrcNode.disconnect(); }catch(e){} recordSrcNode = null; }
       recordAnalyser = null;
+      clearWaveform();
     }
     function stopStream(){
       if (recordStream){
@@ -3634,6 +3716,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function stopCapture(){
       recording = false;
       isMicRecording = false;
+      stopRecordMonitor();
       if (captureNode){
         if (captureNode.port){ try{ captureNode.port.onmessage = null; }catch(e){} }
         else { captureNode.onaudioprocess = null; }
@@ -3653,6 +3736,23 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (v>peak) peak = v;
       }
       opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
+      if (wfCtx){
+        var w = opts.waveformCanvas.width, h = opts.waveformCanvas.height;
+        wfCtx.clearRect(0, 0, w, h);
+        wfCtx.strokeStyle = "#FF5C7A";
+        wfCtx.shadowColor = "#FF5C7A";
+        wfCtx.shadowBlur = 6;
+        wfCtx.lineWidth = 2;
+        wfCtx.beginPath();
+        var slice = w / meterData.length;
+        for (var k=0; k<meterData.length; k++){
+          var vy = (meterData[k]/128 - 1);
+          var x = k*slice, y = (vy+1)*h/2;
+          if (k===0) wfCtx.moveTo(x,y); else wfCtx.lineTo(x,y);
+        }
+        wfCtx.stroke();
+        wfCtx.shadowBlur = 0;
+      }
       recordMeterRAF = requestAnimationFrame(meterLoop);
     }
     function resetButtons(){
@@ -3739,6 +3839,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         silentGain.connect(ctx.destination);
         recording = true;
         isMicRecording = true;
+        // Let them hear (and see) the beat/mix while singing along, when
+        // there's something loaded to play -- this is a completely separate
+        // signal path from the mic capture above (which only ever feeds the
+        // silent tap), so nothing about this can bleed into or corrupt the
+        // take actually being recorded, even if the monitor itself stutters.
+        startRecordMonitor();
         if (captureNode.port){
           // AudioWorkletNode path — runs on the audio thread, samples arrive
           // here already sliced into per-quantum Float32Arrays.
@@ -3845,6 +3951,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dotEl: document.getElementById("record-dot"),
     timeEl: document.getElementById("record-time"),
     meterBar: document.getElementById("record-meter-bar"),
+    waveformCanvas: document.getElementById("record-waveform"),
     hintEl: document.getElementById("record-hint"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
@@ -3886,12 +3993,23 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       beatDrop.hidden = true;
       beatBlock.hidden = true;
       if (beatWfShell) beatWfShell.hidden = true;
+      // Leaving Full Mix mode: the beat-vs-vocal audition buttons stop
+      // meaning anything (there's no beat in play), so clear them rather
+      // than leave something quietly muted/soloed for when the user comes
+      // back to Vocal Only mode.
+      beatMuted = false; beatSolo = false; vocalGroupMuted = false; vocalGroupSolo = false;
+      updateBeatMuteSoloButtons();
+      if (btnVocalMute) btnVocalMute.hidden = true;
+      if (btnVocalSolo) btnVocalSolo.hidden = true;
       if (audioBuffer) drawStaticWaveform();
       return;
     }
     beatDrop.hidden = !!beatBuffer;
     beatBlock.hidden = !beatBuffer;
     if (beatWfShell) beatWfShell.hidden = !beatBuffer;
+    if (btnVocalMute) btnVocalMute.hidden = !beatBuffer;
+    if (btnVocalSolo) btnVocalSolo.hidden = !beatBuffer;
+    if (!beatBuffer){ beatMuted = false; beatSolo = false; vocalGroupMuted = false; vocalGroupSolo = false; updateBeatMuteSoloButtons(); }
     if (audioBuffer) drawStaticWaveform();
     drawBeatWaveformStatic();
   }
@@ -3915,6 +4033,27 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     setMode("full");
   });
 
+  // The beat's actual output level, after the Mute/Solo Beat buttons and
+  // any vocal solo (per-track or the Solo Vocal group button) are factored
+  // in -- mirrors trackOutGain()'s logic for the vocal side.
+  function beatOutLevel(){
+    var lvl = parseFloat(beatLevelSlider.value)/100 * 1.1;
+    if (beatMuted) return 0;
+    if (vocalGroupSolo && !beatSolo) return 0;
+    if (anySolo() && !beatSolo) return 0; // soloing one vocal track ducks the beat too
+    return lvl;
+  }
+  function applyBeatLevel(){
+    if (!chain) return;
+    chain.beatGain.gain.setTargetAtTime(beatOutLevel(), ctx.currentTime, 0.03);
+  }
+  function updateBeatMuteSoloButtons(){
+    if (btnBeatMute) { btnBeatMute.classList.toggle("on", beatMuted); btnBeatMute.setAttribute("aria-pressed", String(beatMuted)); }
+    if (btnBeatSolo) { btnBeatSolo.classList.toggle("on", beatSolo); btnBeatSolo.setAttribute("aria-pressed", String(beatSolo)); }
+    if (btnVocalMute) { btnVocalMute.classList.toggle("on", vocalGroupMuted); btnVocalMute.setAttribute("aria-pressed", String(vocalGroupMuted)); }
+    if (btnVocalSolo) { btnVocalSolo.classList.toggle("on", vocalGroupSolo); btnVocalSolo.setAttribute("aria-pressed", String(vocalGroupSolo)); }
+  }
+
   function handleBeatFile(file){
     if (!file) return;
     ensureContext();
@@ -3924,10 +4063,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         beatBuffer = buf;
         beatNameEl.textContent = file.name;
         updateBeatVisibility();
-        if (chain){
-          var lvl = parseFloat(beatLevelSlider.value)/100;
-          chain.beatGain.gain.setTargetAtTime(lvl * 1.1, ctx.currentTime, 0.02);
-        }
+        applyBeatLevel();
         if (isPlaying) startPlayback(); // restart in sync now that a beat exists
       }, function(){
         alert(lang==="es" ? "No se pudo leer ese archivo de audio." : "Couldn't read that audio file.");
@@ -3949,10 +4085,41 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (f) handleBeatFile(f);
   });
 
-  beatLevelSlider.addEventListener("input", function(){
-    if (!chain) return;
-    var val = parseFloat(beatLevelSlider.value)/100;
-    chain.beatGain.gain.setTargetAtTime(val * 1.1, ctx.currentTime, 0.03);
+  beatLevelSlider.addEventListener("input", applyBeatLevel);
+
+  var btnBeatMute = document.getElementById("btn-beat-mute");
+  var btnBeatSolo = document.getElementById("btn-beat-solo");
+  var btnVocalMute = document.getElementById("btn-vocal-mute");
+  var btnVocalSolo = document.getElementById("btn-vocal-solo");
+  function refreshMuteSoloDimming(){
+    renderLeadCtl();
+    renderExtraVocals();
+  }
+  if (btnBeatMute) btnBeatMute.addEventListener("click", function(){
+    beatMuted = !beatMuted;
+    updateBeatMuteSoloButtons();
+    applyBeatLevel();
+    refreshMuteSoloDimming();
+  });
+  if (btnBeatSolo) btnBeatSolo.addEventListener("click", function(){
+    beatSolo = !beatSolo;
+    updateBeatMuteSoloButtons();
+    applyBeatLevel();
+    refreshLiveMix();
+    refreshMuteSoloDimming();
+  });
+  if (btnVocalMute) btnVocalMute.addEventListener("click", function(){
+    vocalGroupMuted = !vocalGroupMuted;
+    updateBeatMuteSoloButtons();
+    refreshLiveMix();
+    refreshMuteSoloDimming();
+  });
+  if (btnVocalSolo) btnVocalSolo.addEventListener("click", function(){
+    vocalGroupSolo = !vocalGroupSolo;
+    updateBeatMuteSoloButtons();
+    refreshLiveMix();
+    applyBeatLevel();
+    refreshMuteSoloDimming();
   });
 
   ["beat-eq-low", "beat-eq-mid", "beat-eq-high"].forEach(function(id){
@@ -4154,6 +4321,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dotEl: document.getElementById("extra-record-dot"),
     timeEl: document.getElementById("extra-record-time"),
     meterBar: document.getElementById("extra-record-meter-bar"),
+    waveformCanvas: document.getElementById("extra-record-waveform"),
     hintEl: document.getElementById("extra-record-hint"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
@@ -4254,7 +4422,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       row.appendChild(leadBtn);
       if (fxBtn) row.appendChild(fxBtn);
       row.appendChild(rmBtn);
-      row.classList.toggle("is-muted", trackOutGain(t) === 0 && !!(t.muted || anySolo()));
+      row.classList.toggle("is-muted", trackOutGain(t) === 0 && !!(t.muted || anySolo() || vocalGroupMuted || beatSolo));
       extraVocalsListEl.appendChild(row);
     });
     renderLeadCtl();
@@ -4642,6 +4810,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // play; mute always wins on its own track.
   function trackOutGain(tr){
     if (tr.muted) return 0;
+    if (vocalGroupMuted) return 0;
+    if (beatSolo && !vocalGroupSolo) return 0; // Solo Beat silences the vocals
     if (anySolo() && !tr.solo) return 0;
     return trackLevel(tr);
   }
@@ -4669,6 +4839,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (tr._liveGain) tr._liveGain.gain.setTargetAtTime(trackOutGain(tr), now, 0.02);
         if (tr._livePan && tr._livePan.pan) tr._livePan.pan.setTargetAtTime(Math.max(-1, Math.min(1, tr.pan || 0)), now, 0.02);
       });
+      applyBeatLevel(); // a per-track solo toggling on/off should duck/restore the beat too
     }
     scheduleSave();
   }
@@ -4735,6 +4906,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!vocalSourceNodes.length || vocalSourceNodes[0].src !== srcRef) return;
     stopSourceOnly();
     stopBeatSourceOnly();
+    if (isPlaying) releaseMixWiring();
     isPlaying = false;
     tlCursor = 0; // next Play starts back at the top, like any normal player
     updatePlayButton();
@@ -4743,12 +4915,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function startPlayback(){
     if (!audioBuffer) return;
+    var wasPlaying = isPlaying;
     withRunningContext(function(){
       // audioBuffer/beatBuffer/etc. can't change out from under this in the
       // brief async gap while resume() was settling -- nothing else clears
       // them except explicit user actions that also call stopPlayback first.
       stopSourceOnly();
       stopBeatSourceOnly();
+      // Wire the convolver/compressor racks back onto the mix bus now that
+      // something is actually about to play through them (see buildChain()
+      // and wireFinalMixIfNeeded() for why they're disconnected at rest).
+      if (!wasPlaying) retainMixWiring();
 
       var total = currentTotalDuration();
       var region = (tlLoop && tlRegion) ? {start: tlRegion.start, end: tlRegion.end} : null;
@@ -4807,7 +4984,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!isPlaying) { renderTimeline(); return; }
     stopSourceOnly();
     stopBeatSourceOnly();
-    isPlaying = false;
+    // Deliberately leave isPlaying=true across this restart (seek/loop
+    // change) -- startPlayback() uses it to tell "already playing, keep the
+    // mix wiring in place" apart from "starting fresh, wire it up", and
+    // toggling it off here would make it look like a fresh start and throw
+    // off that ref-count.
     startPlayback();
   }
   function stopSourceOnly(){
@@ -4827,11 +5008,80 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       beatSourceNode = null;
     }
   }
+  // ---- hear (and see) the beat/mix while recording ----
+  // A completely separate signal path from mic capture (which only ever
+  // feeds a silent tap) -- this is purely what gets monitored while singing
+  // along, so if it glitches under load that never touches the actual take
+  // being captured.
+  var recordMonitorBeatOnly = null;
+  // True only while THIS recording session is the one that started normal
+  // playback for monitoring -- lets stopRecordMonitor() tell "I started
+  // this, I should stop it" apart from "playback was already running on
+  // its own before recording even began, leave it alone."
+  var recordMonitorOwnsPlayback = false;
+  function startRecordMonitor(){
+    if (mode !== "full") return;
+    if (audioBuffer){
+      if (isPlaying) return; // already playing on its own -- don't restart it from 0
+      // Monitor from the top of the song, so the new take lines up with the
+      // beat/other vocals when it's added as a track starting at 0. Reuses
+      // the real transport (startPlayback), so the timeline/playhead and
+      // beat waveform visibly scrub along underneath it, same as any
+      // regular playback.
+      tlCursor = 0; tlRegion = null; tlLoop = false;
+      startPlayback();
+      recordMonitorOwnsPlayback = true;
+    } else if (beatBuffer && chain){
+      // No lead vocal yet -- just the beat alone, played directly (it
+      // never runs through the convolver/compressor racks anyway, so this
+      // doesn't need retainMixWiring). Drives the same timeline/playhead UI
+      // as normal playback by hand, using its own stop path below instead
+      // of the generic stopPlayback() so it never touches the mix-wiring
+      // ref-count that path didn't take out.
+      stopRecordMonitorBeatOnly();
+      var src = ctx.createBufferSource();
+      src.buffer = beatBuffer;
+      src.loop = false;
+      src.connect(chain.beatGain);
+      var startAt = ctx.currentTime + 0.03;
+      src.start(startAt, 0);
+      recordMonitorBeatOnly = src;
+      playStartCtxTime = startAt;
+      playStartOffset = 0;
+      playRegion = null;
+      playLoopWhole = false;
+      isPlaying = true;
+      updatePlayButton();
+      renderTimeline();
+      runVisualizer();
+      src.onended = function(){
+        if (recordMonitorBeatOnly === src) stopRecordMonitorBeatOnly();
+      };
+    }
+  }
+  function stopRecordMonitorBeatOnly(){
+    if (recordMonitorBeatOnly){
+      try { recordMonitorBeatOnly.stop(); } catch(e){}
+      try { recordMonitorBeatOnly.disconnect(); } catch(e){}
+      recordMonitorBeatOnly = null;
+      isPlaying = false;
+      updatePlayButton();
+      renderTimeline();
+    }
+  }
+  function stopRecordMonitor(){
+    if (recordMonitorBeatOnly) stopRecordMonitorBeatOnly();
+    else if (recordMonitorOwnsPlayback && isPlaying) stopPlayback();
+    recordMonitorOwnsPlayback = false;
+  }
+
   function stopPlayback(){
     if (isPlaying && ctx) tlCursor = currentPlayPosition(); // Pause remembers where you were
+    var wasPlaying = isPlaying;
     stopSourceOnly();
     stopBeatSourceOnly();
     isPlaying = false;
+    if (wasPlaying) releaseMixWiring();
     updatePlayButton();
     renderTimeline();
   }
@@ -5251,6 +5501,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var chunksL = [], chunksR = [];
       var silent = ctx.createGain();
       silent.gain.value = 0;
+      // Export/Auto-Master render through chain.safetyClip, which is fed by
+      // mixSum -- make sure the vocal chains' convolver/compressor racks are
+      // actually wired into that bus for the duration of this pass (see
+      // wireFinalMixIfNeeded() in buildChain()/buildTrackChain()).
+      retainMixWiring();
       // Tap after safetyClip, not finalLimiter directly, so Export and
       // Auto-Master both measure/render the exact same signal that live
       // playback produces -- including the true-peak safety ceiling.
@@ -5332,6 +5587,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           try { beatSrc.disconnect(); } catch(err){}
         }
         chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+        releaseMixWiring();
 
         var totalLen = chunksL.reduce(function(a,c){ return a + c.length; }, 0);
         var outL = new Float32Array(totalLen);
