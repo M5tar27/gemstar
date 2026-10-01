@@ -1384,8 +1384,8 @@
         space:"Space: reverb only — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
         radio:"Radio: fast, dense parallel compression for that polished radio/pop vocal push, plus a lifted top end for airiness — blends under the dry tone instead of squashing it flat.",
-        m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch & Voice together, plus subtle saturation and warmth. No delay or chorus in this one.",
-        jewels:"Jewels: high-shelf air/sparkle exciter with a true chorus shimmer — sparkles visually past 60%.",
+        m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch & Voice together, plus subtle saturation and warmth and its own dense parallel compression for that polished radio/pop push. No delay or chorus in this one.",
+        jewels:"Jewels: high-shelf air/sparkle exciter with a true chorus shimmer plus its own dense parallel compression for that polished radio/pop push — sparkles visually past 60%.",
         delay:"Delay: a standalone slapback echo/repeat, kept separate from every other knob — Space is reverb-only, M5tar and Jewels don't add any delay of their own."
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
@@ -1537,8 +1537,8 @@
         space:"Espacio: solo reverb — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
         radio:"Radio: compresión paralela rápida y densa para ese empuje de voz pulido tipo radio/pop, más un realce en los agudos para dar aire — se mezcla bajo el tono original en vez de aplastarlo.",
-        m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada y Voz juntos, más saturación y calidez sutil. Sin delay ni chorus en esta perilla.",
-        jewels:"Jewels: exciter de brillo en agudos con un chorus real — brilla visualmente por encima del 60%.",
+        m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada y Voz juntos, más saturación y calidez sutil y su propia compresión paralela densa para ese empuje pulido tipo radio/pop. Sin delay ni chorus en esta perilla.",
+        jewels:"Jewels: exciter de brillo en agudos con un chorus real, más su propia compresión paralela densa para ese empuje pulido tipo radio/pop — brilla visualmente por encima del 60%.",
         delay:"Retardo: un eco/repetición independiente, separado de las demás perillas — Espacio es solo reverb, y M5tar y Jewels no agregan ningún delay propio."
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
@@ -2801,6 +2801,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.m5tarDry = ctx.createGain();
     g.m5tarWet = ctx.createGain();
     g.m5tarSum = ctx.createGain();
+    // A third, dedicated parallel-compression leg -- same fast/dense recipe
+    // as the Radio knob (own dynamics compressor + makeup gain, blended in
+    // under the dry+saturated signal rather than replacing it) so turning up
+    // M5tar on its own also pushes that same polished radio/pop push,
+    // instead of leaning on the separate Radio knob for it.
+    g.m5tarComp = ctx.createDynamicsCompressor();
+    g.m5tarComp.knee.value = 3;
+    g.m5tarComp.attack.value = 0.001;
+    g.m5tarComp.release.value = 0.12;
+    g.m5tarCompMakeup = ctx.createGain();
+    g.m5tarCompWet = ctx.createGain();
 
     // ---- Jewels: signature air + true two-tap chorus ----
     // (No single-tap "doubling" delay anymore -- two independently
@@ -2828,6 +2839,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.jewelsDry = ctx.createGain();
     g.jewelsWet = ctx.createGain();
     g.jewelsSum = ctx.createGain();
+    // Same dense parallel-compression leg as M5tar above, scaled by the
+    // Jewels knob instead -- so Jewels' own push doesn't depend on Radio either.
+    g.jewelsComp = ctx.createDynamicsCompressor();
+    g.jewelsComp.knee.value = 3;
+    g.jewelsComp.attack.value = 0.001;
+    g.jewelsComp.release.value = 0.12;
+    g.jewelsCompMakeup = ctx.createGain();
+    g.jewelsCompWet = ctx.createGain();
 
     // ---- bypass mix bus ----
     g.dryBus = ctx.createGain();
@@ -2900,6 +2919,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.m5tarWarmth.connect(g.m5tarWet);
     g.m5tarDry.connect(g.m5tarSum);
     g.m5tarWet.connect(g.m5tarSum);
+    // third parallel leg: a dense-compressed copy of the same signal, blended
+    // in underneath (never replacing) the dry+saturated path above
+    g.wideSum.connect(g.m5tarComp);
+    g.m5tarComp.connect(g.m5tarCompMakeup);
+    g.m5tarCompMakeup.connect(g.m5tarCompWet);
+    g.m5tarCompWet.connect(g.m5tarSum);
 
     // jewels: dry + airy true-chorus blend (two independently modulated
     // taps panned L/R, summed into the wet path)
@@ -2914,6 +2939,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.jewelsChorusPanA.connect(g.jewelsWet);
     g.jewelsChorusPanB.connect(g.jewelsWet);
     g.jewelsWet.connect(g.jewelsSum);
+    // same dense parallel-compression leg, scaled by the Jewels knob
+    g.m5tarSum.connect(g.jewelsComp);
+    g.jewelsComp.connect(g.jewelsCompMakeup);
+    g.jewelsCompMakeup.connect(g.jewelsCompWet);
+    g.jewelsCompWet.connect(g.jewelsSum);
 
     g.jewelsSum.connect(g.wetBus);
     g.wetBus.connect(g.finalMix);
@@ -3188,6 +3218,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     chain.m5tarWarmth.gain.setTargetAtTime(lerp(v.m5tar,0,100,0,5), now, 0.02);
     chain.m5tarDry.gain.setTargetAtTime(1 - m5*0.5, now, 0.02);
     chain.m5tarWet.gain.setTargetAtTime(m5, now, 0.02);
+    // same dense parallel-compression recipe as the Radio knob, scaled by
+    // M5tar instead -- a gentler range than Radio's own since it's layering
+    // on top of the saturation/warmth above, not standing in for it
+    chain.m5tarComp.threshold.setTargetAtTime(lerp(v.m5tar,0,100,-6,-26), now, 0.02);
+    chain.m5tarComp.ratio.setTargetAtTime(lerp(v.m5tar,0,100,1.5,7), now, 0.02);
+    chain.m5tarCompMakeup.gain.setTargetAtTime(dbToGain(lerp(v.m5tar,0,100,0,4)), now, 0.02);
+    chain.m5tarCompWet.gain.setTargetAtTime(m5*0.35, now, 0.02);
 
     // Jewels: signature air + true chorus (blended with M5tar above)
     var jw = effJewels/100;
@@ -3196,6 +3233,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     chain.jewelsChorusDepthB.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.004), now, 0.02);
     chain.jewelsDry.gain.setTargetAtTime(1 - jw*0.4, now, 0.02);
     chain.jewelsWet.gain.setTargetAtTime(jw, now, 0.02);
+    // same dense parallel-compression leg, scaled by Jewels
+    chain.jewelsComp.threshold.setTargetAtTime(lerp(effJewels,0,100,-6,-26), now, 0.02);
+    chain.jewelsComp.ratio.setTargetAtTime(lerp(effJewels,0,100,1.5,7), now, 0.02);
+    chain.jewelsCompMakeup.gain.setTargetAtTime(dbToGain(lerp(effJewels,0,100,0,4)), now, 0.02);
+    chain.jewelsCompWet.gain.setTargetAtTime(jw*0.35, now, 0.02);
   }
 
   function applyOutputGain(){
