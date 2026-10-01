@@ -1024,7 +1024,7 @@
             <span class="tl-time" id="tl-time">0:00 / 0:00</span>
             <div class="transport-btns">
               <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
-              <button class="icon-btn small" id="btn-loop" type="button" disabled>⟲ Loop: Off</button>
+              <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
             </div>
           </div>
           <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop</p>
@@ -4350,12 +4350,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // Tone/space/width/level/pan starting points for common vocal jobs. Tune,
   // Humanize and the signature knobs are left alone on purpose -- those are
   // taste calls the role shouldn't overwrite.
+  // Lead/background levels deliberately stop short of unity gain (100) --
+  // leaving headroom under the Radio knob's own parallel compression means
+  // that push does the loudness work instead of just raising the fader,
+  // which is what actually sounds like a polished radio/pop mix instead of
+  // a clipped one. Clean is set to 25 (its sweet spot) across every role:
+  // enough to tame rumble/hiss without thinning the tone out.
   var ROLE_PRESETS = {
-    lead:       {level:1.0,  pan:0,    knobs:{clean:40, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
-    background: {level:0.55, pan:0,    knobs:{clean:45, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
-    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:45, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:45, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:45, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
+    lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
+    background: {level:0.6,  pan:0,    knobs:{clean:25, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
+    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
+    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
+    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
   };
   function applyRole(tr, role){
     tr.role = role || "";
@@ -4547,8 +4553,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   /* ---- timeline: where playback starts, and an optional loop section ---- */
   var tlCursor = 0;        // seconds -- where Play starts from (Pause leaves it where you stopped)
   var tlRegion = null;     // {start, end} in seconds, or null
-  var tlLoop = false;      // loop tlRegion instead of playing through
-  var playStartCtxTime = 0, playStartOffset = 0, playRegion = null;
+  var tlLoop = false;      // with tlRegion: loop that section. without one: repeat the whole track
+  var playStartCtxTime = 0, playStartOffset = 0, playRegion = null, playLoopWhole = false;
 
   function fmtClock(sec){
     sec = Math.max(0, sec || 0);
@@ -4565,27 +4571,51 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       return playRegion.start + ((playStartOffset - playRegion.start + elapsed) % len);
     }
     var total = currentTotalDuration();
+    if (!playLoopWhole) return total > 0 ? Math.min(total, playStartOffset + elapsed) : 0;
     return total > 0 ? (playStartOffset + elapsed) % total : 0;
   }
 
-  // One looping source for a buffer, honoring the start point / loop section.
+  // One source for a buffer, honoring the start point / loop section.
   // Returns null if this buffer has no audio at that point (e.g. a short ad-lib
   // track when you've looped a section later in the song).
-  function makeTimedSource(buffer, offset, region){
+  //
+  // Dropping in vocals used to always loop the whole buffer forever (loop was
+  // hardcoded true below with no loopStart/loopEnd, which just repeats from 0
+  // to the end indefinitely) -- fixed so normal playback plays straight
+  // through once and stops, same as any audio player. It only repeats
+  // automatically now when there's a specific region selected (section loop,
+  // via the Loop button) or loopWhole is explicitly requested (Loop button
+  // toggled on with no region selected -- repeats the whole track).
+  function makeTimedSource(buffer, offset, region, loopWhole){
     var src = ctx.createBufferSource();
     src.buffer = buffer;
-    src.loop = true;
     var dur = buffer.duration;
     if (region){
       if (region.start >= dur - 0.01) return null;
+      src.loop = true;
       src.loopStart = region.start;
       src.loopEnd = Math.min(region.end, dur);
       if (offset >= src.loopEnd) offset = region.start;
       src._offset = offset;
     } else {
+      src.loop = !!loopWhole;
       src._offset = dur > 0 ? (offset % dur) : 0;
     }
     return src;
+  }
+
+  // Fires when the lead track reaches its natural end during plain
+  // straight-through playback (no region, Loop not toggled on). Ignored if
+  // this source has already been superseded by a newer play/stop/pause so a
+  // stale 'ended' event from a prior take can't stomp on current state.
+  function onLeadSourceEnded(srcRef){
+    if (!vocalSourceNodes.length || vocalSourceNodes[0].src !== srcRef) return;
+    stopSourceOnly();
+    stopBeatSourceOnly();
+    isPlaying = false;
+    tlCursor = 0; // next Play starts back at the top, like any normal player
+    updatePlayButton();
+    renderTimeline();
   }
 
   function startPlayback(){
@@ -4599,6 +4629,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       var total = currentTotalDuration();
       var region = (tlLoop && tlRegion) ? {start: tlRegion.start, end: tlRegion.end} : null;
+      var loopWhole = !!(tlLoop && !tlRegion); // Loop toggled on with no section selected -- repeat the whole thing
       var offset = tlCursor;
       if (region && (offset < region.start || offset >= region.end)) offset = region.start;
       if (!region && offset >= total - 0.05) offset = 0;
@@ -4608,15 +4639,20 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // extra track runs through its OWN full chain (vocalTrackInput), so its
       // knobs are independent -- otherwise extras share the lead's chain.
       vocalSourceNodes = [];
-      var leadSrc = makeTimedSource(audioBuffer, offset, region);
+      var leadSrc = makeTimedSource(audioBuffer, offset, region, loopWhole);
       if (leadSrc){
         var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.input);
         leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
         vocalSourceNodes.push({src:leadSrc, gain:leadNodes.gain, pan:leadNodes.pan, ref:leadTrack});
+        // Plain play-through (no region, Loop off): stop cleanly when the
+        // lead reaches the end instead of silently looping forever.
+        if (!region && !loopWhole){
+          leadSrc.onended = function(){ onLeadSourceEnded(leadSrc); };
+        }
       }
 
       extraVocals.forEach(function(t){
-        var src = makeTimedSource(t.buffer, offset, region);
+        var src = makeTimedSource(t.buffer, offset, region, loopWhole);
         if (!src) return;
         var nodes = wireTrackSource(src, t, vocalTrackInput(t));
         t._liveGain = nodes.gain; t._livePan = nodes.pan;
@@ -4624,7 +4660,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       });
 
       if (beatBuffer){
-        beatSourceNode = makeTimedSource(beatBuffer, offset, region);
+        beatSourceNode = makeTimedSource(beatBuffer, offset, region, loopWhole);
         if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
       // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
@@ -4634,6 +4670,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       playStartCtxTime = startAt;
       playStartOffset = offset;
       playRegion = region;
+      playLoopWhole = loopWhole;
       isPlaying = true;
       updatePlayButton();
       renderTimeline();
@@ -4687,12 +4724,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
 
+  // With a section selected, Loop repeats that section. With none selected,
+  // Loop repeats the whole track instead of the old always-on behavior --
+  // either way it's now an explicit opt-in rather than automatic.
   function updateLoopButton(){
     if (!btnLoop) return;
-    btnLoop.disabled = !tlRegion;
-    btnLoop.classList.toggle("on", !!(tlLoop && tlRegion));
-    btnLoop.textContent = (tlLoop && tlRegion) ? STR[lang].loopOn : STR[lang].loopOff;
-    btnLoop.setAttribute("aria-pressed", String(!!(tlLoop && tlRegion)));
+    btnLoop.disabled = false;
+    btnLoop.classList.toggle("on", !!tlLoop);
+    btnLoop.textContent = tlLoop ? STR[lang].loopOn : STR[lang].loopOff;
+    btnLoop.setAttribute("aria-pressed", String(!!tlLoop));
   }
 
   function updatePlayheadUI(){
@@ -4797,9 +4837,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   if (btnLoop){
     btnLoop.addEventListener("click", function(){
-      if (!tlRegion) return;
       if (isPlaying) tlCursor = currentPlayPosition();
-      tlLoop = !tlLoop;
+      tlLoop = !tlLoop; // no section selected -> toggles looping the whole track
       restartPlaybackFromCursor();
     });
   }
