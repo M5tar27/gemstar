@@ -2222,6 +2222,31 @@
     }
     return softClipCache.curve;
   }
+
+  // True-peak safety ceiling for the master bus. finalLimiter (the
+  // DynamicsCompressor below) does the real gain-riding, but its 2ms attack
+  // can't react instantly to a transient -- summing several loud vocal
+  // tracks together (e.g. a full 8-track Unlimited session) makes it much
+  // more likely several hit a hard consonant/plosive on the exact same
+  // sample, overshooting before the compressor's gain reduction catches up.
+  // This sits bit-for-bit transparent below ~0.9 (everything the limiter
+  // already handles normally) and only gently rounds off genuine overshoot
+  // above that, instead of letting it hard-clip into audible static/crackle.
+  var safetyClipCurveCache = null;
+  function getSafetyClipCurve(){
+    if (safetyClipCurveCache) return safetyClipCurveCache;
+    var n = 2048, knee = 0.9;
+    var curve = new Float32Array(n);
+    for (var i=0; i<n; i++){
+      var x = (i/(n-1))*2 - 1;
+      var ax = Math.abs(x), sign = x < 0 ? -1 : 1;
+      if (ax <= knee){ curve[i] = x; continue; }
+      var over = (ax - knee) / (1 - knee);
+      curve[i] = sign * Math.min(knee + (1-knee)*Math.tanh(over), 0.995);
+    }
+    safetyClipCurveCache = curve;
+    return curve;
+  }
   function makeReverbBuffer(duration, decay, seedShift){
     // Raw random-decay noise (the original approach) reads as harsh/metallic —
     // real rooms lose high frequencies faster as the tail decays. We fake that
@@ -3081,9 +3106,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.finalLimiter.attack.value = 0.002;
     g.finalLimiter.release.value = 0.2;
 
+    // Catches the rare overshoot finalLimiter's attack time missed (see
+    // getSafetyClipCurve above) before it ever reaches the speakers.
+    g.safetyClip = ctx.createWaveShaper();
+    g.safetyClip.curve = getSafetyClipCurve();
+    g.safetyClip.oversample = "4x";
+
     g.mixSum.connect(g.outputGain);
     g.outputGain.connect(g.finalLimiter);
-    g.finalLimiter.connect(g.analyser);
+    g.finalLimiter.connect(g.safetyClip);
+    g.safetyClip.connect(g.analyser);
     g.analyser.connect(ctx.destination);
 
     chain = g;
@@ -5170,7 +5202,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var chunksL = [], chunksR = [];
       var silent = ctx.createGain();
       silent.gain.value = 0;
-      chain.finalLimiter.connect(tapNode);
+      // Tap after safetyClip, not finalLimiter directly, so Export and
+      // Auto-Master both measure/render the exact same signal that live
+      // playback produces -- including the true-peak safety ceiling.
+      chain.safetyClip.connect(tapNode);
       tapNode.connect(silent);
       silent.connect(ctx.destination);
       if (isWorklet){
@@ -5234,7 +5269,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       setTimeout(function(){
         clearInterval(duckTimer);
-        try { chain.finalLimiter.disconnect(tapNode); } catch(err){}
+        try { chain.safetyClip.disconnect(tapNode); } catch(err){}
         try { tapNode.disconnect(silent); } catch(err){}
         try { silent.disconnect(ctx.destination); } catch(err){}
         if (isWorklet){ try { tapNode.port.onmessage = null; } catch(err){} }
