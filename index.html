@@ -2404,7 +2404,7 @@
   // unit tests before being placed here) so it can be turned into a Blob URL
   // and loaded via ctx.audioWorklet.addModule() with no separate file to host.
   var PITCH_WORKLET_SOURCE = `
-function detectPitch(frame, sampleRate, minFreq, maxFreq) {
+function detectPitch(frame, sampleRate, minFreq, maxFreq, acfScratch) {
   const n = frame.length;
   const maxLag = Math.min(n - 1, Math.floor(sampleRate / minFreq));
   const minLag = Math.max(2, Math.floor(sampleRate / maxFreq));
@@ -2415,7 +2415,7 @@ function detectPitch(frame, sampleRate, minFreq, maxFreq) {
   for (let i = 0; i < n; i++) { const v = frame[i] - mean; energy += v * v; }
   if (energy < 1e-9) return { freq: 0, confidence: 0 };
   let bestLag = -1, bestVal = -Infinity;
-  const acf = new Float64Array(maxLag + 2);
+  const acf = (acfScratch && acfScratch.length >= maxLag + 2) ? acfScratch : new Float64Array(maxLag + 2);
   for (let lag = minLag; lag <= maxLag; lag++) {
     let sum = 0;
     for (let i = 0; i < n - lag; i++) sum += (frame[i] - mean) * (frame[i + lag] - mean);
@@ -2472,6 +2472,13 @@ class GranularPitchShifter {
     const a = this.buffer[this._wrap(i0)], b = this.buffer[this._wrap(i0 + 1)];
     return a + (b - a) * frac;
   }
+  // Cheap half of process() -- just keeps the circular buffer filled with
+  // recent audio, without the grain-read/window/interpolation work, for
+  // when the caller is going to use the raw dry sample anyway (Tune off).
+  writeOnly(inputSample) {
+    this.buffer[this.writeIndex] = inputSample;
+    this.writeIndex = this._wrap(this.writeIndex + 1);
+  }
   process(inputSample, ratio) {
     this.buffer[this.writeIndex] = inputSample;
     this.writeIndex = this._wrap(this.writeIndex + 1);
@@ -2502,6 +2509,16 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
     this.shifters = [new GranularPitchShifter(this.sr, 80), new GranularPitchShifter(this.sr, 80)];
     this.analysisWinSize = 1024;
     this.analysisBuf = new Float32Array(this.analysisWinSize);
+    // Reused every analysis pass instead of allocating a fresh one each
+    // time -- this is an AudioWorklet on the real-time audio thread, where
+    // GC pressure from repeated allocation (every ~512 samples while Tune
+    // is on) can itself cause the pauses/glitches this whole pass is about
+    // eliminating.
+    this.orderedScratch = new Float32Array(this.analysisWinSize);
+    // Upper bound for detectPitch()'s internal autocorrelation array
+    // (maxLag is always <= analysisWinSize-1, so +2 is always enough) --
+    // same reused-buffer idea, for the heaviest allocation of all.
+    this.acfScratch = new Float64Array(this.analysisWinSize + 2);
     this.analysisWritePos = 0;
     this.samplesSinceAnalysis = 0;
     this.analysisIntervalSamples = 512;
@@ -2578,19 +2595,29 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
       // detection picks up instantly the moment Tune is turned up.
       if (speed > 0 && this.samplesSinceAnalysis >= this.analysisIntervalSamples) {
         this.samplesSinceAnalysis = 0;
-        const ordered = new Float32Array(this.analysisWinSize);
+        const ordered = this.orderedScratch;
         for (let k = 0; k < this.analysisWinSize; k++) {
           ordered[k] = this.analysisBuf[(this.analysisWritePos + k) % this.analysisWinSize];
         }
-        const pr = detectPitch(ordered, this.sr, 70, 1000);
+        const pr = detectPitch(ordered, this.sr, 70, 1000, this.acfScratch);
         this.voiced = pr.confidence > 0.35 && pr.freq > 0;
         this.targetRatio = this.voiced ? nearestScaleFreq(pr.freq, this.scaleMask) / pr.freq : 1.0;
       }
       if (!speed || speed <= 0) {
+        // Bypassed: the output below is the raw dry sample, not whatever
+        // the shifter would have returned, so actually running its granular
+        // read (two overlapping grain taps with windowed interpolation,
+        // per channel, per sample) here was 100% wasted work -- this is a
+        // JS AudioWorklet, not a native node, so that per-sample overhead
+        // is real and it was paid on every track whenever Tune was off,
+        // which is most of the time now that new tracks start raw. Just
+        // keep its circular buffer warm (two array ops) so turning Tune on
+        // later still has real recent audio to read from -- skip the
+        // expensive grain synthesis entirely until it's actually needed.
         for (let ch = 0; ch < numChannels; ch++) {
           const x = input[Math.min(ch, inChannels - 1)][i];
           if (!this.shifters[ch]) this.shifters[ch] = new GranularPitchShifter(this.sr, 80);
-          this.shifters[ch].process(x, 1.0);
+          this.shifters[ch].writeOnly(x);
           output[ch][i] = x;
         }
         continue;
