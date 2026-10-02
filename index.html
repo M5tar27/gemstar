@@ -2158,7 +2158,17 @@
 
   function ensureContext(){
     if (ctx) return;
-    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // latencyHint "playback" asks the browser for a larger output buffer
+    // than the "interactive" default, which gives the audio render thread
+    // more slack per callback before a CPU spike (several tracks' worth of
+    // processing at once) causes an audible underrun/crackle. Nothing here
+    // depends on the lowest possible round-trip latency: the mic is never
+    // monitored live through the engine (captured silently only, see
+    // createVocalRecorder), and the beat/backing track you hear while
+    // recording is scheduled playback (AudioBufferSourceNode.start at a
+    // computed time), not a real-time passthrough -- so the extra ~20-40ms
+    // buffer this adds is not felt as lag, only gained as headroom.
+    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "playback"});
     buildChain();
   }
 
@@ -2356,6 +2366,37 @@
     var key = duration + "," + decay + "," + seedShift + "," + ctx.sampleRate;
     if (!reverbBufferCache[key]) reverbBufferCache[key] = makeReverbBuffer(duration, decay, seedShift);
     return reverbBufferCache[key];
+  }
+
+  // ---- shared reverb bus ----
+  // Real-time convolution reverb is by far the most expensive thing in this
+  // whole signal graph. It used to be two separate ConvolverNodes PER vocal
+  // track -- lead + every extra vocal each running their own independent
+  // copy of the same room/hall convolution continuously during playback.
+  // That's the single biggest reason playback (several tracks all active at
+  // once) could outrun the audio thread's real-time budget and crackle/break
+  // up, even though recording itself (usually just the beat, one source)
+  // stayed smooth. Convolution is linear, so convolving the SUM of every
+  // track's (individually knob-weighted) send is mathematically identical to
+  // summing each track's own separately-convolved output -- exactly like a
+  // real mixing console's shared aux-send reverb bus. One convolver pair for
+  // the whole mix instead of one pair per track removes most of that load
+  // with no audible difference in the reverb amount each track contributes.
+  var sharedReverb = null; // {ctx, convSmall, convHall, returnSmall, returnHall}
+  function ensureSharedReverb(){
+    if (sharedReverb && sharedReverb.ctx === ctx) return sharedReverb;
+    var convSmall = ctx.createConvolver();
+    convSmall.buffer = getReverbBuffer(0.9, 2.2, 1);
+    var returnSmall = ctx.createGain();
+    convSmall.connect(returnSmall);
+
+    var convHall = ctx.createConvolver();
+    convHall.buffer = getReverbBuffer(2.4, 1.6, 7);
+    var returnHall = ctx.createGain();
+    convHall.connect(returnHall);
+
+    sharedReverb = {ctx: ctx, convSmall: convSmall, convHall: convHall, returnSmall: returnSmall, returnHall: returnHall};
+    return sharedReverb;
   }
 
   // ---- Real pitch-correction AudioWorklet ----
@@ -2845,13 +2886,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // ---- shared wet bus: room/hall reverb (Space), slapback echo (Delay),
     // and chorus (Wide) all sum here, each driven by its own knob ----
     g.wideDry = ctx.createGain();
-    g.convSmall = ctx.createConvolver();
-    g.convSmall.buffer = getReverbBuffer(0.9, 2.2, 1);
+    // smallWet/hallWet are this track's SEND level into the shared reverb
+    // bus (see ensureSharedReverb() above) -- same knob math as before, just
+    // feeding one convolver pair shared by every track instead of owning
+    // its own. The convolved return comes back once, directly into the
+    // master mix (wired in buildChain()), not into this track's own wideSum.
     g.smallWet = ctx.createGain();
-
-    g.convHall = ctx.createConvolver();
-    g.convHall.buffer = getReverbBuffer(2.4, 1.6, 7);
     g.hallWet = ctx.createGain();
+    var reverbBus = ensureSharedReverb();
+    g.smallWet.connect(reverbBus.convSmall);
+    g.hallWet.connect(reverbBus.convHall);
 
     // Slapback echo, driven by its own standalone Delay knob (not Space) --
     // fixed 280ms/32% feedback, the knob just controls how much comes through.
@@ -2983,13 +3027,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.pitchOutput.connect(g.wideDry);
     g.wideDry.connect(g.wideSum);
 
-    g.pitchOutput.connect(g.convSmall);
-    g.convSmall.connect(g.smallWet);
-    g.smallWet.connect(g.wideSum);
-
-    g.pitchOutput.connect(g.convHall);
-    g.convHall.connect(g.hallWet);
-    g.hallWet.connect(g.wideSum);
+    // Sends into the shared reverb bus -- smallWet/hallWet are now this
+    // track's pre-convolution send level (see ensureSharedReverb() above);
+    // they're already connected to the shared convolvers at creation time.
+    // The convolved return comes back once, directly into the master mix
+    // (buildChain()), not through this track's own wideSum.
+    g.pitchOutput.connect(g.smallWet);
+    g.pitchOutput.connect(g.hallWet);
 
     g.pitchOutput.connect(g.echoDelay);
     g.echoDelay.connect(g.echoWet);
@@ -3056,6 +3100,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!g || g._dead) return;
     g._dead = true;
     try { g.finalMix.disconnect(); } catch(e){}
+    // smallWet/hallWet feed the SHARED reverb convolvers (ensureSharedReverb)
+    // rather than owning their own -- those convolvers stay permanently
+    // wired into the master mix, so a dead track's send has to be explicitly
+    // unplugged here or it would keep feeding (and rendering through) the
+    // shared bus forever even after this chain is otherwise gone.
+    try { g.smallWet.disconnect(); } catch(e){}
+    try { g.hallWet.disconnect(); } catch(e){}
     ["chorusLfoA","chorusLfoB","jewelsChorusLfoA","jewelsChorusLfoB"].forEach(function(k){
       try { g[k].stop(); } catch(e){}
       try { g[k].disconnect(); } catch(e){}
@@ -3115,15 +3166,53 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       try { g.finalMix.gain.setValueAtTime(1, ctx.currentTime); } catch(e){} // reset for next time
     }, 40);
   }
+  // The shared reverb bus's convolver RETURN gets the exact same lazy
+  // wire-with-fade treatment as each track's finalMix, just once for the
+  // whole mix instead of once per track -- it's wired in only while
+  // activeMixUsers > 0, so the two convolvers never run while nothing is
+  // playing/exporting, same invariant as before, now at O(1) cost instead
+  // of O(tracks).
+  function wireSharedReverbIfNeeded(){
+    var reverb = sharedReverb;
+    if (!reverb || reverb.ctx !== ctx || !chain) return;
+    if (reverb._unwireTimer){ clearTimeout(reverb._unwireTimer); reverb._unwireTimer = null; }
+    if (reverb._wired){
+      try { reverb.returnSmall.gain.setTargetAtTime(1, ctx.currentTime, 0.006); } catch(e){}
+      try { reverb.returnHall.gain.setTargetAtTime(1, ctx.currentTime, 0.006); } catch(e){}
+      return;
+    }
+    try { reverb.returnSmall.connect(chain.mixSum); } catch(e){}
+    try { reverb.returnHall.connect(chain.mixSum); } catch(e){}
+    try { reverb.returnSmall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+    try { reverb.returnHall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+    reverb._wired = true;
+  }
+  function unwireSharedReverb(){
+    var reverb = sharedReverb;
+    if (!reverb || !reverb._wired || reverb._unwireTimer) return;
+    var now = ctx.currentTime;
+    try { reverb.returnSmall.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    try { reverb.returnHall.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    reverb._unwireTimer = setTimeout(function(){
+      reverb._unwireTimer = null;
+      reverb._wired = false;
+      try { reverb.returnSmall.disconnect(); } catch(e){}
+      try { reverb.returnHall.disconnect(); } catch(e){}
+      try { reverb.returnSmall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+      try { reverb.returnHall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+    }, 40);
+  }
   function connectAllFinalMixes(){
     if (!chain) return;
     wireFinalMixIfNeeded(chain);
     extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) wireFinalMixIfNeeded(t.chain); });
+    wireSharedReverbIfNeeded();
   }
   function disconnectAllFinalMixes(){
     if (!chain) return;
     unwireFinalMix(chain);
     extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) unwireFinalMix(t.chain); });
+    unwireSharedReverb();
   }
   // Call retainMixWiring() right before anything starts sourcing audio
   // through the chains (playback, export, auto-master), and releaseMixWiring()
@@ -3259,6 +3348,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.analyser.connect(ctx.destination);
 
     chain = g;
+    // Re-sync the shared reverb bus's return to this freshly rebuilt
+    // mixSum. buildChain() only ever runs while nothing is actively
+    // playing (resetContextForCleanPlaybackRouting refuses to run
+    // otherwise), so this is normally a no-op -- it just guards against
+    // the shared convolvers ever being left wired into a mixSum that's
+    // about to become stale garbage.
+    if (sharedReverb && sharedReverb.ctx === ctx){
+      try { sharedReverb.returnSmall.disconnect(); } catch(e){}
+      try { sharedReverb.returnHall.disconnect(); } catch(e){}
+      if (sharedReverb._unwireTimer){ clearTimeout(sharedReverb._unwireTimer); sharedReverb._unwireTimer = null; }
+      sharedReverb._wired = false;
+      if (activeMixUsers > 0) wireSharedReverbIfNeeded();
+    }
     syncTrackChains();
     applyBypassGains();
     applyAllParams();
