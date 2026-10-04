@@ -173,6 +173,42 @@
   #resume-project-yes:hover{opacity:0.88;}
   #resume-project-no:hover{color:var(--ink);}
 
+  /* "My Projects" -- named, reopenable saves (separate from the single
+     automatic "current session" backup used by Save Project above). */
+  .projects-overlay{
+    position:fixed; inset:0; z-index:480; display:flex; align-items:center; justify-content:center;
+    padding:20px; background:rgba(6,6,12,0.78);
+  }
+  .projects-card{
+    position:relative; width:min(520px, 100%); max-height:80vh; overflow-y:auto;
+    background:var(--bg-panel); border:1px solid var(--line-strong); border-radius:14px;
+    padding:22px 22px 18px; box-shadow:0 20px 60px rgba(0,0,0,0.55);
+  }
+  .projects-card h3{margin:0 0 6px; font-family:var(--font-display); font-size:1.15rem; color:var(--ink); padding-right:24px;}
+  .projects-sub{margin:0 0 16px; font-size:0.8rem; color:var(--ink-muted); line-height:1.4;}
+  .projects-close{
+    position:absolute; top:16px; right:16px; width:26px; height:26px; border-radius:50%;
+    border:1px solid var(--line); background:var(--bg-panel-2); color:var(--ink-muted);
+    font-size:0.75rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .projects-empty{font-size:0.82rem; color:var(--ink-dim); text-align:center; margin:18px 0 4px;}
+  .projects-list{display:flex; flex-direction:column; gap:8px;}
+  .project-row{
+    display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; background:#0d0d17;
+  }
+  .project-row-info{flex:1; min-width:0;}
+  .project-row-name{display:block; font-weight:700; color:#fff; font-size:0.88rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .project-row-meta{display:block; font-size:0.72rem; color:var(--ink-dim); margin-top:2px;}
+  .project-row-open{
+    background:var(--cyan); border:1px solid var(--cyan); color:#050508; font-weight:700;
+    border-radius:7px; padding:7px 12px; font-size:0.78rem; cursor:pointer; white-space:nowrap;
+  }
+  .project-row-delete{
+    background:none; border:1px solid var(--line); color:var(--danger);
+    border-radius:7px; padding:7px 10px; font-size:0.78rem; cursor:pointer;
+  }
+
   #welcome-overlay{
     display:none; position:fixed; inset:0; z-index:420;
     align-items:center; justify-content:center; padding:20px;
@@ -358,6 +394,10 @@
     border-color:var(--yellow); box-shadow:0 0 0 1px var(--yellow), 0 0 12px rgba(255,224,102,0.35);
   }
   .all-vocals-row.active .wf-label{color:var(--yellow);}
+  .all-vocals-row.beat-row{cursor:default; border-color:var(--line-gem);}
+  .all-vocals-row.beat-row .wf-label{color:var(--gem);}
+  .all-vocals-row .row-controls{position:absolute; top:3px; right:6px; display:flex; gap:4px; z-index:3;}
+  .all-vocals-row .row-controls .trk-btn{width:21px; height:21px; font-size:0.6rem; border-radius:5px;}
 
   .spectrum-shell{
     position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
@@ -396,6 +436,69 @@
   .tl-hint{margin:0; font-size:0.72rem; color:var(--ink-dim);}
   #btn-loop.on{border-color:var(--yellow); color:var(--yellow); background:rgba(255,230,0,0.08);}
   #btn-loop:disabled{opacity:0.45; cursor:not-allowed;}
+
+  /* floating mini transport -- stays on screen (bottom of viewport) no
+     matter how far you've scrolled, so Play/Pause/Rewind/FF are always in
+     reach while recording or dialing in knobs further down the page. */
+  .mini-transport{
+    position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom, 0px));
+    transform:translateX(-50%); z-index:60; display:flex; align-items:center; gap:8px;
+    background:rgba(10,10,18,0.92); border:1px solid var(--line-strong); border-radius:999px;
+    padding:7px 14px; box-shadow:0 6px 24px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,245,255,0.08);
+    backdrop-filter:blur(6px);
+  }
+  .mini-transport-btn{
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--line-strong);
+    background:var(--bg-panel-2); color:#fff; font-size:0.95rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+  }
+  .mini-transport-btn:hover{border-color:var(--cyan);}
+  .mini-transport-play{background:var(--cyan); border-color:var(--cyan); color:#050508; width:44px; height:44px; font-size:1.05rem;}
+  .mini-transport-play.is-playing{background:var(--gem); border-color:var(--gem);}
+  .mini-transport-time{
+    font-family:var(--font-display); font-size:0.72rem; color:var(--ink-dim);
+    font-variant-numeric:tabular-nums; min-width:38px; text-align:center;
+  }
+  @media (max-width:480px){
+    .mini-transport{gap:6px; padding:6px 10px;}
+    .mini-transport-btn{width:34px; height:34px; font-size:0.85rem;}
+    .mini-transport-play{width:40px; height:40px;}
+  }
+
+  /* skippable free-tier email card -- a one-time, dismissible nudge (never
+     a gate: nothing is blocked while it's up), so it's deliberately a
+     small corner card rather than a full-screen overlay like the paid-tier
+     access gate. */
+  .free-email-card{
+    position:fixed; right:14px; bottom:calc(84px + env(safe-area-inset-bottom, 0px));
+    z-index:55; width:min(320px, calc(100vw - 28px)); background:#0d0d17;
+    border:1px solid var(--line-strong); border-radius:12px; padding:16px 16px 14px;
+    box-shadow:0 10px 32px rgba(0,0,0,0.55); animation:freeEmailIn .25s ease-out;
+  }
+  @keyframes freeEmailIn{ from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+  .free-email-card h3{margin:0 0 6px; font-family:var(--font-display); font-size:1rem; color:var(--ink); padding-right:20px;}
+  .free-email-card p{margin:0 0 10px; font-size:0.8rem; color:var(--ink-muted); line-height:1.4;}
+  .free-email-card input[type=email]{
+    width:100%; box-sizing:border-box; background:var(--bg); color:var(--ink);
+    border:1px solid var(--line); border-radius:7px; padding:9px 10px; font-size:0.85rem; margin-bottom:10px;
+  }
+  .free-email-actions{display:flex; gap:8px; align-items:center;}
+  .free-email-submit{
+    flex:1; background:var(--cyan); color:#050508; border:none; border-radius:7px;
+    padding:9px 10px; font-weight:700; font-size:0.82rem; cursor:pointer;
+  }
+  .free-email-skip{
+    background:none; border:none; color:var(--ink-dim); font-size:0.8rem; cursor:pointer;
+    padding:9px 6px; text-decoration:underline;
+  }
+  .free-email-close{
+    position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:50%;
+    border:1px solid var(--line); background:var(--bg-panel-2); color:var(--ink-muted);
+    font-size:0.7rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  @media (max-width:480px){
+    .free-email-card{right:auto; left:50%; transform:translateX(-50%); bottom:calc(76px + env(safe-area-inset-bottom, 0px));}
+  }
 
   /* vocal track rows: lead badge + make-lead + per-track FX */
   .vocal-track-label{display:flex; align-items:center; gap:8px; min-width:0; flex:0 1 auto;}
@@ -864,6 +967,16 @@
     <button type="button" id="resume-project-no" data-i18n="resumeProjectNo">Discard</button>
   </div>
 
+  <div id="projects-overlay" class="projects-overlay" hidden>
+    <div class="projects-card">
+      <button type="button" class="projects-close" id="projects-close" data-i18n-aria="projectsCloseAria" aria-label="Close">✕</button>
+      <h3 data-i18n="projectsTitle">My Projects</h3>
+      <p class="projects-sub" data-i18n="projectsSub">Named saves you can come back to and reopen, separate from the automatic "current session" backup.</p>
+      <div id="projects-list" class="projects-list"></div>
+      <p class="projects-empty" id="projects-empty" data-i18n="projectsEmpty">No saved projects yet — load a vocal, dial it in, then tap "Save As Project…" to save it under a name.</p>
+    </div>
+  </div>
+
   <div id="welcome-overlay">
     <div class="welcome-card">
       <button type="button" class="welcome-skip" id="welcome-skip" data-i18n="welcomeSkip">Skip</button>
@@ -1015,6 +1128,7 @@
         <div class="extra-vocal-add-row">
           <button type="button" class="icon-btn small" id="btn-add-vocal" data-i18n="addVocalBtn">+ Add Vocal Track</button>
           <button type="button" class="icon-btn small" id="btn-record-add-vocal" data-i18n="recordAddVocalBtn">🎙 Record Vocal Track</button>
+          <button type="button" class="icon-btn small" id="btn-undo-last-vocal" hidden data-i18n="undoLastVocalBtn" data-i18n-aria="undoLastVocalAria" aria-label="Remove the most recently added vocal track">↺ Undo Last Track</button>
           <button type="button" class="icon-btn small" id="btn-clean-silence" data-i18n="cleanBtn" title="">✂ Clean Silence</button>
           <button type="button" class="icon-btn small" id="btn-undo-clean" hidden data-i18n="cleanUndoBtn">↺ Undo Clean</button>
         </div>
@@ -1059,7 +1173,7 @@
           <canvas id="waveform" width="900" height="110"></canvas>
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
-          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">All vocals — tap one to pull up its knobs (no tab-switching needed)</p>
+          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
           <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
         </div>
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
@@ -1172,6 +1286,8 @@
       <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
       <button class="icon-btn" id="btn-export-stems" type="button" data-i18n="stemsBtn">⬇ Export Stems</button>
       <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">💾 Save Project</button>
+      <button class="icon-btn" id="btn-save-as-project" type="button" data-i18n="saveAsProjectBtn">💾 Save As Project…</button>
+      <button class="icon-btn" id="btn-open-projects" type="button" data-i18n="openProjectsBtn">📁 My Projects</button>
     </div>
     <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-note" data-i18n="stemsNote">Unlimited: Export Stems downloads every processed vocal as its own 24-bit WAV (in one .zip), lined up from the start of the song, so you can finish the mix in any DAW.</p>
@@ -1314,6 +1430,27 @@
   </footer>
 </div>
 
+<div class="mini-transport" id="mini-transport" hidden role="group" aria-label="Playback">
+  <button type="button" class="mini-transport-btn" id="mt-rewind" data-i18n-aria="mtRewindAria" aria-label="Rewind 5 seconds">⏪</button>
+  <button type="button" class="mini-transport-btn mini-transport-play" id="mt-play" data-i18n-aria="mtPlayAria" aria-label="Play">▶</button>
+  <button type="button" class="mini-transport-btn" id="mt-ff" data-i18n-aria="mtFfAria" aria-label="Forward 5 seconds">⏩</button>
+  <span class="mini-transport-time" id="mt-time">0:00</span>
+</div>
+
+<div class="free-email-card" id="free-email-overlay" hidden>
+  <button type="button" class="free-email-close" id="free-email-skip-x" data-i18n-aria="freeEmailCloseAria" aria-label="Close">✕</button>
+  <h3 data-i18n="freeEmailTitle">Enjoying the free demo?</h3>
+  <p data-i18n="freeEmailBody">Drop your email and we'll keep you posted on new features. No spam, skip anytime.</p>
+  <form id="free-email-form">
+    <input type="email" id="free-email-input" required autocomplete="email" data-i18n-placeholder="freeEmailPlaceholder" placeholder="you@email.com" />
+    <div class="free-email-actions">
+      <button type="submit" class="free-email-submit" id="free-email-submit" data-i18n="freeEmailSubmit">Keep Me Posted</button>
+      <button type="button" class="free-email-skip" id="free-email-skip" data-i18n="freeEmailSkip">Skip</button>
+    </div>
+    <p class="form-status" id="free-email-status" role="status" aria-live="polite"></p>
+  </form>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 <script>
 (function(){
@@ -1335,7 +1472,7 @@
       recordStart:"Start Recording", recordStop:"Stop", recordRetry:"Re-record",
       recordHintIdle:"Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
-      recordHintDone:"Take recorded — dial in the chain below.",
+      recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -1376,6 +1513,16 @@
       exportErr:"Export needs a loaded track first.",
       saveProjectBtn:"💾 Save Project", savingProject:"Saving…", savedProjectOk:"Saved.", savedProjectErr:"Couldn't save — your browser may be in private mode.",
       resumeProjectText:"You have a saved session from last time.", resumeProjectYes:"Resume", resumeProjectNo:"Discard",
+      saveAsProjectBtn:"💾 Save As Project…", openProjectsBtn:"📁 My Projects",
+      saveAsProjectPrompt:"Name this project:", saveAsProjectDefault:"My Project",
+      savedAsProjectOk:"Saved as \"{name}\" — find it anytime under My Projects.",
+      savedAsProjectErr:"Couldn't save this project — your browser may be in private mode.",
+      saveAsProjectNeedAudio:"Load a vocal first, then save it as a project.",
+      projectsTitle:"My Projects", projectsCloseAria:"Close",
+      projectsSub:"Named saves you can come back to and reopen, separate from the automatic \"current session\" backup.",
+      projectsEmpty:"No saved projects yet — load a vocal, dial it in, then tap \"Save As Project…\" to save it under a name.",
+      projectOpenBtn:"Open", projectDeleteBtn:"Delete", projectDeleteConfirm:"Delete \"{name}\"? This can't be undone.",
+      projectTrackCount:"{count} track(s)", projectOpening:"Opening…", projectOpenErr:"Couldn't open this project.",
       pricingEyebrow:"Plans", pricingTitle:"Pick your monthly chain",
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
       starterName:"Starter", starterSub:"For the bedroom studio — dial in one vocal at a time (1 vocal track, no Full Song Mix yet).", starter1:"Full vocal chain — 11 core knobs", starter2:"Pitch correction with key & scale lock", starter3:"Recordings up to 3 minutes, 1 vocal track", starter4:"Standard MP3/WAV export",
@@ -1387,15 +1534,24 @@
       emailLabel:"Email", planLabel:"Plan you're interested in", wlSubmit:"Notify Me",
       wlOk:"You're on the list — we'll keep you posted.",
       wlErr:"Couldn't save that — email Gemstaraudio@gmail.com and we'll add you.",
+      freeEmailTitle:"Enjoying the free demo?",
+      freeEmailBody:"Drop your email and we'll keep you posted on new features. No spam, skip anytime.",
+      freeEmailPlaceholder:"you@email.com",
+      freeEmailSubmit:"Keep Me Posted", freeEmailSkip:"Skip",
+      freeEmailOk:"Got it — thanks!",
+      freeEmailErr:"Couldn't save that — email Gemstaraudio@gmail.com and we'll add you.",
+      freeEmailCloseAria:"Close",
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"One booth. <em>Two engineers.</em>",
       wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency", wfLabelRecording:"Recording",
-      allVocalsLabel:"All vocals — tap one to pull up its knobs (no tab-switching needed)",
+      allVocalsLabel:"Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here",
       volumeKnobLabel:"Volume",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
       planOptStarter:"Starter · 1 vocal track", planOptMix:"Mix · 3 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
+      undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
+      mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
       tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
       leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
@@ -1492,7 +1648,7 @@
       recordStart:"Empezar A Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
       recordHintIdle:"Toca Empezar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
-      recordHintDone:"Toma grabada — ajusta la cadena abajo.",
+      recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -1533,6 +1689,16 @@
       exportErr:"Primero carga una pista para exportar.",
       saveProjectBtn:"💾 Guardar Proyecto", savingProject:"Guardando…", savedProjectOk:"Guardado.", savedProjectErr:"No se pudo guardar — tu navegador puede estar en modo privado.",
       resumeProjectText:"Tienes una sesión guardada de la última vez.", resumeProjectYes:"Continuar", resumeProjectNo:"Descartar",
+      saveAsProjectBtn:"💾 Guardar Como Proyecto…", openProjectsBtn:"📁 Mis Proyectos",
+      saveAsProjectPrompt:"Nombra este proyecto:", saveAsProjectDefault:"Mi Proyecto",
+      savedAsProjectOk:"Guardado como \"{name}\" — encuéntralo en Mis Proyectos cuando quieras.",
+      savedAsProjectErr:"No se pudo guardar este proyecto — tu navegador puede estar en modo privado.",
+      saveAsProjectNeedAudio:"Carga una voz primero, luego guárdala como proyecto.",
+      projectsTitle:"Mis Proyectos", projectsCloseAria:"Cerrar",
+      projectsSub:"Guardados con nombre a los que puedes volver, separados de la copia automática de la \"sesión actual\".",
+      projectsEmpty:"Aún no hay proyectos guardados — carga una voz, ajústala, y toca \"Guardar Como Proyecto…\" para guardarla con un nombre.",
+      projectOpenBtn:"Abrir", projectDeleteBtn:"Eliminar", projectDeleteConfirm:"¿Eliminar \"{name}\"? Esto no se puede deshacer.",
+      projectTrackCount:"{count} pista(s)", projectOpening:"Abriendo…", projectOpenErr:"No se pudo abrir este proyecto.",
       pricingEyebrow:"Planes", pricingTitle:"Elige tu cadena mensual",
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
       starterName:"Inicial", starterSub:"Para el estudio casero — ajusta una voz a la vez (1 pista vocal, sin Mezcla De Canción Completa todavía).", starter1:"Cadena vocal completa — 11 perillas base", starter2:"Corrección de tono con bloqueo de tonalidad y escala", starter3:"Grabaciones de hasta 3 minutos, 1 pista vocal", starter4:"Exportación estándar en MP3/WAV",
@@ -1544,15 +1710,24 @@
       emailLabel:"Correo", planLabel:"Plan de tu interés", wlSubmit:"Avísenme",
       wlOk:"Estás en la lista — te mantendremos al tanto.",
       wlErr:"No se pudo guardar — escribe a Gemstaraudio@gmail.com y te agregamos.",
+      freeEmailTitle:"¿Disfrutando la demo gratis?",
+      freeEmailBody:"Déjanos tu correo y te avisaremos sobre nuevas funciones. Sin spam, puedes omitirlo cuando quieras.",
+      freeEmailPlaceholder:"tu@correo.com",
+      freeEmailSubmit:"Avísenme", freeEmailSkip:"Omitir",
+      freeEmailOk:"¡Listo, gracias!",
+      freeEmailErr:"No se pudo guardar — escribe a Gemstaraudio@gmail.com y te agregamos.",
+      freeEmailCloseAria:"Cerrar",
       footerText:"Gemstar · M5tar Studio x Gemsquad Production",
       headline:"Una cabina. <em>Dos ingenieros.</em>",
       wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia", wfLabelRecording:"Grabando",
-      allVocalsLabel:"Todas las voces — toca una para ajustar sus perillas (sin cambiar de pestaña)",
+      allVocalsLabel:"Todo a la vez — toca una voz para ajustar sus perillas, o silencia/solo cualquier pista (voces o beat) aquí mismo",
       volumeKnobLabel:"Volumen",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
       planOptStarter:"Inicial · 1 pista vocal", planOptMix:"Mix · 3 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
+      undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
+      mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
       tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
       leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
@@ -1654,6 +1829,10 @@
     document.querySelectorAll("[data-i18n-aria]").forEach(function(el){
       var key = el.getAttribute("data-i18n-aria");
       if (STR[l][key] !== undefined) el.setAttribute("aria-label", STR[l][key]);
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(function(el){
+      var key = el.getAttribute("data-i18n-placeholder");
+      if (STR[l][key] !== undefined) el.setAttribute("placeholder", STR[l][key]);
     });
     KNOB_DEFS.forEach(function(k){
       var lbl = document.querySelector('.knob-label[data-key="'+k.id+'"]');
@@ -3601,13 +3780,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     drawBeatWaveformStatic();
     renderTimeline();
     if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+    if (typeof maybeShowFreeEmailPrompt === "function") maybeShowFreeEmailPrompt();
   }
 
   // Single file (a recording, or one dropped/picked file): replaces just the
   // lead vocal and leaves any other loaded vocal tracks in place.
-  function handleFile(file){
+  function handleFile(file, opts){
+    opts = opts || {};
     if (!file) return;
-    decodeAudioFile(file).then(function(buf){
+    return decodeAudioFile(file).then(function(buf){
       if (!buf){ audioReadError(); return; }
       var wasPlaying = isPlaying;
       if (wasPlaying) stopPlayback();
@@ -3619,6 +3800,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
       afterVocalSetChanged();
+      // Recorded straight into the tool (not uploaded) -- loop just the
+      // take you just sang so you can hear it back right away instead of
+      // it playing into silence/the rest of the song.
+      if (opts.loopJustRecorded && typeof loopJustRecordedSection === "function") loopJustRecordedSection(buf.duration);
       if (wasPlaying) startPlayback();
     });
   }
@@ -3689,6 +3874,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     setInputMode("upload");
     dropzone.hidden = false;
     fileInput.value = "";
+    if (typeof miniTransportEl !== "undefined" && miniTransportEl) miniTransportEl.hidden = true;
   });
 
   /* ---------- in-browser vocal recording ---------- */
@@ -4084,6 +4270,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     if (opts.retryBtn) opts.retryBtn.addEventListener("click", function(){
       opts.retryBtn.hidden = true;
+      // Re-record used to just reopen the Start button, leaving the take
+      // that was just captured sitting there untouched -- so hitting it
+      // actually gave you two takes, not a redo. onRetry (when supplied)
+      // lets the caller undo whatever onCaptured just did (e.g. remove the
+      // track it just added) so this really is a clean do-over.
+      if (opts.onRetry) opts.onRetry();
       refreshIdleHint();
     });
 
@@ -4105,7 +4297,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     hintEl: document.getElementById("record-hint"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
-    onCaptured: function(file){ handleFile(file); }
+    onCaptured: function(file){ handleFile(file, {loopJustRecorded: true}); }
   });
 
   function setInputMode(m){
@@ -4152,6 +4344,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (btnVocalMute) btnVocalMute.hidden = true;
       if (btnVocalSolo) btnVocalSolo.hidden = true;
       if (audioBuffer) drawStaticWaveform();
+      if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
       return;
     }
     beatDrop.hidden = !!beatBuffer;
@@ -4162,6 +4355,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!beatBuffer){ beatMuted = false; beatSolo = false; vocalGroupMuted = false; vocalGroupSolo = false; updateBeatMuteSoloButtons(); }
     if (audioBuffer) drawStaticWaveform();
     drawBeatWaveformStatic();
+    if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
   }
   function setMode(next){
     mode = next;
@@ -4301,6 +4495,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var btnRecordAddVocal = document.getElementById("btn-record-add-vocal");
   var extraRecordPanel = document.getElementById("extra-record-panel");
   var extraBtnRecordCancel = document.getElementById("extra-btn-record-cancel");
+  var extraBtnRecordRetry = document.getElementById("extra-btn-record-retry");
+  var btnUndoLastVocal = document.getElementById("btn-undo-last-vocal");
 
   function totalVocalTrackCount(){ return (audioBuffer ? 1 : 0) + extraVocals.length; }
   function maxVocalTracks(){ return PLAN_LIMITS[currentPlan] || 1; }
@@ -4317,9 +4513,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var max = maxVocalTracks();
     if (btnAddVocal) btnAddVocal.disabled = count >= max;
     if (btnRecordAddVocal) btnRecordAddVocal.disabled = count >= max;
+    if (btnUndoLastVocal) btnUndoLastVocal.hidden = extraVocals.length === 0;
     if (count >= max && extraRecordPanel && !extraRecordPanel.hidden){
       extraRecorder.stop();
       extraRecordPanel.hidden = true;
+      lastCapturedExtraVocal = null;
     }
     if (vocalCapNoteEl){
       var planLabel = planLabelFor(currentPlan);
@@ -4392,18 +4590,29 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (wasPlaying) startPlayback();
   }
 
+  // Returns a promise resolving to the new track (or null if it couldn't be
+  // added) so callers -- like the recorder's Undo/Re-record below -- can
+  // keep a handle on exactly what just got added.
+  //
+  // Deliberately does NOT jump the shared waveform/knob view to the new
+  // track anymore: recording (or adding) a second/third vocal used to call
+  // setEditTarget(t.id) here, which yanked whatever track you were looking
+  // at out from under you mid-session -- that's the "vocal disappears when
+  // recording a second track" bug. The always-visible multi-track strip
+  // (renderAllVocalsStrip) is how you reach the new track's waveform/knobs
+  // now, so the current view stays put until you tap something yourself.
   function addExtraVocalFromFile(file){
-    decodeAudioFile(file).then(function(buf){
-      if (!buf){ audioReadError(); return; }
-      if (totalVocalTrackCount() >= maxVocalTracks()) return;
+    return decodeAudioFile(file).then(function(buf){
+      if (!buf){ audioReadError(); return null; }
+      if (totalVocalTrackCount() >= maxVocalTracks()) return null;
       var wasPlaying = isPlaying;
       if (wasPlaying) stopPlayback();
       var t = pushExtraVocal(file.name, buf);
       t._file = file;
-      setEditTarget(t.id); // jump straight to it so its waveform shows right away
       renderExtraVocals();
       afterVocalSetChanged();
       if (wasPlaying) startPlayback();
+      return t;
     });
   }
 
@@ -4486,11 +4695,28 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       }
       return true;
     },
+    // Tracked so Re-record (below) can actually undo this exact take --
+    // without it, hitting Re-record just recorded a SECOND take on top of
+    // the first instead of replacing it.
     onCaptured: function(file){
-      addExtraVocalFromFile(file);
-      if (extraRecordPanel) extraRecordPanel.hidden = true;
+      addExtraVocalFromFile(file).then(function(t){
+        lastCapturedExtraVocal = t;
+        if (t && t.buffer) loopJustRecordedSection(t.buffer.duration);
+      });
+      // Deliberately NOT closing the panel here anymore -- closing it
+      // immediately is what made the Re-record button (and the take you'd
+      // just see) disappear before you could ever reach it. The panel now
+      // stays open after a take so Re-record/Cancel are both reachable;
+      // Cancel is what closes it once you're happy with the take.
+    },
+    onRetry: function(){
+      if (lastCapturedExtraVocal){
+        removeExtraVocal(lastCapturedExtraVocal);
+        lastCapturedExtraVocal = null;
+      }
     }
   });
+  var lastCapturedExtraVocal = null;
 
   if (btnRecordAddVocal){
     btnRecordAddVocal.addEventListener("click", function(){
@@ -4500,6 +4726,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           .replace("{plan}", planLabelFor(currentPlan)));
         return;
       }
+      lastCapturedExtraVocal = null; // starting fresh -- nothing here to undo yet
+      if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
       extraRecordPanel.hidden = false;
       extraRecorder.refreshIdleHint();
       extraDeviceSelector.populate();
@@ -4509,6 +4737,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     extraBtnRecordCancel.addEventListener("click", function(){
       extraRecorder.stop();
       extraRecordPanel.hidden = true;
+      lastCapturedExtraVocal = null; // panel's closed -- too late to undo via Re-record now
+    });
+  }
+  if (btnUndoLastVocal){
+    btnUndoLastVocal.addEventListener("click", function(){
+      if (!extraVocals.length) return;
+      var last = extraVocals[extraVocals.length - 1];
+      if (lastCapturedExtraVocal === last) lastCapturedExtraVocal = null;
+      removeExtraVocal(last);
     });
   }
 
@@ -4581,23 +4818,42 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     renderAllVocalsStrip();
   }
 
-  // Shows every vocal track's waveform at once (lead + every background/extra
-  // vocal) so you don't have to flip through the FX tabs just to see what's
-  // where -- tap any row to jump the knob grid to that track, and whichever
-  // one you're currently editing gets a highlighted border.
+  // Shows every track's waveform at once -- the beat (in Full Mix, when
+  // there's one loaded) plus the lead and every background/extra vocal --
+  // so nothing requires flipping through FX tabs just to see or reach what's
+  // where. Tap a vocal row to jump the knob grid to that track (whichever
+  // one you're currently editing gets a highlighted border); tap Mute/Solo
+  // on ANY row -- beat included -- to balance the mix right from here,
+  // without leaving this view.
   var allVocalsStripEl = document.getElementById("all-vocals-strip");
   var allVocalsRowsEl = document.getElementById("all-vocals-rows");
   function renderAllVocalsStrip(){
     if (!allVocalsStripEl || !allVocalsRowsEl) return;
-    var show = extraVocals.length > 0 && !!audioBuffer;
+    var showBeatRow = mode === "full" && !!beatBuffer;
+    var show = !!audioBuffer && (extraVocals.length > 0 || showBeatRow);
     allVocalsStripEl.hidden = !show;
     if (!show) return;
     allVocalsRowsEl.innerHTML = "";
     var total = currentTotalDuration();
 
-    function addRow(name, buffer, id){
+    function miniToggle(cls, label, aria, isOn, onClick){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "trk-btn " + cls + (isOn ? " on" : "");
+      b.textContent = label;
+      b.setAttribute("aria-label", aria);
+      b.setAttribute("aria-pressed", String(!!isOn));
+      b.addEventListener("click", function(e){
+        e.stopPropagation(); // don't also trigger the row's setEditTarget click
+        onClick();
+      });
+      return b;
+    }
+
+    function addRow(name, buffer, id, opts){
+      opts = opts || {};
       var row = document.createElement("div");
-      row.className = "all-vocals-row" + (editTarget === id ? " active" : "");
+      row.className = "all-vocals-row" + (opts.beat ? " beat-row" : (editTarget === id ? " active" : ""));
       var label = document.createElement("span");
       label.className = "wf-label";
       label.textContent = name;
@@ -4605,14 +4861,47 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       canvas.width = 600; canvas.height = 42;
       row.appendChild(label);
       row.appendChild(canvas);
-      row.addEventListener("click", function(){ setEditTarget(id); });
+
+      var controls = document.createElement("div");
+      controls.className = "row-controls";
+      if (opts.beat){
+        controls.appendChild(miniToggle("trk-mute", STR[lang].muteBtn, STR[lang].muteAria + " Beat", beatMuted, function(){
+          beatMuted = !beatMuted;
+          updateBeatMuteSoloButtons();
+          applyBeatLevel();
+          refreshMuteSoloDimming();
+          renderAllVocalsStrip();
+        }));
+        controls.appendChild(miniToggle("trk-solo", STR[lang].soloBtn, STR[lang].soloAria + " Beat", beatSolo, function(){
+          beatSolo = !beatSolo;
+          updateBeatMuteSoloButtons();
+          applyBeatLevel();
+          refreshMuteSoloDimming();
+          renderAllVocalsStrip();
+        }));
+      } else {
+        var tr = opts.track;
+        controls.appendChild(miniToggle("trk-mute", STR[lang].muteBtn, STR[lang].muteAria + " " + name, tr.muted, function(){
+          tr.muted = !tr.muted;
+          refreshLiveMix();
+          renderExtraVocals(); // re-renders this strip (+ the track list + lead ctl) with the new state
+        }));
+        controls.appendChild(miniToggle("trk-solo", STR[lang].soloBtn, STR[lang].soloAria + " " + name, tr.solo, function(){
+          tr.solo = !tr.solo;
+          refreshLiveMix();
+          renderExtraVocals();
+        }));
+      }
+      row.appendChild(controls);
+      if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
       allVocalsRowsEl.appendChild(row);
       drawBufferWaveform(canvas, canvas.getContext("2d"), buffer,
-        editTarget === id ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)", total);
+        (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)", total);
     }
 
-    addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead");
-    extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id); });
+    if (showBeatRow) addRow(STR[lang].wfLabelBeat || "Beat", beatBuffer, "beat", {beat:true});
+    addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead", {track:leadTrack});
+    extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id, {track:t}); });
   }
 
   function panLabel(p){
@@ -4948,8 +5237,51 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function updatePlayButton(){
     btnPlay.textContent = isPlaying ? STR[lang].pause : STR[lang].play;
     if (inputStatusEl) inputStatusEl.textContent = (isPlaying ? STR[lang].inputLive : STR[lang].inputReady);
+    updateMiniTransport();
   }
   function updateAbButton(){ btnAb.textContent = bypassed ? STR[lang].abBefore : STR[lang].ab; }
+
+  /* ---------- floating mini transport ----------
+     A small play/pause + rewind/fast-forward bar that's pinned to the
+     bottom of the screen (position:fixed) so it's always reachable while
+     recording -- you shouldn't have to scroll back up to the player just
+     to hit Play/Pause while you're singing. Mirrors the main transport
+     exactly rather than keeping its own state. */
+  var miniTransportEl = document.getElementById("mini-transport");
+  var mtPlayBtn = document.getElementById("mt-play");
+  var mtRewindBtn = document.getElementById("mt-rewind");
+  var mtFfBtn = document.getElementById("mt-ff");
+  var mtTimeEl = document.getElementById("mt-time");
+  function updateMiniTransport(){
+    if (!miniTransportEl) return;
+    var show = !!audioBuffer;
+    miniTransportEl.hidden = !show;
+    if (!show) return;
+    if (mtPlayBtn){
+      mtPlayBtn.textContent = isPlaying ? "⏸" : "▶";
+      mtPlayBtn.classList.toggle("is-playing", isPlaying);
+      mtPlayBtn.setAttribute("aria-label", isPlaying ? STR[lang].mtPauseAria : STR[lang].mtPlayAria);
+    }
+    if (mtTimeEl && typeof currentPlayPosition === "function" && typeof fmtClock === "function"){
+      mtTimeEl.textContent = fmtClock(currentPlayPosition());
+    }
+  }
+  if (mtPlayBtn) mtPlayBtn.addEventListener("click", function(){ btnPlay.click(); });
+  function mtSeek(deltaSec){
+    if (!audioBuffer) return;
+    var total = currentTotalDuration();
+    var pos = currentPlayPosition();
+    // Leave a hair of room short of the very end -- startPlayback() treats
+    // "basically at the end" as "start over from 0" (same rule a plain
+    // tap-to-seek on the timeline gets), so fast-forwarding should ease up
+    // to the end rather than land exactly on it and unexpectedly restart.
+    var cap = Math.max(0, total - 0.15);
+    tlCursor = Math.max(0, Math.min(cap, pos + deltaSec));
+    if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+    restartPlaybackFromCursor();
+  }
+  if (mtRewindBtn) mtRewindBtn.addEventListener("click", function(){ mtSeek(-5); });
+  if (mtFfBtn) mtFfBtn.addEventListener("click", function(){ mtSeek(5); });
 
   /* ---- per-track mix: level, pan, mute, solo ---- */
   function anySolo(){
@@ -5269,6 +5601,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (isPlaying) tlPlayheadEl.style.left = pct(pos, total) + "%";
     }
     if (tlTimeEl) tlTimeEl.textContent = fmtClock(pos) + " / " + fmtClock(total);
+    updateMiniTransport();
   }
 
   function renderTimeline(){
@@ -5303,6 +5636,26 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (tlRegion.start >= total) { tlRegion = null; tlLoop = false; }
       else tlRegion.end = Math.min(tlRegion.end, total);
     }
+  }
+
+  // Right after you finish recording a take, loop just the section you
+  // just sang instead of continuing on into the rest of the song (or
+  // stopping) -- recordings always start from the top (startRecordMonitor
+  // resets the cursor to 0 before monitoring), so the just-recorded clip is
+  // always the [0, durationSec] span of the timeline. Lets you hear what
+  // you just did, over and over, without having to manually drag out a
+  // loop region on the timeline every time. Still just an ordinary loop
+  // region underneath -- tap the Loop button to turn it off, or drag a new
+  // region to replace it, same as any other loop.
+  function loopJustRecordedSection(durationSec){
+    if (!durationSec || durationSec <= 0) return;
+    var total = currentTotalDuration();
+    var end = total > 0 ? Math.min(durationSec, total) : durationSec;
+    if (end < 0.2) return; // too short a take to bother looping
+    tlCursor = 0;
+    tlRegion = {start: 0, end: end};
+    tlLoop = true;
+    renderTimeline();
   }
 
   if (timelineEl){
@@ -6252,6 +6605,72 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     });
   });
 
+  /* ---------- free-tier email capture ----------
+     A one-time, skippable nudge for Starter (free) plan users -- lets the
+     studio keep track of who's actually using the free demo, without ever
+     blocking them. Reuses the same /api/waitlist endpoint as the
+     "Notify Me" section above (so no new backend work), just tagged with
+     plan:"free-demo" so those signups are easy to tell apart in the inbox.
+     Shown at most once per browser (localStorage), whether submitted or
+     skipped -- it never asks twice. */
+  var FREE_EMAIL_PROMPTED_KEY = "gemstar.freeEmailPrompted.v1";
+  var freeEmailOverlay = document.getElementById("free-email-overlay");
+  var freeEmailForm = document.getElementById("free-email-form");
+  var freeEmailStatus = document.getElementById("free-email-status");
+  var freeEmailSubmitBtn = document.getElementById("free-email-submit");
+  var freeEmailPromptScheduled = false;
+
+  function closeFreeEmailCard(){
+    if (freeEmailOverlay) freeEmailOverlay.hidden = true;
+  }
+  function markFreeEmailPrompted(){
+    try { localStorage.setItem(FREE_EMAIL_PROMPTED_KEY, "1"); } catch(e){}
+  }
+  function maybeShowFreeEmailPrompt(){
+    if (!freeEmailOverlay || freeEmailPromptScheduled) return;
+    if (currentPlan !== "starter" || !audioBuffer) return;
+    try { if (localStorage.getItem(FREE_EMAIL_PROMPTED_KEY)) return; } catch(e){ return; }
+    freeEmailPromptScheduled = true;
+    // A short delay so it never interrupts the moment someone's vocal
+    // first loads/plays -- it shows up a beat later, once they're already
+    // settled into using the tool.
+    setTimeout(function(){
+      if (currentPlan !== "starter") return; // verified to a paid plan in the meantime
+      freeEmailOverlay.hidden = false;
+      markFreeEmailPrompted();
+    }, 1800);
+  }
+  if (freeEmailForm) freeEmailForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var emailInput = document.getElementById("free-email-input");
+    var email = emailInput ? emailInput.value.trim() : "";
+    if (!email) return;
+    freeEmailSubmitBtn.disabled = true;
+    fetch("/api/waitlist", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ email: email, plan: "free-demo" })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      freeEmailSubmitBtn.disabled = false;
+      if (!data || !data.ok){
+        freeEmailStatus.textContent = STR[lang].freeEmailErr;
+        freeEmailStatus.className = "form-status err";
+        return;
+      }
+      freeEmailStatus.textContent = STR[lang].freeEmailOk;
+      freeEmailStatus.className = "form-status ok";
+      setTimeout(closeFreeEmailCard, 1300);
+    }).catch(function(){
+      freeEmailSubmitBtn.disabled = false;
+      freeEmailStatus.textContent = STR[lang].freeEmailErr;
+      freeEmailStatus.className = "form-status err";
+    });
+  });
+  var freeEmailSkipBtn = document.getElementById("free-email-skip");
+  var freeEmailSkipX = document.getElementById("free-email-skip-x");
+  if (freeEmailSkipBtn) freeEmailSkipBtn.addEventListener("click", closeFreeEmailCard);
+  if (freeEmailSkipX) freeEmailSkipX.addEventListener("click", closeFreeEmailCard);
+
   /* ---------- language toggle ---------- */
   document.getElementById("lang-en").addEventListener("click", function(){ applyLang("en"); });
   document.getElementById("lang-es").addEventListener("click", function(){ applyLang("es"); });
@@ -6757,7 +7176,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // settings (scheduleSave, above) rather than inventing a new one. Just one
   // "current project" slot -- this is about not losing your work, not a
   // library of named saves.
-  var PROJECT_DB_NAME = "gemstar-project", PROJECT_DB_VERSION = 1, PROJECT_STORE = "files", PROJECT_KEY = "current";
+  //
+  // NAMED_PROJECTS_STORE (below) is the actual library: an explicit
+  // "Save As Project" action creates a separate, named, reopenable record
+  // in its own object store -- the one-slot autosave above is untouched
+  // and keeps doing its own job as a safety net, independent of this.
+  var PROJECT_DB_NAME = "gemstar-project", PROJECT_DB_VERSION = 2, PROJECT_STORE = "files", PROJECT_KEY = "current";
+  var NAMED_PROJECTS_STORE = "named_projects";
   var projectDbPromise = null;
   function openProjectDb(){
     if (projectDbPromise) return projectDbPromise;
@@ -6766,6 +7191,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var req = indexedDB.open(PROJECT_DB_NAME, PROJECT_DB_VERSION);
       req.onupgradeneeded = function(){
         if (!req.result.objectStoreNames.contains(PROJECT_STORE)) req.result.createObjectStore(PROJECT_STORE);
+        if (!req.result.objectStoreNames.contains(NAMED_PROJECTS_STORE)) req.result.createObjectStore(NAMED_PROJECTS_STORE, {keyPath: "id"});
       };
       req.onsuccess = function(){ resolve(req.result); };
       req.onerror = function(){ reject(req.error); };
@@ -6796,6 +7222,51 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       return new Promise(function(resolve, reject){
         var tx = db.transaction(PROJECT_STORE, "readwrite");
         tx.objectStore(PROJECT_STORE).delete(key);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+
+  // ---- named project library (Save As Project / My Projects) ----
+  function npPut(record){
+    return openProjectDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(NAMED_PROJECTS_STORE, "readwrite");
+        tx.objectStore(NAMED_PROJECTS_STORE).put(record);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    });
+  }
+  function npGetAll(){
+    return openProjectDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var store = db.transaction(NAMED_PROJECTS_STORE, "readonly").objectStore(NAMED_PROJECTS_STORE);
+        // getAll() isn't in every older browser -- a manual cursor walk works everywhere.
+        if (typeof store.getAll === "function"){
+          var req = store.getAll();
+          req.onsuccess = function(){ resolve(req.result || []); };
+          req.onerror = function(){ reject(req.error); };
+          return;
+        }
+        var out = [];
+        var cur = store.openCursor();
+        cur.onsuccess = function(){
+          var c = cur.result;
+          if (!c){ resolve(out); return; }
+          out.push(c.value);
+          c.continue();
+        };
+        cur.onerror = function(){ reject(cur.error); };
+      });
+    });
+  }
+  function npDelete(id){
+    return openProjectDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(NAMED_PROJECTS_STORE, "readwrite");
+        tx.objectStore(NAMED_PROJECTS_STORE).delete(id);
         tx.oncomplete = function(){ resolve(); };
         tx.onerror = function(){ reject(tx.error); };
       });
@@ -6844,6 +7315,167 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     exportStatus.textContent = STR[lang].savingProject;
     exportStatus.className = "export-status";
     saveProjectNow();
+  });
+
+  /* ---------- Save As Project / My Projects (named, reopenable saves) ----
+     Separate from the single "current session" autosave above -- this is
+     an explicit action that creates its own named record in the
+     named_projects store, so you can keep several songs around and come
+     back to any of them by name, instead of only ever having the one most
+     recent session. Each record carries its own snapshot of every knob/
+     level/pan/role so reopening it puts things back exactly as they were,
+     even if another project happens to reuse the same filename. */
+  function captureNamedProjectRecord(id, name){
+    return {
+      id: id, name: name, at: Date.now(),
+      lead: leadTrack._file ? {name: leadTrack._file.name, type: leadTrack._file.type, blob: leadTrack._file} : null,
+      extras: extraVocals.filter(function(t){ return t._file; })
+        .map(function(t){ return {name: t._file.name, type: t._file.type, blob: t._file}; }),
+      settings: {
+        outputGainDb: outputGainDb, tuneKey: tuneKey, tuneScale: tuneScale,
+        lead: {values: pickKnobs(leadValues), level: mainVocalLevel, pan: leadTrack.pan || 0, role: leadTrack.role || ""},
+        extras: extraVocals.map(function(t){
+          return {name: t.name, values: pickKnobs(t.values), level: t.level, pan: t.pan || 0, role: t.role || ""};
+        })
+      }
+    };
+  }
+  function applyNamedProjectSettings(settings){
+    if (!settings) return;
+    if (typeof settings.outputGainDb === "number" && isFinite(settings.outputGainDb)){
+      outputGainDb = Math.max(-24, Math.min(12, settings.outputGainDb));
+      outputGainFader.value = String(outputGainDb);
+      updateGainReadout();
+    }
+    if (settings.tuneKey) tuneKey = String(settings.tuneKey);
+    if (settings.tuneScale) tuneScale = settings.tuneScale === "minor" ? "minor" : "major";
+    syncTuneKeyUI();
+    if (settings.lead){
+      mergeKnobs(leadValues, settings.lead.values);
+      if (typeof settings.lead.level === "number") mainVocalLevel = Math.max(0, Math.min(1, settings.lead.level));
+      if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100));
+      leadTrack.pan = typeof settings.lead.pan === "number" ? Math.max(-1, Math.min(1, settings.lead.pan)) : 0;
+      leadTrack.role = settings.lead.role || "";
+    }
+    (settings.extras || []).forEach(function(es){
+      var t = extraVocals.filter(function(x){ return x.name === es.name; }).pop();
+      if (!t) return;
+      mergeKnobs(t.values, es.values);
+      if (typeof es.level === "number") t.level = Math.max(0, Math.min(1, es.level));
+      t.pan = typeof es.pan === "number" ? Math.max(-1, Math.min(1, es.pan)) : 0;
+      t.role = es.role || "";
+    });
+    if (chain){ applyAllParams(); applyOutputGain(); broadcastScale(); }
+    renderAllKnobs();
+    renderExtraVocals();
+  }
+
+  var btnSaveAsProject = document.getElementById("btn-save-as-project");
+  if (btnSaveAsProject) btnSaveAsProject.addEventListener("click", function(){
+    if (!audioBuffer){
+      exportStatus.textContent = STR[lang].saveAsProjectNeedAudio;
+      exportStatus.className = "export-status err";
+      return;
+    }
+    var defaultName = trackNameEl.textContent || STR[lang].saveAsProjectDefault;
+    var name = window.prompt(STR[lang].saveAsProjectPrompt, defaultName);
+    if (name === null) return; // cancelled
+    name = name.trim();
+    if (!name) return;
+    var id = "np_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+    exportStatus.textContent = STR[lang].savingProject;
+    exportStatus.className = "export-status";
+    npPut(captureNamedProjectRecord(id, name)).then(function(){
+      exportStatus.textContent = STR[lang].savedAsProjectOk.replace("{name}", name);
+      exportStatus.className = "export-status ok";
+      renderProjectsList();
+    }, function(){
+      exportStatus.textContent = STR[lang].savedAsProjectErr;
+      exportStatus.className = "export-status err";
+    });
+  });
+
+  var projectsOverlay = document.getElementById("projects-overlay");
+  var projectsListEl = document.getElementById("projects-list");
+  var projectsEmptyEl = document.getElementById("projects-empty");
+  function fmtProjectDate(ts){
+    try { return new Date(ts).toLocaleString(lang === "es" ? "es" : "en-US", {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}); }
+    catch(e){ return ""; }
+  }
+  function renderProjectsList(){
+    if (!projectsListEl) return;
+    npGetAll().then(function(records){
+      records = (records || []).slice().sort(function(a,b){ return (b.at||0) - (a.at||0); });
+      projectsListEl.innerHTML = "";
+      if (projectsEmptyEl) projectsEmptyEl.hidden = records.length > 0;
+      records.forEach(function(rec){
+        var row = document.createElement("div");
+        row.className = "project-row";
+        var info = document.createElement("div");
+        info.className = "project-row-info";
+        var nameEl = document.createElement("span");
+        nameEl.className = "project-row-name";
+        nameEl.textContent = rec.name;
+        var trackCount = (rec.lead ? 1 : 0) + (rec.extras ? rec.extras.length : 0);
+        var metaEl = document.createElement("span");
+        metaEl.className = "project-row-meta";
+        metaEl.textContent = fmtProjectDate(rec.at) + " · " + STR[lang].projectTrackCount.replace("{count}", String(trackCount));
+        info.appendChild(nameEl); info.appendChild(metaEl);
+
+        var openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "project-row-open";
+        openBtn.textContent = STR[lang].projectOpenBtn;
+        openBtn.addEventListener("click", function(){ openNamedProject(rec); });
+
+        var delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "project-row-delete";
+        delBtn.textContent = STR[lang].projectDeleteBtn;
+        delBtn.addEventListener("click", function(){
+          if (!window.confirm(STR[lang].projectDeleteConfirm.replace("{name}", rec.name))) return;
+          npDelete(rec.id).then(renderProjectsList);
+        });
+
+        row.appendChild(info); row.appendChild(openBtn); row.appendChild(delBtn);
+        projectsListEl.appendChild(row);
+      });
+    }).catch(function(){});
+  }
+  function openNamedProject(rec){
+    if (projectsOverlay) projectsOverlay.hidden = true;
+    exportStatus.textContent = STR[lang].projectOpening;
+    exportStatus.className = "export-status";
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    clearExtraVocals();
+    var leadPromise = rec.lead
+      ? handleFile(new File([rec.lead.blob], rec.lead.name, {type: rec.lead.blob.type || rec.lead.type || ""}))
+      : Promise.resolve();
+    (leadPromise || Promise.resolve()).then(function(){
+      var extraPromises = (rec.extras || []).map(function(e){
+        return addExtraVocalFromFile(new File([e.blob], e.name, {type: e.blob.type || e.type || ""}));
+      });
+      return Promise.all(extraPromises);
+    }).then(function(){
+      applyNamedProjectSettings(rec.settings);
+      exportStatus.textContent = STR[lang].savedProjectOk;
+      exportStatus.className = "export-status ok";
+    }).catch(function(){
+      exportStatus.textContent = STR[lang].projectOpenErr;
+      exportStatus.className = "export-status err";
+    });
+  }
+  var btnOpenProjects = document.getElementById("btn-open-projects");
+  if (btnOpenProjects) btnOpenProjects.addEventListener("click", function(){
+    if (!projectsOverlay) return;
+    projectsOverlay.hidden = false;
+    renderProjectsList();
+  });
+  var projectsCloseBtn = document.getElementById("projects-close");
+  if (projectsCloseBtn) projectsCloseBtn.addEventListener("click", function(){ projectsOverlay.hidden = true; });
+  if (projectsOverlay) projectsOverlay.addEventListener("click", function(e){
+    if (e.target === projectsOverlay) projectsOverlay.hidden = true;
   });
 
   // Offered once on load, before the welcome screen, so a returning user
