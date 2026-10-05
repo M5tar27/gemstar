@@ -2362,6 +2362,18 @@
   // through here so the context is verifiably running first.
   function withRunningContext(fn){
     ensureContext();
+    // A context can be killed out from under the page -- e.g. the browser's
+    // audio process crashing or getting reset after a severe CPU overload
+    // (several effects chains + live mic capture at once can do this on a
+    // weaker machine). Once that happens every node-creation call on it
+    // throws "closed," so without this check Play would look like it does
+    // nothing at all, forever, with no way to recover short of a reload.
+    // Tear down and rebuild a fresh context instead.
+    if (ctx.state === "closed"){
+      ctx = null; chain = null;
+      pitchWorkletModulePromise = null; captureWorkletModulePromise = null; analysisWorkletModulePromise = null;
+      ensureContext();
+    }
     if (ctx.state === "suspended"){
       ctx.resume().then(fn).catch(fn); // still try even if resume() itself rejects
     } else {
@@ -5252,18 +5264,31 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var mtRewindBtn = document.getElementById("mt-rewind");
   var mtFfBtn = document.getElementById("mt-ff");
   var mtTimeEl = document.getElementById("mt-time");
+  // Called on every visualizer animation frame while something is playing
+  // (see runVisualizer -> updatePlayheadUI), so every write in here is a
+  // per-frame cost. Writing the same textContent/classList/attribute value
+  // every single frame still forces the browser to redo style/layout work
+  // even when nothing actually changed -- that extra churn, stacked on top
+  // of mic capture + live monitoring during a full-mix recording, is exactly
+  // the kind of thing that shows up as audible static/latency/CPU strain.
+  // Cache the last-written values so a real DOM write only happens when the
+  // on-screen value actually needs to change (the play icon: only on
+  // play/pause; the clock: only once a displayed second actually ticks over).
+  var mtLastIsPlaying = null, mtLastTimeText = null, mtLastShown = null;
   function updateMiniTransport(){
     if (!miniTransportEl) return;
     var show = !!audioBuffer;
-    miniTransportEl.hidden = !show;
+    if (mtLastShown !== show){ miniTransportEl.hidden = !show; mtLastShown = show; }
     if (!show) return;
-    if (mtPlayBtn){
+    if (mtPlayBtn && mtLastIsPlaying !== isPlaying){
       mtPlayBtn.textContent = isPlaying ? "⏸" : "▶";
       mtPlayBtn.classList.toggle("is-playing", isPlaying);
       mtPlayBtn.setAttribute("aria-label", isPlaying ? STR[lang].mtPauseAria : STR[lang].mtPlayAria);
+      mtLastIsPlaying = isPlaying;
     }
     if (mtTimeEl && typeof currentPlayPosition === "function" && typeof fmtClock === "function"){
-      mtTimeEl.textContent = fmtClock(currentPlayPosition());
+      var text = fmtClock(currentPlayPosition());
+      if (text !== mtLastTimeText){ mtTimeEl.textContent = text; mtLastTimeText = text; }
     }
   }
   if (mtPlayBtn) mtPlayBtn.addEventListener("click", function(){ btnPlay.click(); });
@@ -5401,6 +5426,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!audioBuffer) return;
     var wasPlaying = isPlaying;
     withRunningContext(function(){
+      try {
       // audioBuffer/beatBuffer/etc. can't change out from under this in the
       // brief async gap while resume() was settling -- nothing else clears
       // them except explicit user actions that also call stopPlayback first.
@@ -5459,6 +5485,21 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       updatePlayButton();
       renderTimeline();
       runVisualizer();
+      } catch(err){
+        // Something failed mid-setup (a glitched/closed context, a node that
+        // wouldn't create) -- don't leave Play silently dead from here on.
+        // Clean up whatever partially wired, release the mix-wiring ref this
+        // attempt took out, and drop back to a clean stopped state so the
+        // next tap of Play starts completely fresh instead of inheriting
+        // half-built state.
+        try { stopSourceOnly(); } catch(e2){}
+        try { stopBeatSourceOnly(); } catch(e2){}
+        if (!wasPlaying) releaseMixWiring();
+        isPlaying = false;
+        updatePlayButton();
+        renderTimeline();
+        if (window.console && console.warn) console.warn("Gemstar: playback failed to start, reset for retry", err);
+      }
     });
   }
 
@@ -5512,7 +5553,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // the real transport (startPlayback), so the timeline/playhead and
       // beat waveform visibly scrub along underneath it, same as any
       // regular playback.
-      tlCursor = 0; tlRegion = null; tlLoop = false;
+      // Loop the whole mix (tlLoop=true, no region) for as long as recording
+      // keeps running, instead of the normal "play once and stop" behavior --
+      // otherwise the beat/other vocals you're singing along to go silent
+      // the moment the shortest track reaches its end, even though the mic
+      // is still capturing. That left you recording the back half of a take
+      // against dead silence, which is what made it sound like "the vocals
+      // only play once and stop."
+      tlCursor = 0; tlRegion = null; tlLoop = true;
       startPlayback();
       recordMonitorOwnsPlayback = true;
     } else if (beatBuffer && chain){
