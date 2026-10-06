@@ -4461,7 +4461,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
     beatDrop.hidden = !!beatBuffer;
     beatBlock.hidden = !beatBuffer;
-    if (beatWfShell) beatWfShell.hidden = !beatBuffer;
+    // This standalone single-beat waveform panel predates the "everything at
+    // once" grid above (all-vocals-strip). The grid now shows its own Beat
+    // row (with mute/solo) under this exact same condition (mode==="full" &&
+    // beatBuffer), so unhiding this one too just duplicates it -- a purple
+    // "BEAT" panel sitting right under the grid's own teal "Beat" row. Keep
+    // it permanently hidden; the grid is the one copy of this now.
+    if (beatWfShell) beatWfShell.hidden = true;
     if (btnVocalMute) btnVocalMute.hidden = !beatBuffer;
     if (btnVocalSolo) btnVocalSolo.hidden = !beatBuffer;
     if (!beatBuffer){ beatMuted = false; beatSolo = false; vocalGroupMuted = false; vocalGroupSolo = false; updateBeatMuteSoloButtons(); }
