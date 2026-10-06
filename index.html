@@ -4119,6 +4119,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (silentGain){ try{ silentGain.disconnect(); }catch(e){} silentGain = null; }
     }
     var meterData = null; // allocated once per recorder when the analyser is created, not every frame
+    var meterFrameCount = 0; // throttles the (expensive, shadowBlur) live-trace redraws below -- see meterLoop()
     // Shared by both the recorder's own small waveform panel and the
     // always-in-place grid live row -- same live samples, drawn twice onto
     // whichever canvases are actually around to receive it.
@@ -4149,12 +4150,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (v>peak) peak = v;
       }
       opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
-      if (wfCtx) drawLiveTrace(opts.waveformCanvas, wfCtx, "#FF5C7A");
-      // Also draw into the shared arrangement-grid row (right under the
-      // beat), when it's actually visible -- so recording shows up there
-      // like any other DAW's live-input track, not just in this panel.
-      if (gridLiveCanvas && gridLiveRowEl && !gridLiveRowEl.hidden){
-        drawLiveTrace(gridLiveCanvas, gridLiveCanvas.getContext("2d"), "#FF2E88");
+      // The actual waveform traces (shadowBlur'd canvas strokes) are the
+      // priciest part of this loop and the one running during exactly the
+      // moment CPU headroom matters most -- recording. Redrawing them at a
+      // throttled ~30fps instead of every single rAF tick is visually
+      // indistinguishable (they're just a live squiggle) but meaningfully
+      // cuts the per-frame cost right while the mic is live. The peak meter
+      // bar above stays at full rate since it's one cheap style write.
+      meterFrameCount++;
+      if (meterFrameCount % 2 === 0){
+        if (wfCtx) drawLiveTrace(opts.waveformCanvas, wfCtx, "#FF5C7A");
+        // Also draw into the shared arrangement-grid row (right under the
+        // beat), when it's actually visible -- so recording shows up there
+        // like any other DAW's live-input track, not just in this panel.
+        if (gridLiveCanvas && gridLiveRowEl && !gridLiveRowEl.hidden){
+          drawLiveTrace(gridLiveCanvas, gridLiveCanvas.getContext("2d"), "#FF2E88");
+        }
       }
       recordMeterRAF = requestAnimationFrame(meterLoop);
     }
@@ -6170,13 +6181,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var duckData = new Uint8Array(duckLen);
     var freqData = new Uint8Array(chain.analyser.frequencyBinCount);
     var binHz = ctx.sampleRate / chain.analyser.fftSize;
+    var visFrameCount = 0;
 
     function frame(){
-      if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; resetKnobMiniMeters(); return; }
+      if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; resetKnobMiniMeters(); visFrameCount = 0; return; }
       updatePlayheadUI();
 
       // auto-duck the beat under the vocal: watch the processed-vocal
-      // envelope and pull the beat down while the vocal is present
+      // envelope and pull the beat down while the vocal is present. Cheap
+      // (a short typed-array read + loop), and the duck's own
+      // setTargetAtTime smoothing (60-220ms) already outlasts a frame, so
+      // this stays at full rate for the most responsive ducking.
       if (beatBuffer){
         chain.vocalAnalyser.getByteTimeDomainData(duckData);
         var vPeak = 0;
@@ -6188,32 +6203,47 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, duckTarget < 1 ? 0.06 : 0.22);
       }
 
-      chain.analyser.getByteTimeDomainData(data);
-      var w = canvas.width, h = canvas.height;
-      cctx.clearRect(0,0,w,h);
-      cctx.strokeStyle = "#00F5FF";
-      cctx.shadowColor = "#00F5FF";
-      cctx.shadowBlur = 6;
-      cctx.lineWidth = 2;
-      cctx.beginPath();
-      var slice = w / bufferLen;
-      var peak = 0;
-      for (var i=0;i<bufferLen;i++){
-        var v = data[i]/128 - 1;
-        peak = Math.max(peak, Math.abs(v));
-        var x = i*slice, y = (v+1)*h/2;
-        if (i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+      // Everything below here is pure visual feedback (scope line, Hz
+      // spectrum, per-knob meters) -- none of it needs to run at a full
+      // 60fps to look smooth, and the canvas work (shadowBlur strokes,
+      // fillText, dozens of per-knob DOM style writes) is the actual
+      // per-frame cost that was crowding out the audio engine and causing
+      // the stutter/slowdown reported during ordinary playback, not just
+      // while recording. Throttling it to ~30fps (scope) and ~20fps
+      // (spectrum + knob meters) is visually indistinguishable but cuts
+      // that main-thread cost by roughly half to two-thirds on every single
+      // playback, not only during a mic recording.
+      visFrameCount++;
+      if (visFrameCount % 2 === 0){
+        chain.analyser.getByteTimeDomainData(data);
+        var w = canvas.width, h = canvas.height;
+        cctx.clearRect(0,0,w,h);
+        cctx.strokeStyle = "#00F5FF";
+        cctx.shadowColor = "#00F5FF";
+        cctx.shadowBlur = 6;
+        cctx.lineWidth = 2;
+        cctx.beginPath();
+        var slice = w / bufferLen;
+        var peak = 0;
+        for (var i=0;i<bufferLen;i++){
+          var v = data[i]/128 - 1;
+          peak = Math.max(peak, Math.abs(v));
+          var x = i*slice, y = (v+1)*h/2;
+          if (i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+        }
+        cctx.stroke();
+        cctx.shadowBlur = 0;
       }
-      cctx.stroke();
-      cctx.shadowBlur = 0;
 
-      // Skip the Hz spectrum + per-knob mini-meters while a mic recording is
-      // in progress (e.g. singing an extra take along to the beat) -- this is
-      // the single biggest chunk of the extra per-frame work those features
-      // added, and freeing it up during exactly the recording window is what
-      // fixes the lag/latency reported while recording. The meters just
-      // freeze at their last value and pick back up once recording stops.
-      if (!isMicRecording){
+      // Skip the Hz spectrum + per-knob mini-meters entirely while a mic
+      // recording is in progress (e.g. singing an extra take along to the
+      // beat) -- this is the single biggest chunk of the extra per-frame
+      // work those features added, and freeing it up during exactly the
+      // recording window is what fixes the lag/latency reported while
+      // recording. The meters just freeze at their last value and pick
+      // back up once recording stops. Outside of recording, they still run,
+      // just throttled (see above) instead of on every frame.
+      if (!isMicRecording && visFrameCount % 3 === 0){
         chain.analyser.getByteFrequencyData(freqData);
         drawSpectrum(freqData, binHz);
         updateKnobMiniMeters(freqData, binHz);
