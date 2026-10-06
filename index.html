@@ -398,6 +398,17 @@
   .all-vocals-row.beat-row .wf-label{color:var(--gem);}
   .all-vocals-row .row-controls{position:absolute; top:3px; right:6px; display:flex; gap:4px; z-index:3;}
   .all-vocals-row .row-controls .trk-btn{width:21px; height:21px; font-size:0.6rem; border-radius:5px;}
+  .all-vocals-row .row-controls .trk-remove{color:var(--ink-dim);}
+  .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
+  /* Live-recording row: sits right under the beat row while the mic is
+     capturing, drawn by the active recorder's meter loop -- same pulse
+     animation/color language as the record-dot elsewhere in Gemstar (its
+     signature magenta), not a borrowed DAW color. */
+  .all-vocals-row.live-row{
+    cursor:default; border-color:var(--gem);
+    animation:record-pulse 1.1s ease-in-out infinite;
+  }
+  .all-vocals-row.live-row .wf-label{color:var(--gem);}
 
   .spectrum-shell{
     position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
@@ -421,18 +432,30 @@
 
   /* timeline: pick a start point / drag a loop section */
   .timeline-wrap{display:flex; flex-direction:column; gap:8px; margin-top:10px;}
-  .timeline{
-    position:relative; height:34px; border-radius:8px; border:1px solid var(--line-strong);
-    background:linear-gradient(180deg, #0d0d17, #090911); cursor:pointer; touch-action:none;
-    user-select:none; -webkit-user-select:none; overflow:hidden;
+  /* The actual scrollable viewport. #timeline itself grows wider than this
+     (in px, via JS) once zoomed past 1x -- native horizontal scroll/trackpad/
+     drag-the-scrollbar handles panning instead of custom pan logic. */
+  .timeline-scroll{
+    overflow-x:auto; overflow-y:hidden; border-radius:8px; border:1px solid var(--line-strong);
+    -webkit-overflow-scrolling:touch;
   }
-  .timeline:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  .timeline-scroll::-webkit-scrollbar{height:6px;}
+  .timeline-scroll::-webkit-scrollbar-thumb{background:var(--line-strong); border-radius:3px;}
+  .timeline{
+    position:relative; height:34px; width:100%; min-width:100%;
+    background:linear-gradient(180deg, #0d0d17, #090911); cursor:pointer; touch-action:none;
+    user-select:none; -webkit-user-select:none;
+  }
+  .timeline:focus-visible{outline:2px solid var(--cyan); outline-offset:-2px;}
   .tl-region{position:absolute; top:0; bottom:0; background:rgba(255,230,0,0.18); border-left:2px solid var(--yellow); border-right:2px solid var(--yellow); pointer-events:none;}
   .tl-cursor{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--gem); box-shadow:0 0 8px var(--gem); pointer-events:none; left:0;}
   .tl-cursor::before{content:""; position:absolute; top:0; left:-5px; border-left:6px solid transparent; border-right:6px solid transparent; border-top:7px solid var(--gem);}
   .tl-playhead{position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:#fff; opacity:0.85; pointer-events:none; left:0;}
   .timeline-meta{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
   .tl-time{font-family:var(--font-display); font-size:0.85rem; color:#fff; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:0.03em;}
+  .tl-zoom{display:flex; align-items:center; gap:6px;}
+  .tl-zoom .icon-btn.small{padding:4px 10px; font-size:0.85rem; line-height:1;}
+  .tl-zoom-level{font-size:0.68rem; color:var(--ink-dim); min-width:1.6em; text-align:center; font-variant-numeric:tabular-nums;}
   .tl-hint{margin:0; font-size:0.72rem; color:var(--ink-dim);}
   #btn-loop.on{border-color:var(--yellow); color:var(--yellow); background:rgba(255,230,0,0.08);}
   #btn-loop:disabled{opacity:0.45; cursor:not-allowed;}
@@ -1162,38 +1185,49 @@
       </div>
 
       <div id="player-block" hidden>
-        <div class="track-row">
+        <div class="track-row" id="lead-track-row">
           <span class="track-name" id="track-name"></span>
           <div class="transport-btns">
             <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
           </div>
         </div>
-        <div class="waveform-shell">
+        <div class="waveform-shell" id="lead-waveform-shell">
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
           <canvas id="waveform" width="900" height="110"></canvas>
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
           <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
           <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
+          <div class="live-row" id="grid-live-row" hidden>
+            <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
+            <canvas id="grid-live-waveform" width="600" height="42"></canvas>
+          </div>
         </div>
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
           <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
           <canvas id="beat-waveform" width="900" height="56"></canvas>
         </div>
         <div class="timeline-wrap" id="timeline-wrap">
-          <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
-            <div class="tl-region" id="tl-region" hidden></div>
-            <div class="tl-cursor" id="tl-cursor"></div>
-            <div class="tl-playhead" id="tl-playhead" hidden></div>
+          <div class="timeline-scroll" id="timeline-scroll">
+            <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+              <div class="tl-region" id="tl-region" hidden></div>
+              <div class="tl-cursor" id="tl-cursor"></div>
+              <div class="tl-playhead" id="tl-playhead" hidden></div>
+            </div>
           </div>
           <div class="timeline-meta">
             <span class="tl-time" id="tl-time">0:00 / 0:00</span>
+            <div class="tl-zoom" id="tl-zoom">
+              <button class="icon-btn small" id="btn-tl-zoom-out" type="button" data-i18n-aria="tlZoomOutAria" aria-label="Zoom out">−</button>
+              <span class="tl-zoom-level" id="tl-zoom-level">1×</span>
+              <button class="icon-btn small" id="btn-tl-zoom-in" type="button" data-i18n-aria="tlZoomInAria" aria-label="Zoom in">+</button>
+            </div>
             <div class="transport-btns">
               <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
               <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
             </div>
           </div>
-          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop</p>
+          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
         </div>
         <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
         <div class="track-row">
@@ -1552,8 +1586,9 @@
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
-      tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop",
+      tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
+      tlZoomInAria:"Zoom in", tlZoomOutAria:"Zoom out",
       leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
       leadPickHint:"Tap ☆ Make Lead on any track to choose your lead vocal.",
       uploadCapReached:"Your {plan} plan allows {max} vocal track(s) at once, so the first {max} were loaded. Upgrade to load more.",
@@ -1562,6 +1597,7 @@
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Drag left/right to place this vocal in the stereo field. Double-click to center.",
       muteBtn:"M", soloBtn:"S", muteAria:"Mute", soloAria:"Solo",
+      gridLiveLabel:"● Recording…",
       muteVocalAria:"Mute Vocal", soloVocalAria:"Solo Vocal (hear the vocal alone)",
       muteBeatAria:"Mute Beat", soloBeatAria:"Solo Beat (hear the beat alone)",
       roleLabel:"Role for", roleNone:"Role…", roleLead:"Lead", roleBackground:"Background", roleDoubleL:"Double (Left)", roleDoubleR:"Double (Right)", roleAdlib:"Ad-lib",
@@ -1728,8 +1764,9 @@
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
-      tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle",
+      tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle · acerca el zoom para ediciones precisas en canciones largas",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
+      tlZoomInAria:"Acercar", tlZoomOutAria:"Alejar",
       leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
       leadPickHint:"Toca ☆ Hacer Principal en cualquier pista para elegir tu voz principal.",
       uploadCapReached:"Tu plan {plan} permite {max} pista(s) vocal(es) a la vez, así que cargamos las primeras {max}. Mejora tu plan para cargar más.",
@@ -1738,6 +1775,7 @@
       editFxBtn:"🎛 FX",
       panLabel:"Pan", panHint:"Arrastra a la izquierda o derecha para ubicar esta voz en el estéreo. Doble clic para centrar.",
       muteBtn:"M", soloBtn:"S", muteAria:"Silenciar", soloAria:"Solo",
+      gridLiveLabel:"● Grabando…",
       muteVocalAria:"Silenciar Voz", soloVocalAria:"Solo Voz (escuchar solo la voz)",
       muteBeatAria:"Silenciar Beat", soloBeatAria:"Solo Beat (escuchar solo el beat)",
       roleLabel:"Rol para", roleNone:"Rol…", roleLead:"Principal", roleBackground:"Coros", roleDoubleL:"Doble (Izquierda)", roleDoubleR:"Doble (Derecha)", roleAdlib:"Ad-lib",
@@ -4048,12 +4086,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (!wfCtx) return;
       wfCtx.clearRect(0, 0, opts.waveformCanvas.width, opts.waveformCanvas.height);
     }
+    function clearGridLiveWaveform(){
+      if (!gridLiveCanvas) return;
+      var gctx = gridLiveCanvas.getContext("2d");
+      gctx.clearRect(0, 0, gridLiveCanvas.width, gridLiveCanvas.height);
+    }
     function stopMeter(){
       if (recordMeterRAF){ cancelAnimationFrame(recordMeterRAF); recordMeterRAF = null; }
       if (opts.meterBar) opts.meterBar.style.width = "0%";
       if (recordSrcNode){ try{ recordSrcNode.disconnect(); }catch(e){} recordSrcNode = null; }
       recordAnalyser = null;
       clearWaveform();
+      clearGridLiveWaveform();
     }
     function stopStream(){
       if (recordStream){
@@ -4064,6 +4108,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function stopCapture(){
       recording = false;
       isMicRecording = false;
+      if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip(); // hides the grid's live row
       stopRecordMonitor();
       if (captureNode){
         if (captureNode.port){ try{ captureNode.port.onmessage = null; }catch(e){} }
@@ -4074,6 +4119,26 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (silentGain){ try{ silentGain.disconnect(); }catch(e){} silentGain = null; }
     }
     var meterData = null; // allocated once per recorder when the analyser is created, not every frame
+    // Shared by both the recorder's own small waveform panel and the
+    // always-in-place grid live row -- same live samples, drawn twice onto
+    // whichever canvases are actually around to receive it.
+    function drawLiveTrace(cv, cx, color){
+      var w = cv.width, h = cv.height;
+      cx.clearRect(0, 0, w, h);
+      cx.strokeStyle = color;
+      cx.shadowColor = color;
+      cx.shadowBlur = 6;
+      cx.lineWidth = 2;
+      cx.beginPath();
+      var slice = w / meterData.length;
+      for (var k=0; k<meterData.length; k++){
+        var vy = (meterData[k]/128 - 1);
+        var x = k*slice, y = (vy+1)*h/2;
+        if (k===0) cx.moveTo(x,y); else cx.lineTo(x,y);
+      }
+      cx.stroke();
+      cx.shadowBlur = 0;
+    }
     function meterLoop(){
       if (!recordAnalyser) return;
       if (!meterData || meterData.length !== recordAnalyser.fftSize) meterData = new Uint8Array(recordAnalyser.fftSize);
@@ -4084,22 +4149,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (v>peak) peak = v;
       }
       opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
-      if (wfCtx){
-        var w = opts.waveformCanvas.width, h = opts.waveformCanvas.height;
-        wfCtx.clearRect(0, 0, w, h);
-        wfCtx.strokeStyle = "#FF5C7A";
-        wfCtx.shadowColor = "#FF5C7A";
-        wfCtx.shadowBlur = 6;
-        wfCtx.lineWidth = 2;
-        wfCtx.beginPath();
-        var slice = w / meterData.length;
-        for (var k=0; k<meterData.length; k++){
-          var vy = (meterData[k]/128 - 1);
-          var x = k*slice, y = (vy+1)*h/2;
-          if (k===0) wfCtx.moveTo(x,y); else wfCtx.lineTo(x,y);
-        }
-        wfCtx.stroke();
-        wfCtx.shadowBlur = 0;
+      if (wfCtx) drawLiveTrace(opts.waveformCanvas, wfCtx, "#FF5C7A");
+      // Also draw into the shared arrangement-grid row (right under the
+      // beat), when it's actually visible -- so recording shows up there
+      // like any other DAW's live-input track, not just in this panel.
+      if (gridLiveCanvas && gridLiveRowEl && !gridLiveRowEl.hidden){
+        drawLiveTrace(gridLiveCanvas, gridLiveCanvas.getContext("2d"), "#FF2E88");
       }
       recordMeterRAF = requestAnimationFrame(meterLoop);
     }
@@ -4187,6 +4242,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         silentGain.connect(ctx.destination);
         recording = true;
         isMicRecording = true;
+        if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip(); // reveals the grid's live row
         // Let them hear (and see) the beat/mix while singing along, when
         // there's something loaded to play -- this is a completely separate
         // signal path from the mic capture above (which only ever feeds the
@@ -4839,12 +4895,40 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // without leaving this view.
   var allVocalsStripEl = document.getElementById("all-vocals-strip");
   var allVocalsRowsEl = document.getElementById("all-vocals-rows");
+  var gridLiveRowEl = document.getElementById("grid-live-row");
+  var gridLiveCanvas = document.getElementById("grid-live-waveform");
+  var leadTrackRowEl = document.getElementById("lead-track-row");
+  var leadWaveformShellEl = document.getElementById("lead-waveform-shell");
   function renderAllVocalsStrip(){
     if (!allVocalsStripEl || !allVocalsRowsEl) return;
+    // #player-block can now be visible before any lead vocal exists (a beat
+    // loaded on its own, or a take being recorded) -- the lead name/"Change
+    // File" row and the big lead waveform panel only make sense once there
+    // actually is a lead vocal, so keep those two in sync with that
+    // independently of whether the grid itself has anything to show.
+    if (leadTrackRowEl) leadTrackRowEl.hidden = !audioBuffer;
+    if (leadWaveformShellEl) leadWaveformShellEl.hidden = !audioBuffer;
     var showBeatRow = mode === "full" && !!beatBuffer;
-    var show = !!audioBuffer && (extraVocals.length > 0 || showBeatRow);
+    var showLiveRow = isMicRecording;
+    // A beat alone (no lead vocal uploaded yet) or a take currently being
+    // recorded both deserve to show here on their own now -- this used to
+    // require a lead vocal to already be loaded before the grid would show
+    // at all, which hid the beat's own waveform (and any in-progress
+    // recording) for exactly the "just dropped a beat in" moment.
+    var show = showBeatRow || showLiveRow || (!!audioBuffer && extraVocals.length > 0);
+    // #player-block (the shell holding this grid, the beat waveform, and
+    // the timeline) only ever got unhidden once a lead vocal loaded
+    // (showPlayerForLoadedVocal()) -- so a beat dropped in on its own, or a
+    // take being recorded before any lead exists, drew into hidden canvases
+    // nobody could actually see. Reveal it here too, one-directionally:
+    // this only ever turns it ON when the grid needs to show, never off --
+    // the explicit "Change File" reset path still owns hiding it.
+    if (playerBlock && (showBeatRow || showLiveRow)) playerBlock.hidden = false;
     allVocalsStripEl.hidden = !show;
-    if (!show) return;
+    if (!show){
+      if (gridLiveRowEl) gridLiveRowEl.hidden = true;
+      return;
+    }
     allVocalsRowsEl.innerHTML = "";
     var total = currentTotalDuration();
 
@@ -4903,6 +4987,21 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           refreshLiveMix();
           renderExtraVocals();
         }));
+        // Undo, right on the row -- an extra vocal take can be pulled back
+        // out from wherever it sits in the grid, not just the most recent
+        // one via the single "Undo Last Track" button elsewhere.
+        if (tr !== leadTrack){
+          var removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "trk-btn trk-remove";
+          removeBtn.textContent = "↺";
+          removeBtn.setAttribute("aria-label", STR[lang].removeVocalTrack + " " + name);
+          removeBtn.addEventListener("click", function(e){
+            e.stopPropagation();
+            removeExtraVocal(tr);
+          });
+          controls.appendChild(removeBtn);
+        }
       }
       row.appendChild(controls);
       if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
@@ -4912,7 +5011,23 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
 
     if (showBeatRow) addRow(STR[lang].wfLabelBeat || "Beat", beatBuffer, "beat", {beat:true});
-    addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead", {track:leadTrack});
+    // Right under the beat, exactly where a DAW shows the track you're
+    // currently laying down -- this is the SAME element every render (moved
+    // into place, not recreated), since the active recorder's meter loop
+    // draws into it continuously and needs a stable canvas to target.
+    if (showLiveRow && gridLiveRowEl){
+      // Only wears the shared .all-vocals-row class while it's actually
+      // live in the grid -- otherwise it's a global DOM match for that
+      // class (it lives outside #all-vocals-rows at rest) and throws off
+      // any ".all-vocals-row" count that isn't scoped to the rows list.
+      gridLiveRowEl.className = "all-vocals-row live-row";
+      gridLiveRowEl.hidden = false;
+      allVocalsRowsEl.appendChild(gridLiveRowEl);
+    } else if (gridLiveRowEl){
+      gridLiveRowEl.hidden = true;
+      gridLiveRowEl.className = "live-row";
+    }
+    if (audioBuffer) addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead", {track:leadTrack});
     extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id, {track:t}); });
   }
 
@@ -5620,14 +5735,62 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   /* ---- timeline UI ---- */
   var timelineEl = document.getElementById("timeline");
+  var timelineScrollEl = document.getElementById("timeline-scroll");
   var tlRegionEl = document.getElementById("tl-region");
   var tlCursorEl = document.getElementById("tl-cursor");
   var tlPlayheadEl = document.getElementById("tl-playhead");
   var tlTimeEl = document.getElementById("tl-time");
   var btnLoop = document.getElementById("btn-loop");
   var btnTlStart = document.getElementById("btn-tl-start");
+  var btnTlZoomIn = document.getElementById("btn-tl-zoom-in");
+  var btnTlZoomOut = document.getElementById("btn-tl-zoom-out");
+  var tlZoomLevelEl = document.getElementById("tl-zoom-level");
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
+
+  /* ---- timeline zoom: lets a long song be spread wider than the visible
+     viewport so a precise seek/loop-region drag isn't fighting a whole
+     3-minute song squeezed into a few hundred pixels. #timeline-scroll is a
+     plain overflow-x:auto viewport; #timeline (the actual drag/seek target)
+     gets a real pixel width set below and the browser's native horizontal
+     scroll (scrollbar, trackpad, shift+wheel) handles panning -- no custom
+     pan gesture code to get subtly wrong. ---- */
+  var TL_ZOOM_LEVELS = [1, 2, 4, 8];
+  var tlZoomIdx = 0;
+  function tlBasePxPerSec(){
+    var total = currentTotalDuration();
+    var viewportWidth = timelineScrollEl ? timelineScrollEl.clientWidth : 0;
+    return total > 0 && viewportWidth > 0 ? viewportWidth / total : 0;
+  }
+  function tlPxPerSec(){ return tlBasePxPerSec() * TL_ZOOM_LEVELS[tlZoomIdx]; }
+  function tlPx(sec){ return Math.max(0, sec) * tlPxPerSec(); }
+  function updateTimelineZoomUI(){
+    var total = currentTotalDuration();
+    var zoom = TL_ZOOM_LEVELS[tlZoomIdx];
+    if (timelineEl){
+      // At 1x this is just 100% (same as before zoom existed -- no scroll
+      // possible or needed). Past that it's a real px width wider than the
+      // viewport, which is what makes #timeline-scroll actually scrollable.
+      timelineEl.style.width = (zoom <= 1) ? "100%" : Math.max(1, tlPx(total)) + "px";
+    }
+    if (tlZoomLevelEl) tlZoomLevelEl.textContent = zoom + "×";
+    if (btnTlZoomOut) btnTlZoomOut.disabled = tlZoomIdx === 0;
+    if (btnTlZoomIn) btnTlZoomIn.disabled = tlZoomIdx === TL_ZOOM_LEVELS.length - 1 || total <= 0;
+  }
+  // While playing at a zoom level wide enough to scroll, keep the playhead
+  // from running off the right edge of the visible viewport -- jumps the
+  // scroll position forward by one viewport-width at a time (like paging)
+  // rather than re-centering every frame, so it doesn't fight a manual
+  // scroll/drag the moment the person lets go of it.
+  function tlAutoFollowPlayhead(){
+    if (!timelineScrollEl || tlZoomIdx === 0 || !isPlaying) return;
+    var playheadPx = tlPx(currentPlayPosition());
+    var viewLeft = timelineScrollEl.scrollLeft;
+    var viewWidth = timelineScrollEl.clientWidth;
+    if (playheadPx < viewLeft || playheadPx > viewLeft + viewWidth){
+      timelineScrollEl.scrollLeft = Math.max(0, playheadPx - viewWidth * 0.05);
+    }
+  }
 
   // With a section selected, Loop repeats that section. With none selected,
   // Loop repeats the whole track instead of the old always-on behavior --
@@ -5646,9 +5809,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var pos = currentPlayPosition();
     if (tlPlayheadEl){
       tlPlayheadEl.hidden = !isPlaying;
-      if (isPlaying) tlPlayheadEl.style.left = pct(pos, total) + "%";
+      if (isPlaying) tlPlayheadEl.style.left = tlPx(pos) + "px";
     }
     if (tlTimeEl) tlTimeEl.textContent = fmtClock(pos) + " / " + fmtClock(total);
+    tlAutoFollowPlayhead();
     updateMiniTransport();
   }
 
@@ -5656,12 +5820,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!timelineEl) return;
     if (!isPlaying) clampTimelineToDuration();
     var total = currentTotalDuration();
-    if (tlCursorEl) tlCursorEl.style.left = pct(tlCursor, total) + "%";
+    updateTimelineZoomUI(); // sets #timeline's actual px width for the current zoom -- do this before positioning anything by px
+    if (tlCursorEl) tlCursorEl.style.left = tlPx(tlCursor) + "px";
     if (tlRegionEl){
       tlRegionEl.hidden = !tlRegion;
       if (tlRegion){
-        tlRegionEl.style.left = pct(tlRegion.start, total) + "%";
-        tlRegionEl.style.width = Math.max(0.5, pct(tlRegion.end, total) - pct(tlRegion.start, total)) + "%";
+        tlRegionEl.style.left = tlPx(tlRegion.start) + "px";
+        tlRegionEl.style.width = Math.max(2, tlPx(tlRegion.end) - tlPx(tlRegion.start)) + "px";
       }
     }
     timelineEl.setAttribute("aria-valuemax", String(Math.round(total)));
@@ -5709,9 +5874,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   if (timelineEl){
     var tlPress = null; // {id, x, t, dragging}
     function tlTimeAt(clientX){
+      // getBoundingClientRect() already accounts for #timeline-scroll's
+      // current scroll position (the element's on-screen left edge moves as
+      // you scroll/pan it), so this needs no separate scrollLeft math.
       var r = timelineEl.getBoundingClientRect();
-      var frac = r.width > 0 ? (clientX - r.left) / r.width : 0;
-      return Math.max(0, Math.min(1, frac)) * currentTotalDuration();
+      var pxPerSec = tlPxPerSec();
+      if (pxPerSec <= 0) return 0;
+      var sec = (clientX - r.left) / pxPerSec;
+      return Math.max(0, Math.min(currentTotalDuration(), sec));
     }
     timelineEl.addEventListener("pointerdown", function(e){
       if (!audioBuffer || currentTotalDuration() <= 0) return;
@@ -5774,6 +5944,27 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       restartPlaybackFromCursor();
     });
   }
+  // Re-centers the viewport on wherever playback (or the cursor, if
+  // stopped) currently is after a zoom change, so zooming in doesn't fling
+  // you back to the start of the song every time.
+  function tlZoomTo(idx){
+    tlZoomIdx = Math.max(0, Math.min(TL_ZOOM_LEVELS.length - 1, idx));
+    renderTimeline(); // resizes #timeline for the new zoom level first
+    if (timelineScrollEl){
+      var anchorSec = isPlaying ? currentPlayPosition() : tlCursor;
+      timelineScrollEl.scrollLeft = Math.max(0, tlPx(anchorSec) - timelineScrollEl.clientWidth / 2);
+    }
+  }
+  if (btnTlZoomIn) btnTlZoomIn.addEventListener("click", function(){ tlZoomTo(tlZoomIdx + 1); });
+  if (btnTlZoomOut) btnTlZoomOut.addEventListener("click", function(){ tlZoomTo(tlZoomIdx - 1); });
+  // #timeline's px width is derived from the viewport's own clientWidth
+  // (see tlBasePxPerSec) rather than CSS percentages now, so a window/
+  // orientation resize needs an explicit re-render to stay accurate.
+  var tlResizeTimer = null;
+  window.addEventListener("resize", function(){
+    if (tlResizeTimer) clearTimeout(tlResizeTimer);
+    tlResizeTimer = setTimeout(function(){ if (timelineEl) renderTimeline(); }, 120);
+  });
 
   btnPlay.addEventListener("click", function(){
     if (isPlaying) stopPlayback(); else startPlayback();
