@@ -378,16 +378,27 @@
   .all-vocals-strip-label{
     font-size:0.68rem; letter-spacing:0.03em; color:var(--ink-dim); text-align:center; margin:0 0 6px;
   }
+  /* BandLab-style grid: a left "sidebar" cell (track name + mute/solo/undo)
+     and a right "lane" cell (the waveform) sitting side by side in the same
+     row -- built with flex `order` rather than DOM order so every existing
+     selector that targets `.all-vocals-row`, its direct children, and
+     `.row-controls` keeps working unchanged; only the visual arrangement
+     changed, not the structure. */
   .all-vocals-row{
     position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden;
     background:#07070d; height:42px; margin-bottom:6px; cursor:pointer;
     transition:border-color .15s ease, box-shadow .15s ease;
+    display:flex; align-items:stretch;
   }
-  .all-vocals-row canvas{display:block; width:100%; height:100%;}
+  .all-vocals-row canvas{
+    display:block; width:100%; height:100%; min-width:0;
+    order:3; flex:1 1 auto; border-left:1px solid var(--line);
+  }
   .all-vocals-row .wf-label{
-    position:absolute; top:3px; left:7px; font-size:0.6rem; letter-spacing:0.06em;
-    color:#fff; pointer-events:none; text-shadow:0 1px 3px rgba(0,0,0,0.85); z-index:2;
-    max-width:calc(100% - 14px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    order:1; flex:0 0 auto; display:flex; align-items:center;
+    width:92px; padding:0 8px; font-size:0.6rem; letter-spacing:0.05em;
+    color:#fff; pointer-events:none; background:rgba(255,255,255,0.03);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
   .all-vocals-row:hover{border-color:var(--cyan);}
   .all-vocals-row.active{
@@ -396,8 +407,11 @@
   .all-vocals-row.active .wf-label{color:var(--yellow);}
   .all-vocals-row.beat-row{cursor:default; border-color:var(--line-gem);}
   .all-vocals-row.beat-row .wf-label{color:var(--gem);}
-  .all-vocals-row .row-controls{position:absolute; top:3px; right:6px; display:flex; gap:4px; z-index:3;}
-  .all-vocals-row .row-controls .trk-btn{width:21px; height:21px; font-size:0.6rem; border-radius:5px;}
+  .all-vocals-row .row-controls{
+    order:2; flex:0 0 auto; display:flex; align-items:center; gap:4px;
+    padding:0 6px; background:rgba(255,255,255,0.03);
+  }
+  .all-vocals-row .row-controls .trk-btn{width:19px; height:19px; font-size:0.56rem; border-radius:5px;}
   .all-vocals-row .row-controls .trk-remove{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
   /* Live-recording row: sits right under the beat row while the mic is
@@ -409,6 +423,15 @@
     animation:record-pulse 1.1s ease-in-out infinite;
   }
   .all-vocals-row.live-row .wf-label{color:var(--gem);}
+  /* One shared playhead line sweeping across every lane at once, same
+     left-edge math as the big timeline above (position/total as a
+     percentage) -- the signature "all tracks move together" DAW-grid look. */
+  .all-vocals-rows-wrap{position:relative;}
+  .all-vocals-playhead{
+    position:absolute; top:0; bottom:0; width:2px; background:var(--cyan);
+    box-shadow:0 0 8px var(--cyan); pointer-events:none; z-index:5;
+    transform:translateX(-1px);
+  }
 
   .spectrum-shell{
     position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
@@ -1197,10 +1220,13 @@
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
           <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
-          <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
-          <div class="live-row" id="grid-live-row" hidden>
-            <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
-            <canvas id="grid-live-waveform" width="600" height="42"></canvas>
+          <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
+            <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
+            <div class="live-row" id="grid-live-row" hidden>
+              <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
+              <canvas id="grid-live-waveform" width="600" height="42"></canvas>
+            </div>
+            <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
           </div>
         </div>
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
@@ -2261,6 +2287,13 @@
     });
   }
   var beatSourceNode = null; // beat/instrumental AudioBufferSourceNode
+  // Which source's 'ended' event is trusted to auto-stop + reset plain
+  // straight-through playback. Normally the lead vocal (existing
+  // behavior); when there's no lead loaded yet -- e.g. previewing just
+  // the beat before recording anything -- this is the beat itself
+  // instead, so Play still auto-stops and resets cleanly rather than
+  // leaving the UI stuck showing "Pause" forever with no audio left.
+  var primaryEndedSrc = null;
   var beatBuffer = null;
   // Simple beat-vs-vocal audition controls -- independent of (and on top
   // of) the existing per-extra-track mute/solo, which is for balancing
@@ -4906,6 +4939,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // without leaving this view.
   var allVocalsStripEl = document.getElementById("all-vocals-strip");
   var allVocalsRowsEl = document.getElementById("all-vocals-rows");
+  var allVocalsPlayheadEl = document.getElementById("all-vocals-playhead");
   var gridLiveRowEl = document.getElementById("grid-live-row");
   var gridLiveCanvas = document.getElementById("grid-live-waveform");
   var leadTrackRowEl = document.getElementById("lead-track-row");
@@ -5538,7 +5572,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // this source has already been superseded by a newer play/stop/pause so a
   // stale 'ended' event from a prior take can't stomp on current state.
   function onLeadSourceEnded(srcRef){
-    if (!vocalSourceNodes.length || vocalSourceNodes[0].src !== srcRef) return;
+    if (srcRef !== primaryEndedSrc) return; // stale handler from a superseded take
     stopSourceOnly();
     stopBeatSourceOnly();
     if (isPlaying) releaseMixWiring();
@@ -5549,7 +5583,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
 
   function startPlayback(){
-    if (!audioBuffer) return;
+    // Used to require a lead vocal specifically -- so a beat loaded on its
+    // own (nothing recorded yet) couldn't be previewed at all. Any audio
+    // source at all (beat, lead, or an extra vocal) is enough to play.
+    if (currentTotalDuration() <= 0) return;
     var wasPlaying = isPlaying;
     withRunningContext(function(){
       try {
@@ -5575,16 +5612,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // extra track runs through its OWN full chain (vocalTrackInput), so its
       // knobs are independent -- otherwise extras share the lead's chain.
       vocalSourceNodes = [];
-      var leadSrc = makeTimedSource(audioBuffer, offset, region, loopWhole);
+      // No lead vocal loaded yet (beat-only preview) -- skip making a
+      // source for it entirely instead of handing makeTimedSource a null
+      // buffer, which would throw trying to read its .duration.
+      var leadSrc = audioBuffer ? makeTimedSource(audioBuffer, offset, region, loopWhole) : null;
       if (leadSrc){
         var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.input);
         leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
         vocalSourceNodes.push({src:leadSrc, gain:leadNodes.gain, pan:leadNodes.pan, ref:leadTrack});
-        // Plain play-through (no region, Loop off): stop cleanly when the
-        // lead reaches the end instead of silently looping forever.
-        if (!region && !loopWhole){
-          leadSrc.onended = function(){ onLeadSourceEnded(leadSrc); };
-        }
       }
 
       extraVocals.forEach(function(t){
@@ -5599,6 +5634,26 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         beatSourceNode = makeTimedSource(beatBuffer, offset, region, loopWhole);
         if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
+
+      // Plain play-through (no region, Loop off): stop cleanly when
+      // whichever source defines "the end" finishes, instead of silently
+      // looping forever or (beat-only, nothing else playing) leaving the
+      // UI stuck showing Pause with no audio left. That's normally the
+      // lead vocal's own end (existing behavior, unchanged); with no lead
+      // loaded, fall back to the beat's end instead.
+      // Snapshot into a local so the onended closure below captures THIS
+      // call's source, not the live outer variable -- a seek/restart calls
+      // startPlayback() again before the old source's async onended fires,
+      // which reassigns primaryEndedSrc out from under a closure that reads
+      // it directly, making the old source's stale onended think it's the
+      // current one and wrongly stop/reset playback (the actual cause of a
+      // past bug where FF/Rewind killed playback instead of seeking).
+      var thisPrimarySrc = leadSrc || beatSourceNode || null;
+      primaryEndedSrc = thisPrimarySrc;
+      if (!region && !loopWhole && thisPrimarySrc){
+        thisPrimarySrc.onended = function(){ onLeadSourceEnded(thisPrimarySrc); };
+      }
+
       // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
       var startAt = ctx.currentTime + 0.03;
       vocalSourceNodes.forEach(function(n){ n.src.start(startAt, n.src._offset); });
@@ -5644,6 +5699,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   function stopSourceOnly(){
     vocalSourceNodes.forEach(function(n){
+      // Detach onended BEFORE stop() -- an explicit stop (pause, or a
+      // seek/restart calling this on its way to starting a fresh source)
+      // still fires 'ended' asynchronously like a natural end would, and
+      // without this, that stale event reaches onLeadSourceEnded() and
+      // wrongly resets tlCursor to 0 / kills playback right after a pause
+      // or seek, stomping on the position stopPlayback() just saved.
+      try { n.src.onended = null; } catch(e){}
       try { n.src.stop(); } catch(e){}
       try { n.src.disconnect(); } catch(e){}
       try { n.gain.disconnect(); } catch(e){}
@@ -5654,6 +5716,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   function stopBeatSourceOnly(){
     if (beatSourceNode){
+      try { beatSourceNode.onended = null; } catch(e){} // see stopSourceOnly()
       try { beatSourceNode.stop(); } catch(e){}
       try { beatSourceNode.disconnect(); } catch(e){}
       beatSourceNode = null;
@@ -5823,6 +5886,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (isPlaying) tlPlayheadEl.style.left = tlPx(pos) + "px";
     }
     if (tlTimeEl) tlTimeEl.textContent = fmtClock(pos) + " / " + fmtClock(total);
+    // Same playhead, echoed across the track grid below -- one line
+    // sweeping through every lane at once, same left-edge math (left% =
+    // position/total) the rows already use to scale their own waveforms.
+    if (allVocalsPlayheadEl && allVocalsStripEl && !allVocalsStripEl.hidden){
+      allVocalsPlayheadEl.hidden = !isPlaying;
+      if (isPlaying && total > 0){
+        allVocalsPlayheadEl.style.left = (Math.min(1, pos / total) * 100) + "%";
+      }
+    }
     tlAutoFollowPlayhead();
     updateMiniTransport();
   }
