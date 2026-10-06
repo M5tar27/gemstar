@@ -5641,12 +5641,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
 
-      // Plain play-through (no region, Loop off): stop cleanly when
-      // whichever source defines "the end" finishes, instead of silently
-      // looping forever or (beat-only, nothing else playing) leaving the
-      // UI stuck showing Pause with no audio left. That's normally the
-      // lead vocal's own end (existing behavior, unchanged); with no lead
-      // loaded, fall back to the beat's end instead.
+      // Plain play-through (no region, Loop off): stop cleanly once the
+      // LONGEST track actually finishes -- not just whenever the lead
+      // vocal happens to end. This used to always key off the lead's own
+      // end (leadSrc || beatSourceNode, lead always wins if present), which
+      // quietly cut off EVERYTHING -- beat included, and any extra vocal
+      // longer than the lead -- the instant a short lead take finished,
+      // even though the timeline shows (and the user expects Play to run)
+      // the full mix's length. All sources start at the same instant with
+      // the same offset, so whichever buffer is longest is also the one
+      // that actually ends last -- that's the one "the end" should mean.
       // Snapshot into a local so the onended closure below captures THIS
       // call's source, not the live outer variable -- a seek/restart calls
       // startPlayback() again before the old source's async onended fires,
@@ -5654,9 +5658,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // it directly, making the old source's stale onended think it's the
       // current one and wrongly stop/reset playback (the actual cause of a
       // past bug where FF/Rewind killed playback instead of seeking).
-      var thisPrimarySrc = leadSrc || beatSourceNode || null;
+      var thisPrimarySrc = null;
+      if (!region && !loopWhole){
+        var longestDur = -1;
+        if (leadSrc && audioBuffer.duration > longestDur){ longestDur = audioBuffer.duration; thisPrimarySrc = leadSrc; }
+        vocalSourceNodes.forEach(function(n){
+          if (n.src !== leadSrc && n.ref && n.ref.buffer && n.ref.buffer.duration > longestDur){
+            longestDur = n.ref.buffer.duration; thisPrimarySrc = n.src;
+          }
+        });
+        if (beatSourceNode && beatBuffer.duration > longestDur){ longestDur = beatBuffer.duration; thisPrimarySrc = beatSourceNode; }
+      }
       primaryEndedSrc = thisPrimarySrc;
-      if (!region && !loopWhole && thisPrimarySrc){
+      if (thisPrimarySrc){
         thisPrimarySrc.onended = function(){ onLeadSourceEnded(thisPrimarySrc); };
       }
 
@@ -5740,7 +5754,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // its own before recording even began, leave it alone."
   var recordMonitorOwnsPlayback = false;
   function startRecordMonitor(){
-    if (mode !== "full") return;
+    // Used to bail out entirely unless in Full Song Mix mode -- but the
+    // branch right below already monitors every already-recorded vocal
+    // track (lead + extras) via the real transport, beat or no beat, and
+    // the beat-only branch after it only ever has anything to play when a
+    // beat is loaded (which itself only happens in Full mode). So the only
+    // real effect of this guard was silencing the monitor -- hearing
+    // nothing of what you already recorded -- the moment you were in Vocal
+    // Only mode, which is exactly the normal case for layering vocal
+    // harmonies/ad-libs with no beat at all.
     if (audioBuffer){
       if (isPlaying) return; // already playing on its own -- don't restart it from 0
       // Monitor from the top of the song, so the new take lines up with the
