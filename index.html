@@ -173,6 +173,25 @@
   #resume-project-yes:hover{opacity:0.88;}
   #resume-project-no:hover{color:var(--ink);}
 
+  /* Undo toast -- shown after removing or re-recording a track, so either
+     one is a safe, reversible action instead of "gone for good the instant
+     you tap". Same fixed-banner language as the MIDI-learn/resume banners
+     above, just anchored bottom-center and auto-dismissing. */
+  #undo-toast{
+    display:none; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center;
+    position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:520;
+    max-width:min(92vw, 420px); padding:12px 16px; border-radius:12px;
+    background:var(--bg-panel); border:1px solid var(--gem); box-shadow:0 12px 34px rgba(0,0,0,0.45);
+    font-size:0.82rem; color:var(--ink);
+  }
+  #undo-toast.show{display:flex;}
+  #undo-toast-text{color:var(--ink-muted);}
+  #undo-toast-btn{
+    background:var(--gem); border:1px solid var(--gem); color:#050508; font-weight:700;
+    border-radius:999px; padding:6px 14px; font-size:0.76rem; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  #undo-toast-btn:hover{opacity:0.88;}
+
   /* "My Projects" -- named, reopenable saves (separate from the single
      automatic "current session" backup used by Save Project above). */
   .projects-overlay{
@@ -408,12 +427,24 @@
   .all-vocals-row.beat-row{cursor:default; border-color:var(--line-gem);}
   .all-vocals-row.beat-row .wf-label{color:var(--gem);}
   .all-vocals-row .row-controls{
-    order:2; flex:0 0 auto; display:flex; align-items:center; gap:4px;
+    order:2; flex:0 0 auto; display:flex; align-items:center; gap:5px;
     padding:0 6px; background:rgba(255,255,255,0.03);
   }
-  .all-vocals-row .row-controls .trk-btn{width:19px; height:19px; font-size:0.56rem; border-radius:5px;}
+  /* Bumped up from 19x19 -- users (especially on mobile) reported these were
+     too small to reliably tap, particularly for the destructive/re-record
+     actions below. 28px matches a comfortable touch target while still
+     fitting four buttons (mute/solo/re-record/remove) in the 42px row. */
+  .all-vocals-row .row-controls .trk-btn{width:28px; height:28px; font-size:0.68rem; border-radius:6px;}
   .all-vocals-row .row-controls .trk-remove{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
+  .all-vocals-row .row-controls .trk-rerecord{color:var(--ink-dim);}
+  .all-vocals-row .row-controls .trk-rerecord:hover{color:var(--cyan); border-color:var(--cyan);}
+
+  /* Destructive-action styling for the standalone Remove-lead button (next
+     to "Change File") -- same danger color as the project-delete buttons,
+     so it reads as a one-way action without needing extra copy. */
+  .icon-btn.btn-danger{border-color:rgba(255,92,122,0.4); color:var(--danger);}
+  .icon-btn.btn-danger:hover{border-color:var(--danger); background:rgba(255,92,122,0.1);}
   /* Live-recording row: sits right under the beat row while the mic is
      capturing, drawn by the active recorder's meter loop -- same pulse
      animation/color language as the record-dot elsewhere in Gemstar (its
@@ -1013,6 +1044,11 @@
     <button type="button" id="resume-project-no" data-i18n="resumeProjectNo">Discard</button>
   </div>
 
+  <div id="undo-toast">
+    <span id="undo-toast-text"></span>
+    <button type="button" id="undo-toast-btn" data-i18n="undoToastBtn">Undo</button>
+  </div>
+
   <div id="projects-overlay" class="projects-overlay" hidden>
     <div class="projects-card">
       <button type="button" class="projects-close" id="projects-close" data-i18n-aria="projectsCloseAria" aria-label="Close">✕</button>
@@ -1125,6 +1161,7 @@
           <button type="button" class="pill-btn pill-cyan" id="btn-record-start" data-i18n="recordStart">Start Recording</button>
           <button type="button" class="pill-btn pill-purple" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
           <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
+          <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
       </div>
@@ -1211,6 +1248,8 @@
         <div class="track-row" id="lead-track-row">
           <span class="track-name" id="track-name"></span>
           <div class="transport-btns">
+            <button class="icon-btn small" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
+            <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
             <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
           </div>
         </div>
@@ -1611,6 +1650,9 @@
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
+      reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
+      removeLeadBtn:"🗑 Remove", removeLeadAria:"Remove the lead vocal",
+      undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
       tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
@@ -1789,6 +1831,9 @@
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
+      reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
+      removeLeadBtn:"🗑 Quitar", removeLeadAria:"Quitar la voz principal",
+      undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
       tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle · acerca el zoom para ediciones precisas en canciones largas",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
@@ -3950,7 +3995,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   dropzone.addEventListener("drop", function(e){
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   });
-  document.getElementById("btn-change").addEventListener("click", function(){
+  // Shared by "Change File" and "Remove" (when there's no other track to
+  // promote to lead) -- both land back at the same empty upload/record
+  // picker a fresh session starts from.
+  function resetToDropzone(){
     stopPlayback();
     playerBlock.hidden = true;
     if (inputModeRow) inputModeRow.hidden = false;
@@ -3958,7 +4006,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dropzone.hidden = false;
     fileInput.value = "";
     if (typeof miniTransportEl !== "undefined" && miniTransportEl) miniTransportEl.hidden = true;
-  });
+  }
+  document.getElementById("btn-change").addEventListener("click", resetToDropzone);
 
   /* ---------- in-browser vocal recording ---------- */
   var inputModeRow = document.getElementById("input-mode-row");
@@ -4398,6 +4447,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     document.getElementById("record-device-select"),
     document.getElementById("record-device-hint")
   );
+  // Set only while "🎤 Re-record" (on the lead row / grid) is driving the
+  // main record panel -- lets onCaptured below tell a genuine first
+  // recording apart from a stand-in replacement, so only the latter offers
+  // an Undo-back-to-the-old-take toast.
+  var reRecordLeadActive = false;
+  var reRecordLeadPrevSnapshot = null;
+  var btnRerecordCancel = document.getElementById("btn-rerecord-cancel");
   var mainRecorder = createVocalRecorder({
     startBtn: document.getElementById("btn-record-start"),
     stopBtn: document.getElementById("btn-record-stop"),
@@ -4409,7 +4465,62 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     hintEl: document.getElementById("record-hint"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
-    onCaptured: function(file){ handleFile(file, {loopJustRecorded: true}); }
+    onCaptured: function(file){
+      var wasReRecord = reRecordLeadActive;
+      var prevSnap = reRecordLeadPrevSnapshot;
+      var prevName = trackNameEl.textContent;
+      // handleFile() already preserves everything that makes a track a
+      // track -- pan/mute/solo/role and the FX knobs -- it only ever
+      // replaces the buffer/name/file, so it's exactly what a true in-place
+      // re-record needs with no extra plumbing.
+      handleFile(file, {loopJustRecorded: true}).then(function(){
+        reRecordLeadActive = false;
+        reRecordLeadPrevSnapshot = null;
+        if (btnRerecordCancel) btnRerecordCancel.hidden = true;
+        if (wasReRecord && prevSnap){
+          showUndoToast(STR[lang].trackReRecordedToast.replace("{name}", prevName), function(){
+            var wp = isPlaying;
+            if (wp) stopPlayback();
+            applyLeadSnapshot(prevSnap);
+            showPlayerForLoadedVocal();
+            afterVocalSetChanged();
+            if (wp) startPlayback();
+          });
+        }
+      });
+    }
+  });
+
+  // Jumps straight into recording a replacement take for the lead vocal,
+  // at any time -- not just right after first finishing one. Bypasses the
+  // upload/record picker entirely since there's already a lead loaded; the
+  // only way out besides finishing a take is the Cancel button shown next
+  // to Start/Stop while this is active.
+  function startReRecordLead(){
+    if (!audioBuffer) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    reRecordLeadPrevSnapshot = snapshotLead();
+    reRecordLeadActive = true;
+    mainRecorder.stop();
+    playerBlock.hidden = true;
+    if (inputModeRow) inputModeRow.hidden = true;
+    dropzone.hidden = true;
+    recordPanel.hidden = false;
+    if (btnRerecordCancel) btnRerecordCancel.hidden = false;
+    mainRecorder.refreshIdleHint();
+    mainDeviceSelector.populate();
+  }
+  document.getElementById("btn-rerecord-lead").addEventListener("click", startReRecordLead);
+  document.getElementById("btn-remove-lead").addEventListener("click", removeLeadVocal);
+  if (btnRerecordCancel) btnRerecordCancel.addEventListener("click", function(){
+    mainRecorder.stop();
+    recordPanel.hidden = true;
+    reRecordLeadActive = false;
+    reRecordLeadPrevSnapshot = null;
+    btnRerecordCancel.hidden = true;
+    if (audioBuffer) showPlayerForLoadedVocal();
+    else resetToDropzone();
   });
 
   function setInputMode(m){
@@ -4669,11 +4780,86 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     renderTrackEditTabs();
   }
 
-  function removeExtraVocal(t){
+  /* ---- Undo toast: a quick, always-available safety net shown after any
+     track removal or re-record, instead of those being instant/one-way
+     with no way back except the single global "Undo Last Track" button. ---- */
+  var undoToastEl = document.getElementById("undo-toast");
+  var undoToastTextEl = document.getElementById("undo-toast-text");
+  var undoToastBtnEl = document.getElementById("undo-toast-btn");
+  var undoToastTimer = null;
+  var undoToastAction = null;
+  function hideUndoToast(){
+    if (undoToastTimer){ clearTimeout(undoToastTimer); undoToastTimer = null; }
+    if (undoToastEl) undoToastEl.classList.remove("show");
+    undoToastAction = null;
+  }
+  function showUndoToast(message, onUndo){
+    if (!undoToastEl) return; // markup missing -- fail quietly, the action itself still completed
+    hideUndoToast();
+    undoToastAction = onUndo;
+    if (undoToastTextEl) undoToastTextEl.textContent = message;
+    undoToastEl.classList.add("show");
+    undoToastTimer = setTimeout(hideUndoToast, 8000);
+  }
+  if (undoToastBtnEl) undoToastBtnEl.addEventListener("click", function(){
+    var action = undoToastAction;
+    hideUndoToast();
+    if (action) action();
+  });
+
+  /* ---- Snapshot helpers: capture just enough of a track's state (lead or
+     extra) to put it back exactly as it was, used by both the Remove and
+     Re-record undo flows below. Buffers are AudioBuffers -- immutable once
+     decoded, so holding a reference to the old one costs nothing and never
+     drifts even after the slot's buffer is reassigned. ---- */
+  function snapshotLead(){
+    return {
+      buffer: audioBuffer, originalBuffer: leadTrack.originalBuffer, file: leadTrack._file,
+      name: trackNameEl.textContent, level: mainVocalLevel, values: Object.assign({}, leadValues),
+      pan: leadTrack.pan, muted: leadTrack.muted, solo: leadTrack.solo, role: leadTrack.role
+    };
+  }
+  function applyLeadSnapshot(s){
+    audioBuffer = s.buffer;
+    leadTrack.originalBuffer = s.originalBuffer;
+    leadTrack._file = s.file;
+    setLeadName(s.name);
+    mainVocalLevel = s.level;
+    leadValues = Object.assign({}, s.values);
+    leadTrack.pan = s.pan; leadTrack.muted = s.muted; leadTrack.solo = s.solo; leadTrack.role = s.role;
+    if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
+    if (editTarget === "lead") values = leadValues;
+    applyAllParams();
+  }
+  function snapshotExtra(t){
+    return {
+      id: t.id, name: t.name, buffer: t.buffer, level: t.level, values: Object.assign({}, t.values),
+      pan: t.pan, muted: t.muted, solo: t.solo, role: t.role, file: t._file, originalBuffer: t.originalBuffer
+    };
+  }
+  // Rebuilds a fresh track object from a snapshot and splices it back into
+  // extraVocals at (as close as possible to) its original index -- the
+  // chain is intentionally left null, same as pushExtraVocal(), and gets
+  // rebuilt by syncTrackChains() right after.
+  function restoreExtraFromSnapshot(snap, index){
+    var t = {id: snap.id, name: snap.name, buffer: snap.buffer, level: snap.level, _liveGain: null,
+             values: Object.assign({}, snap.values), chain: null,
+             pan: snap.pan, muted: snap.muted, solo: snap.solo, role: snap.role};
+    t._file = snap.file;
+    t.originalBuffer = snap.originalBuffer;
+    extraVocals.splice(Math.max(0, Math.min(index, extraVocals.length)), 0, t);
+    syncTrackChains();
+    return t;
+  }
+
+  function removeExtraVocal(t, opts){
+    opts = opts || {};
     var idx = extraVocals.indexOf(t);
     if (idx < 0) return;
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
+    var snap = opts.silent ? null : snapshotExtra(t);
+    var removedIdx = idx;
     if (t.chain) retireVocalChain(t.chain);
     t.chain = null;
     extraVocals.splice(idx, 1);
@@ -4681,6 +4867,77 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     renderExtraVocals();
     afterVocalSetChanged();
     if (wasPlaying) startPlayback();
+    if (!opts.silent){
+      showUndoToast(STR[lang].trackRemovedToast.replace("{name}", snap.name), function(){
+        var wp = isPlaying;
+        if (wp) stopPlayback();
+        restoreExtraFromSnapshot(snap, removedIdx);
+        renderExtraVocals();
+        afterVocalSetChanged();
+        if (wp) startPlayback();
+      });
+    }
+  }
+
+  // Removing the lead works differently depending on whether there's
+  // another vocal track to take its place: promote the next track to lead
+  // (nothing lost, same as tapping "Make Lead" on it, then discarding what
+  // used to be the lead), or -- if this is the only vocal -- clear back to
+  // the empty/dropzone state, same place you'd land before loading anything.
+  // Either way it's undoable via the same toast as removing an extra track.
+  function removeLeadVocal(){
+    if (!audioBuffer) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    var removedName = trackNameEl.textContent;
+    var leadSnap = snapshotLead();
+    if (extraVocals.length > 0){
+      var promotedSnap = snapshotExtra(extraVocals[0]);
+      var promoted = extraVocals.shift();
+      if (promoted.chain) retireVocalChain(promoted.chain);
+      promoted.chain = null;
+      audioBuffer = promotedSnap.buffer;
+      leadTrack.originalBuffer = promotedSnap.originalBuffer || null;
+      leadTrack._file = promotedSnap.file;
+      setLeadName(promotedSnap.name);
+      mainVocalLevel = promotedSnap.level;
+      leadValues = Object.assign({}, promotedSnap.values);
+      leadTrack.pan = promotedSnap.pan; leadTrack.muted = promotedSnap.muted;
+      leadTrack.solo = promotedSnap.solo; leadTrack.role = promotedSnap.role;
+      if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
+      if (editTarget === "lead") values = leadValues;
+      setEditTarget("lead");
+      applyAllParams();
+      renderExtraVocals();
+      afterVocalSetChanged();
+      if (wasPlaying) startPlayback();
+      showUndoToast(STR[lang].trackRemovedToast.replace("{name}", removedName), function(){
+        var wp = isPlaying;
+        if (wp) stopPlayback();
+        restoreExtraFromSnapshot(promotedSnap, 0);
+        applyLeadSnapshot(leadSnap);
+        renderExtraVocals();
+        afterVocalSetChanged();
+        if (wp) startPlayback();
+      });
+    } else {
+      audioBuffer = null;
+      leadTrack.originalBuffer = null;
+      leadTrack._file = null;
+      leadTrack.pan = 0; leadTrack.muted = false; leadTrack.solo = false; leadTrack.role = "";
+      setLeadName("");
+      mainVocalLevel = 1;
+      leadValues = Object.assign({}, DEFAULT_VALUES);
+      if (editTarget === "lead") values = leadValues;
+      if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
+      resetToDropzone();
+      afterVocalSetChanged();
+      showUndoToast(STR[lang].trackRemovedToast.replace("{name}", removedName), function(){
+        applyLeadSnapshot(leadSnap);
+        showPlayerForLoadedVocal();
+        afterVocalSetChanged();
+      });
+    }
   }
 
   // Swap which vocal is the lead. Everything that belongs to a track travels
@@ -4793,6 +5050,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     document.getElementById("extra-record-device-select"),
     document.getElementById("extra-record-device-hint")
   );
+  // When set, the extra-vocal record panel is replacing THIS track's audio
+  // in place (re-record) rather than adding a brand new one -- see
+  // startReRecordExtra() below. reRecordExtraPrev* holds what the track's
+  // buffer/file were right before this re-record session started, so the
+  // panel's own in-place "Re-record" (onRetry) and the post-capture Undo
+  // toast can both put it back exactly as it was.
+  var reRecordExtraTarget = null;
+  var reRecordExtraPrevBuffer = null;
+  var reRecordExtraPrevFile = null;
   var extraRecorder = createVocalRecorder({
     startBtn: document.getElementById("extra-btn-record-start"),
     stopBtn: document.getElementById("extra-btn-record-stop"),
@@ -4805,6 +5071,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
     canStart: function(){
+      if (reRecordExtraTarget) return true; // replacing an existing track, not adding one -- the track-count cap doesn't apply
       if (totalVocalTrackCount() >= maxVocalTracks()){
         alert(STR[lang].recordCapReached
           .replace("{max}", String(maxVocalTracks()))
@@ -4817,6 +5084,32 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // without it, hitting Re-record just recorded a SECOND take on top of
     // the first instead of replacing it.
     onCaptured: function(file){
+      if (reRecordExtraTarget){
+        var target = reRecordExtraTarget;
+        var prevBuf = reRecordExtraPrevBuffer, prevFile = reRecordExtraPrevFile;
+        decodeAudioFile(file).then(function(buf){
+          if (!buf){ audioReadError(); return; }
+          var wasPlaying = isPlaying;
+          if (wasPlaying) stopPlayback();
+          target.buffer = buf;
+          target._file = file;
+          target.originalBuffer = null; // fresh take -- any pending "Clean Silence" undo on the old audio no longer applies
+          renderExtraVocals();
+          afterVocalSetChanged();
+          if (wasPlaying) startPlayback();
+          loopJustRecordedSection(buf.duration);
+          showUndoToast(STR[lang].trackReRecordedToast.replace("{name}", target.name), function(){
+            var wp = isPlaying;
+            if (wp) stopPlayback();
+            target.buffer = prevBuf;
+            target._file = prevFile;
+            renderExtraVocals();
+            afterVocalSetChanged();
+            if (wp) startPlayback();
+          });
+        });
+        return;
+      }
       addExtraVocalFromFile(file).then(function(t){
         lastCapturedExtraVocal = t;
         if (t && t.buffer) loopJustRecordedSection(t.buffer.duration);
@@ -4828,13 +5121,35 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // Cancel is what closes it once you're happy with the take.
     },
     onRetry: function(){
+      if (reRecordExtraTarget){
+        reRecordExtraTarget.buffer = reRecordExtraPrevBuffer;
+        reRecordExtraTarget._file = reRecordExtraPrevFile;
+        renderExtraVocals();
+        afterVocalSetChanged();
+        return;
+      }
       if (lastCapturedExtraVocal){
-        removeExtraVocal(lastCapturedExtraVocal);
+        removeExtraVocal(lastCapturedExtraVocal, {silent: true});
         lastCapturedExtraVocal = null;
       }
     }
   });
   var lastCapturedExtraVocal = null;
+
+  // Jumps straight into recording a replacement take for one existing
+  // background/harmony track, at any time -- reuses the same record panel
+  // as "+ Record Vocal Track" above, just tagged with which track it's
+  // standing in for instead of appending a new one.
+  function startReRecordExtra(t){
+    reRecordExtraTarget = t;
+    reRecordExtraPrevBuffer = t.buffer;
+    reRecordExtraPrevFile = t._file;
+    lastCapturedExtraVocal = null;
+    if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
+    extraRecordPanel.hidden = false;
+    extraRecorder.refreshIdleHint();
+    extraDeviceSelector.populate();
+  }
 
   if (btnRecordAddVocal){
     btnRecordAddVocal.addEventListener("click", function(){
@@ -4844,6 +5159,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           .replace("{plan}", planLabelFor(currentPlan)));
         return;
       }
+      reRecordExtraTarget = null; // starting a new track, not replacing one
       lastCapturedExtraVocal = null; // starting fresh -- nothing here to undo yet
       if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
       extraRecordPanel.hidden = false;
@@ -4855,6 +5171,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     extraBtnRecordCancel.addEventListener("click", function(){
       extraRecorder.stop();
       extraRecordPanel.hidden = true;
+      reRecordExtraTarget = null;
       lastCapturedExtraVocal = null; // panel's closed -- too late to undo via Re-record now
     });
   }
@@ -4916,10 +5233,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       var volKnob = buildVolumeKnob(t, t.name, refreshLiveMix);
 
+      var reRecBtn = document.createElement("button");
+      reRecBtn.type = "button";
+      reRecBtn.className = "icon-btn small btn-rerecord-vocal";
+      reRecBtn.textContent = STR[lang].reRecordBtn;
+      reRecBtn.setAttribute("aria-label", STR[lang].reRecordAria + " " + t.name);
+      reRecBtn.addEventListener("click", function(){ startReRecordExtra(t); });
+
       var rmBtn = document.createElement("button");
       rmBtn.type = "button";
-      rmBtn.className = "icon-btn small btn-remove-vocal";
-      rmBtn.textContent = "✕";
+      rmBtn.className = "icon-btn small btn-remove-vocal btn-danger";
+      rmBtn.textContent = "🗑";
       rmBtn.setAttribute("aria-label", STR[lang].removeVocalTrack + " " + t.name);
       rmBtn.addEventListener("click", function(){ removeExtraVocal(t); });
 
@@ -4928,6 +5252,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       row.appendChild(buildTrackCtl(t, row));
       row.appendChild(leadBtn);
       if (fxBtn) row.appendChild(fxBtn);
+      row.appendChild(reRecBtn);
       row.appendChild(rmBtn);
       row.classList.toggle("is-muted", trackOutGain(t) === 0 && !!(t.muted || anySolo() || vocalGroupMuted || beatSolo));
       extraVocalsListEl.appendChild(row);
@@ -5038,21 +5363,31 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           refreshLiveMix();
           renderExtraVocals();
         }));
-        // Undo, right on the row -- an extra vocal take can be pulled back
-        // out from wherever it sits in the grid, not just the most recent
-        // one via the single "Undo Last Track" button elsewhere.
-        if (tr !== leadTrack){
-          var removeBtn = document.createElement("button");
-          removeBtn.type = "button";
-          removeBtn.className = "trk-btn trk-remove";
-          removeBtn.textContent = "↺";
-          removeBtn.setAttribute("aria-label", STR[lang].removeVocalTrack + " " + name);
-          removeBtn.addEventListener("click", function(e){
-            e.stopPropagation();
-            removeExtraVocal(tr);
-          });
-          controls.appendChild(removeBtn);
-        }
+        // Re-record and Remove, right on the row, for every track -- lead
+        // included. Both are safe: removing shows an Undo toast (see
+        // removeExtraVocal/removeLeadVocal), and re-recording replaces just
+        // that track's audio in place, keeping its FX/level/pan/role.
+        var reRecBtn = document.createElement("button");
+        reRecBtn.type = "button";
+        reRecBtn.className = "trk-btn trk-rerecord";
+        reRecBtn.textContent = "🎤";
+        reRecBtn.setAttribute("aria-label", STR[lang].reRecordAria + " " + name);
+        reRecBtn.addEventListener("click", function(e){
+          e.stopPropagation();
+          if (tr === leadTrack) startReRecordLead(); else startReRecordExtra(tr);
+        });
+        controls.appendChild(reRecBtn);
+
+        var removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "trk-btn trk-remove";
+        removeBtn.textContent = "🗑";
+        removeBtn.setAttribute("aria-label", STR[lang].removeVocalTrack + " " + name);
+        removeBtn.addEventListener("click", function(e){
+          e.stopPropagation();
+          if (tr === leadTrack) removeLeadVocal(); else removeExtraVocal(tr);
+        });
+        controls.appendChild(removeBtn);
       }
       row.appendChild(controls);
       if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
