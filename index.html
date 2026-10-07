@@ -355,6 +355,7 @@
   }
   .record-controls{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
   .record-hint{margin:0; color:var(--ink-dim); font-size:0.82rem; max-width:42ch;}
+  .record-bt-warn{color:var(--yellow); font-weight:600; max-width:48ch;}
   .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
   .record-device-row select{width:100%; padding:9px 14px; font-size:0.74rem;}
   .record-device-hint{margin:0; color:var(--cyan); font-size:0.72rem; letter-spacing:0.02em; min-height:1em;}
@@ -1172,6 +1173,7 @@
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
+        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
       </div>
 
       <div class="beat-drop" id="beat-drop" tabindex="0" role="button" aria-label="Upload beat or instrumental" hidden>
@@ -1251,6 +1253,7 @@
             <button type="button" class="icon-btn small" id="extra-btn-record-cancel" data-i18n="recordCancel">Cancel</button>
           </div>
           <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
+          <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
         </div>
 
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
@@ -1585,6 +1588,7 @@
       recordHintIdle:"Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
+      recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -1770,6 +1774,7 @@
       recordHintIdle:"Toca Empezar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
+      recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -4161,6 +4166,32 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     };
   }
 
+  // Bluetooth mic/headset profiles add real round-trip delay (commonly
+  // 100-300ms for HFP earbuds) on top of whatever the system already has --
+  // enough to visibly drift a vocal take out of time against a beat that's
+  // just scheduled, sample-accurate playback (see ensureContext() above).
+  // There's no direct "is this Bluetooth" flag in the MediaDevices API, so
+  // this is a best-effort label sniff: once mic permission is granted, the
+  // browser reveals the real device/output name, and wireless hardware
+  // almost always says so somewhere in it.
+  var BT_DEVICE_HINTS = ["bluetooth", "airpods", "wireless", "hands-free", "hands free", "hfp", "a2dp", "earbuds", "galaxy buds", "pixel buds", "beats"];
+  function looksLikeBluetoothLabel(label){
+    if (!label) return false;
+    var l = label.toLowerCase();
+    return BT_DEVICE_HINTS.some(function(h){ return l.indexOf(h) !== -1; });
+  }
+  // Secondary, async, best-effort check: the mic track's own label (checked
+  // synchronously in onStreamAcquired) catches a Bluetooth MIC, but someone
+  // tracking with a wired interface while monitoring on Bluetooth
+  // headphones is just as likely to drift -- this catches that half too.
+  // Silently does nothing if the browser can't/won't report output devices.
+  function checkOutputBluetooth(cb){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices){ cb(false); return; }
+    navigator.mediaDevices.enumerateDevices().then(function(devices){
+      cb(devices.some(function(d){ return d.kind === "audiooutput" && looksLikeBluetoothLabel(d.label); }));
+    }).catch(function(){ cb(false); });
+  }
+
   /* Reusable mic-recorder: wires one set of controls (start/stop/retry/dot/
      timer/meter/hint) to getUserMedia + a raw PCM capture node, and hands
      the finished take to onCaptured(file) as a real File — same object
@@ -4277,6 +4308,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (opts.startBtn) opts.startBtn.hidden = false;
       if (opts.stopBtn) opts.stopBtn.hidden = true;
       if (opts.timeEl) opts.timeEl.textContent = "00:00";
+      if (opts.btWarnEl) opts.btWarnEl.hidden = true;
     }
 
     // Force-stop with no save — used when switching modes, hitting Change
@@ -4332,6 +4364,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function onStreamAcquired(stream){
       recordStream = stream;
       ensureContext();
+
+      if (opts.btWarnEl){
+        var micTrack = stream.getAudioTracks()[0];
+        var inputIsBt = looksLikeBluetoothLabel(micTrack && micTrack.label);
+        opts.btWarnEl.hidden = !inputIsBt;
+        if (!inputIsBt){
+          checkOutputBluetooth(function(outIsBt){
+            if (outIsBt) opts.btWarnEl.hidden = false;
+          });
+        }
+      }
 
       recordSrcNode = ctx.createMediaStreamSource(stream);
       recordAnalyser = ctx.createAnalyser();
@@ -4484,6 +4527,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     meterBar: document.getElementById("record-meter-bar"),
     waveformCanvas: document.getElementById("record-waveform"),
     hintEl: document.getElementById("record-hint"),
+    btWarnEl: document.getElementById("record-bt-warn"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
     onCaptured: function(file){
@@ -5090,6 +5134,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     meterBar: document.getElementById("extra-record-meter-bar"),
     waveformCanvas: document.getElementById("extra-record-waveform"),
     hintEl: document.getElementById("extra-record-hint"),
+    btWarnEl: document.getElementById("extra-record-bt-warn"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
     canStart: function(){
