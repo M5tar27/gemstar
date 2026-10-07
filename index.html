@@ -359,6 +359,9 @@
   .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
   .record-device-row select{width:100%; padding:9px 14px; font-size:0.74rem;}
   .record-device-hint{margin:0; color:var(--cyan); font-size:0.72rem; letter-spacing:0.02em; min-height:1em;}
+  .record-fx-monitor-row{display:flex; align-items:center; gap:8px; font-size:0.8rem; cursor:pointer; user-select:none;}
+  .record-fx-monitor-row input[type=checkbox]{width:16px; height:16px; cursor:pointer;}
+  .record-fx-monitor-hint{color:var(--yellow); font-size:0.72rem; max-width:46ch; text-align:center;}
 
   .extra-vocal-add-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;}
   .record-panel-compact{padding:16px 14px; margin-top:10px; gap:10px;}
@@ -1166,6 +1169,11 @@
           <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
           <p class="record-device-hint" id="record-device-hint"></p>
         </div>
+        <label class="record-fx-monitor-row">
+          <input type="checkbox" id="record-fx-monitor" />
+          <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
+        </label>
+        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
         <div class="record-controls">
           <button type="button" class="pill-btn pill-cyan" id="btn-record-start" data-i18n="recordStart">Start Recording</button>
           <button type="button" class="pill-btn pill-purple" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1246,6 +1254,11 @@
             <select id="extra-record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
             <p class="record-device-hint" id="extra-record-device-hint"></p>
           </div>
+          <label class="record-fx-monitor-row">
+            <input type="checkbox" id="extra-record-fx-monitor" />
+            <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
+          </label>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
           <div class="record-controls">
             <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
             <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1589,6 +1602,8 @@
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
       recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
+      recordFxMonitorLabel:"🎧 Hear a touch of reverb while tracking",
+      recordFxMonitorHint:"Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -1775,6 +1790,8 @@
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
       recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
+      recordFxMonitorLabel:"🎧 Escuchar un toque de reverb mientras grabas",
+      recordFxMonitorHint:"Solo afecta lo que escuchas — nunca lo que se graba. Solo con audífonos: déjalo apagado si usas bocinas, o tendrás retroalimentación (feedback).",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -4207,6 +4224,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var recordSrcNode = null;
     var captureNode = null;
     var silentGain = null;
+    var monitorFxDry = null, monitorFxConv = null, monitorFxWet = null, monitorFxOut = null;
     var pcmChunks = [];
     var pcmLength = 0;
     var recording = false;
@@ -4251,6 +4269,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         captureNode = null;
       }
       if (silentGain){ try{ silentGain.disconnect(); }catch(e){} silentGain = null; }
+      if (monitorFxOut){
+        try{ monitorFxDry.disconnect(); }catch(e){}
+        try{ monitorFxConv.disconnect(); }catch(e){}
+        try{ monitorFxWet.disconnect(); }catch(e){}
+        try{ monitorFxOut.disconnect(); }catch(e){}
+        monitorFxDry = monitorFxConv = monitorFxWet = monitorFxOut = null;
+      }
     }
     var meterData = null; // allocated once per recorder when the analyser is created, not every frame
     var meterFrameCount = 0; // throttles the (expensive, shadowBlur) live-trace redraws below -- see meterLoop()
@@ -4406,6 +4431,29 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         // silent tap), so nothing about this can bleed into or corrupt the
         // take actually being recorded, even if the monitor itself stutters.
         startRecordMonitor();
+
+        // Optional, OFF-by-default monitor-only touch of reverb: a separate
+        // live tap off recordSrcNode straight to speakers, same idea as the
+        // silent capture tap above but actually audible instead of gain-0.
+        // It never joins the capture path (pcmChunks only ever comes from
+        // captureNode), so nothing here can end up in the recorded take or
+        // the export -- it's purely what you hear while singing. Rebuilt
+        // fresh every take and torn down in stopCapture() rather than left
+        // connected, and deliberately not persisted across sessions (the
+        // checkbox just starts unchecked on page load) -- this is live mic
+        // audible monitoring, which WILL howl/feedback on speakers, so it
+        // should always be a conscious, per-session opt-in, never a setting
+        // that quietly carries over.
+        if (opts.fxMonitorCheckbox && opts.fxMonitorCheckbox.checked){
+          monitorFxDry = ctx.createGain(); monitorFxDry.gain.value = 0.5;
+          monitorFxWet = ctx.createGain(); monitorFxWet.gain.value = 0.22;
+          monitorFxConv = ctx.createConvolver();
+          monitorFxConv.buffer = getReverbBuffer(0.9, 2.2, 1);
+          monitorFxOut = ctx.createGain(); monitorFxOut.gain.value = 1;
+          recordSrcNode.connect(monitorFxDry); monitorFxDry.connect(monitorFxOut);
+          recordSrcNode.connect(monitorFxConv); monitorFxConv.connect(monitorFxWet); monitorFxWet.connect(monitorFxOut);
+          monitorFxOut.connect(ctx.destination);
+        }
         if (captureNode.port){
           // AudioWorkletNode path — runs on the audio thread, samples arrive
           // here already sliced into per-quantum Float32Arrays.
@@ -4528,6 +4576,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     waveformCanvas: document.getElementById("record-waveform"),
     hintEl: document.getElementById("record-hint"),
     btWarnEl: document.getElementById("record-bt-warn"),
+    fxMonitorCheckbox: document.getElementById("record-fx-monitor"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
     onCaptured: function(file){
@@ -5135,6 +5184,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     waveformCanvas: document.getElementById("extra-record-waveform"),
     hintEl: document.getElementById("extra-record-hint"),
     btWarnEl: document.getElementById("extra-record-bt-warn"),
+    fxMonitorCheckbox: document.getElementById("extra-record-fx-monitor"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
     canStart: function(){
