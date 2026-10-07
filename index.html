@@ -644,6 +644,14 @@
     display:flex; flex-direction:column; gap:10px;
   }
   .vocal-mixer .controls-heading{ text-align:left; margin:0; }
+  .ai-mix-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .icon-btn.btn-ai-mix{
+    background:linear-gradient(90deg, var(--cyan), var(--gem)); border:none; color:#050508; font-weight:700;
+    flex-shrink:0;
+  }
+  .icon-btn.btn-ai-mix:hover{opacity:0.88; color:#050508;}
+  .icon-btn.btn-ai-mix:disabled{background:var(--bg-panel-2); color:var(--ink-dim); opacity:0.6; cursor:not-allowed;}
+  .ai-mix-hint{margin-top:-4px;}
   .extra-vocal-row input[type=range]{ flex:1 1 auto; max-width:220px; accent-color:var(--gem); cursor:pointer; }
   .btn-remove-vocal{ padding:6px 10px !important; }
   .vocal-cap-note{
@@ -1197,7 +1205,11 @@
       </div>
 
       <div class="vocal-mixer" id="vocal-mixer" hidden>
-        <p class="controls-heading" data-i18n="vocalMixerHeading">Vocal Mixer</p>
+        <div class="ai-mix-row">
+          <p class="controls-heading" data-i18n="vocalMixerHeading">Vocal Mixer</p>
+          <button type="button" class="icon-btn small btn-ai-mix" id="btn-ai-mix" data-i18n="aiMixBtn" data-i18n-aria="aiMixAria" aria-label="AI Mix: automatically balance levels, pan and tone across every track">✨ AI Mix</button>
+        </div>
+        <p class="vocal-cap-note ai-mix-hint" data-i18n="aiMixHint">Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.</p>
         <div class="slider-row vocal-track-row lead-row">
           <span class="vocal-track-label"><span class="lead-badge" data-i18n="leadBadge">★ Lead</span><span class="vocal-track-name" id="lead-track-name"></span></span>
           <input type="range" id="lead-vocal-level" min="0" max="100" value="100" aria-label="Lead vocal level" />
@@ -1649,6 +1661,9 @@
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
       planOptStarter:"Starter · 1 vocal track", planOptMix:"Mix · 3 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
+      aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
+      aiMixHint:"Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.",
+      aiMixAppliedToast:"✨ AI Mix applied",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
@@ -1831,6 +1846,9 @@
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
       planOptStarter:"Inicial · 1 pista vocal", planOptMix:"Mix · 3 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
+      aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
+      aiMixHint:"Equilibra niveles, panorama y tono en cada pista (y en la pista instrumental, si hay una) con un toque. Se puede deshacer.",
+      aiMixAppliedToast:"✨ Mezcla IA aplicada",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
@@ -4746,6 +4764,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (btnAddVocal) btnAddVocal.disabled = count >= max;
     if (btnRecordAddVocal) btnRecordAddVocal.disabled = count >= max;
     if (btnUndoLastVocal) btnUndoLastVocal.hidden = extraVocals.length === 0;
+    if (btnAiMix) btnAiMix.disabled = !audioBuffer;
     if (count >= max && extraRecordPanel && !extraRecordPanel.hidden){
       extraRecorder.stop();
       extraRecordPanel.hidden = true;
@@ -5184,6 +5203,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var last = extraVocals[extraVocals.length - 1];
       if (lastCapturedExtraVocal === last) lastCapturedExtraVocal = null;
       removeExtraVocal(last);
+    });
+  }
+  var btnAiMix = document.getElementById("btn-ai-mix");
+  if (btnAiMix){
+    btnAiMix.addEventListener("click", function(){
+      if (!isTierAtLeast("mix")){ openTierGate("aiMix"); return; }
+      if (!audioBuffer) return;
+      runAiMix();
     });
   }
 
@@ -5632,6 +5659,138 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
     renderExtraVocals();
     scheduleSave();
+  }
+
+  // Tells an ad-lib apart from a background/double harmony using nothing
+  // but timing -- there's no pitch/lyric understanding here, just how much
+  // of the whole take this track is actually singing. A background/double
+  // runs through most of the lead's performance; an ad-lib is a handful of
+  // short fills, so its duty cycle reads much lower -- relative to the
+  // lead's own duty cycle (so a sparse-sounding lead doesn't make every
+  // extra track look like an ad-lib by comparison), with a low absolute
+  // floor as a backstop for a lead that's sung nearly wall-to-wall.
+  function classifyExtraRole(activity, leadActivity){
+    var referenceDuty = Math.max(leadActivity.duty, 0.2);
+    if (activity.duty < referenceDuty * 0.45 || activity.duty < 0.15) return "adlib";
+    return "background";
+  }
+
+  // A role preset's `level` is a design target ("backgrounds sit at 60% of
+  // a normally-recorded fader"), not an absolute loudness -- two different
+  // people's raw takes can differ by a lot depending on mic/gain/room. This
+  // scales that target by how loud the track actually measured (its
+  // active-only RMS, from analyzeTrackActivity above) relative to a typical
+  // well-gain-staged take, so a quiet recording gets pulled up toward where
+  // it SHOULD sit and a hot one gets pulled back, instead of every track
+  // just getting the same flat fader value regardless of how it was
+  // recorded. Capped at 1.0 because that's the real ceiling on this fader
+  // in the UI (see buildVolumeKnob/lead-vocal-level) -- an extremely quiet
+  // take may still end up topped out rather than reaching the true target.
+  var AI_MIX_REFERENCE_RMS = 0.12;
+  var AI_MIX_MIN_LEVEL = 0.05, AI_MIX_MAX_LEVEL = 1.0;
+  function aiMixLevelFor(role, measuredActiveRms){
+    var preset = ROLE_PRESETS[role] || ROLE_PRESETS.background;
+    if (!measuredActiveRms) return preset.level;
+    var raw = preset.level * (AI_MIX_REFERENCE_RMS / measuredActiveRms);
+    return Math.max(AI_MIX_MIN_LEVEL, Math.min(AI_MIX_MAX_LEVEL, raw));
+  }
+
+  // "AI Mix" -- one tap, before you head to export: auto-detects a role for
+  // any track that doesn't already have one (respecting whatever you've
+  // already tagged by hand), then re-levels/re-pans/re-knobs EVERY track
+  // from scratch based on its role and how loud it actually measured, plus
+  // balances the beat against the vocal bed if one's loaded. Always
+  // reversible in one tap -- see the Undo toast at the end.
+  function runAiMix(){
+    if (!audioBuffer) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+
+    var leadSnap = snapshotLead();
+    var extraMixSnaps = extraVocals.map(function(t){
+      return {t: t, role: t.role, level: t.level, pan: t.pan, values: Object.assign({}, t.values)};
+    });
+    var beatLevelBefore = beatLevelSlider ? beatLevelSlider.value : null;
+
+    var leadActivity = analyzeTrackActivity(audioBuffer);
+
+    // 1) Fill in a role for anything untagged -- spreading multiple
+    // background-ish tracks across doubleL/doubleR as they stack up so
+    // several harmonies/doubles don't all pile up dead center.
+    var widenCount = 0;
+    extraVocals.forEach(function(t){
+      if (t.role) return;
+      var activity = analyzeTrackActivity(t.buffer);
+      var detected = classifyExtraRole(activity, leadActivity);
+      if (detected === "adlib"){
+        t.role = "adlib";
+      } else if (widenCount === 0){
+        t.role = "background";
+        widenCount++;
+      } else {
+        t.role = (widenCount % 2 === 1) ? "doubleL" : "doubleR";
+        widenCount++;
+      }
+    });
+    if (!leadTrack.role) leadTrack.role = "lead";
+
+    // 2) Re-level/re-pan/re-knob everything, including tracks you've
+    // already hand-tuned -- this is a full recalculation, not a fill-in,
+    // and the Undo toast at the end is what makes that safe to do.
+    function applyRoleRecipe(role, values){
+      var preset = ROLE_PRESETS[role] || ROLE_PRESETS.background;
+      Object.keys(preset.knobs).forEach(function(k){ values[k] = preset.knobs[k]; });
+      return preset;
+    }
+    var leadPreset = applyRoleRecipe(leadTrack.role, leadValues);
+    mainVocalLevel = aiMixLevelFor(leadTrack.role, leadActivity.activeRms);
+    leadTrack.pan = leadPreset.pan;
+    if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
+
+    extraVocals.forEach(function(t){
+      var activity = analyzeTrackActivity(t.buffer);
+      var preset = applyRoleRecipe(t.role, t.values);
+      t.level = aiMixLevelFor(t.role, activity.activeRms);
+      t.pan = preset.pan;
+    });
+
+    // 3) Balance the beat against that vocal bed, if one's loaded -- a
+    // single static level decision made once here, not the continuous
+    // ducking that used to live in runVisualizer()'s frame() (removed
+    // earlier because it made the beat audibly pump under every word).
+    if (beatBuffer && beatLevelSlider){
+      var beatActivity = analyzeTrackActivity(beatBuffer);
+      if (beatActivity.activeRms){
+        var desiredMult = AI_MIX_REFERENCE_RMS / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies
+        var pct = Math.max(10, Math.min(100, Math.round((desiredMult / 1.1) * 100)));
+        beatLevelSlider.value = String(pct);
+      }
+    }
+
+    if (editTarget === "lead") values = leadValues;
+    applyAllParams();
+    applyBeatLevel();
+    setEditTarget(editTarget); // redraws knobs/tabs for whichever track is on screen, now with the new values
+    afterVocalSetChanged();
+    scheduleSave();
+    if (wasPlaying) startPlayback();
+
+    showUndoToast(STR[lang].aiMixAppliedToast, function(){
+      var wp = isPlaying;
+      if (wp) stopPlayback();
+      applyLeadSnapshot(leadSnap);
+      extraMixSnaps.forEach(function(s){
+        s.t.role = s.role; s.t.level = s.level; s.t.pan = s.pan;
+        Object.assign(s.t.values, s.values);
+        if (s.t.chain) applyParamsTo(s.t.chain, s.t.values);
+      });
+      if (beatLevelBefore !== null && beatLevelSlider){ beatLevelSlider.value = beatLevelBefore; applyBeatLevel(); }
+      if (editTarget === "lead") values = leadValues;
+      setEditTarget(editTarget);
+      afterVocalSetChanged();
+      scheduleSave();
+      if (wp) startPlayback();
+    });
   }
 
   function applyPlanLimit(){
@@ -7768,6 +7927,42 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     return {buffer: out, silencedFraction: n ? silenced / n : 0};
   }
 
+  // Shares stripSilence()'s windowed-RMS/adaptive-threshold approach above,
+  // just coarser (50ms vs 10ms windows -- plenty for comparing timing/level
+  // between tracks) and without the pre/post-roll padding, since what AI
+  // Mix (below) needs is each window's plain on/off activity, not a
+  // click-free gate. activeRms -- the loudness of only the SUNG parts, with
+  // silence excluded -- is what makes level-matching between two different
+  // recordings (different mic gain, different room) actually work; a plain
+  // whole-buffer RMS would get dragged down by however much dead air each
+  // one happens to have.
+  function analyzeTrackActivity(buf){
+    if (!buf) return {active: new Uint8Array(0), win: 1, nw: 0, duty: 0, activeRms: 0};
+    var sr = buf.sampleRate, n = buf.length, nch = buf.numberOfChannels;
+    var win = Math.max(1, Math.round(sr * 0.05)), nw = Math.ceil(n / win);
+    var chans = [];
+    for (var c = 0; c < nch; c++) chans.push(buf.getChannelData(c));
+    var rms = new Float32Array(nw);
+    for (var w = 0; w < nw; w++){
+      var a = w * win, b = Math.min(n, a + win), sum = 0;
+      for (c = 0; c < nch; c++){ var d = chans[c]; for (var i = a; i < b; i++) sum += d[i]*d[i]; }
+      rms[w] = Math.sqrt(sum / Math.max(1, (b - a) * nch));
+    }
+    var sorted = Array.prototype.slice.call(rms).sort(function(x, y){ return x - y; });
+    var ref = sorted[Math.floor(sorted.length * 0.9)] || 0;
+    var thr = Math.max(0.0015, ref * 0.0316); // same -30dB-under-typical-level rule as stripSilence()
+    var active = new Uint8Array(nw), activeSumSq = 0, activeCount = 0;
+    for (w = 0; w < nw; w++){
+      active[w] = rms[w] > thr ? 1 : 0;
+      if (active[w]){ activeSumSq += rms[w]*rms[w]; activeCount++; }
+    }
+    return {
+      active: active, win: win, nw: nw,
+      duty: nw ? activeCount / nw : 0,
+      activeRms: activeCount ? Math.sqrt(activeSumSq / activeCount) : 0
+    };
+  }
+
   function updateCleanUI(){
     var any = !!leadTrack.originalBuffer || extraVocals.some(function(t){ return !!t.originalBuffer; });
     if (btnUndoClean) btnUndoClean.hidden = !any;
@@ -8360,6 +8555,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     autoTrim: {
       t: "Unlock Clean Silence",
       d: "Clean Silence (auto-muting the dead air between your phrases) is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
+    },
+    aiMix: {
+      t: "Unlock AI Mix",
+      d: "AI Mix — one-tap level, pan and tone balancing across every track (and the beat) — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
     },
     plan: {
       t: "Verify Your Plan",
