@@ -6277,8 +6277,6 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!chain) return;
     var bufferLen = chain.analyser.fftSize;
     var data = new Uint8Array(bufferLen);
-    var duckLen = chain.vocalAnalyser.fftSize;
-    var duckData = new Uint8Array(duckLen);
     var freqData = new Uint8Array(chain.analyser.frequencyBinCount);
     var binHz = ctx.sampleRate / chain.analyser.fftSize;
     var visFrameCount = 0;
@@ -6287,20 +6285,21 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; resetKnobMiniMeters(); visFrameCount = 0; return; }
       updatePlayheadUI();
 
-      // auto-duck the beat under the vocal: watch the processed-vocal
-      // envelope and pull the beat down while the vocal is present. Cheap
-      // (a short typed-array read + loop), and the duck's own
-      // setTargetAtTime smoothing (60-220ms) already outlasts a frame, so
-      // this stays at full rate for the most responsive ducking.
+      // Used to auto-duck the beat under the vocal here -- watch the
+      // processed-vocal envelope and pull the beat down to 40% any time it
+      // crossed a small threshold. Removed per user feedback: it made the
+      // beat visibly pump in and out on every word/syllable instead of
+      // sitting at one steady level underneath the vocal (and it was baked
+      // into exports too, not just live monitoring -- see runAnalysisPass(),
+      // which used to run the same envelope-follower on an interval timer
+      // during Export/Auto-Master). The beat's actual level is still fully
+      // yours via the Beat Level fader (beatOutLevel() / applyBeatLevel());
+      // this gain stage just stays out of its way now, open whenever the
+      // beat should be audible at all and silent otherwise (Vocal Only
+      // mode, or no beat loaded).
       if (beatBuffer){
-        chain.vocalAnalyser.getByteTimeDomainData(duckData);
-        var vPeak = 0;
-        for (var j=0; j<duckLen; j++){
-          var av = Math.abs(duckData[j]/128 - 1);
-          if (av > vPeak) vPeak = av;
-        }
-        var duckTarget = mixEnabled ? (vPeak > 0.015 ? 0.4 : 1) : 0;
-        chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, duckTarget < 1 ? 0.06 : 0.22);
+        var duckTarget = mixEnabled ? 1 : 0;
+        chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, 0.1);
       }
 
       // Everything below here is pure visual feedback (scope line, Hz
@@ -6364,10 +6363,9 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function formatLufs(v){ return isFinite(v) ? v.toFixed(1) : "-∞"; }
 
   // Plays the loaded track through once (real time — there's no faster way to
-  // capture exactly what the live chain, including live auto-ducking,
-  // actually outputs), tapping the final-limiter output with a
-  // ScriptProcessorNode so the raw PCM can be measured afterward. Resolves
-  // with [Float32Array left, Float32Array right].
+  // capture exactly what the live chain actually outputs), tapping the
+  // final-limiter output with a ScriptProcessorNode so the raw PCM can be
+  // measured afterward. Resolves with [Float32Array left, Float32Array right].
   function runAnalysisPass(durationSec){
     return new Promise(function(resolve, reject){
       function beginWithTap(tapNode){
@@ -6430,23 +6428,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       vocalNodes.forEach(function(n){ n.start(startAt); });
       if (beatSrc) beatSrc.start(startAt);
 
-      // replicate the live auto-duck behavior during the analysis pass, so
-      // what's measured matches what playback (and export) actually sounds like
-      var duckLen = chain.vocalAnalyser.fftSize;
-      var duckData = new Uint8Array(duckLen);
-      var duckTimer = setInterval(function(){
-        chain.vocalAnalyser.getByteTimeDomainData(duckData);
-        var vPeak = 0;
-        for (var j=0; j<duckLen; j++){
-          var av = Math.abs(duckData[j]/128 - 1);
-          if (av > vPeak) vPeak = av;
-        }
-        var duckTarget = mixEnabled ? (vPeak > 0.015 ? 0.4 : 1) : 0;
-        chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, duckTarget < 1 ? 0.06 : 0.22);
-      }, 50);
+      // Beat level stays constant here too, matching live playback (see
+      // runVisualizer()'s frame() for why the old vocal-envelope-driven
+      // ducking was removed) -- open whenever the beat should be audible
+      // at all, silent otherwise.
+      chain.beatDuck.gain.setTargetAtTime(mixEnabled && beatSrc ? 1 : 0, ctx.currentTime, 0.05);
 
       setTimeout(function(){
-        clearInterval(duckTimer);
         try { chain.safetyClip.disconnect(tapNode); } catch(err){}
         try { tapNode.disconnect(silent); } catch(err){}
         try { silent.disconnect(ctx.destination); } catch(err){}
