@@ -48,7 +48,7 @@ module.exports = async (req, res) => {
     }
     const trackId = inv.track_id;
 
-    const tracks = await C.sbRest(cfg, `gemstar_tracks?id=eq.${trackId}&select=max_collaborators`);
+    const tracks = await C.sbRest(cfg, `gemstar_tracks?id=eq.${trackId}&select=max_collaborators,owner_email,title`);
     const track = Array.isArray(tracks) && tracks[0];
     if (!track) return fail(res, 404, "invalid", "This track is no longer available.");
 
@@ -101,6 +101,22 @@ module.exports = async (req, res) => {
         audio_path: audioPath, offset_ms: offsetMs, status: "pending",
       }),
     });
+
+    // Let the owner know (best-effort: a failed email never fails the save).
+    if (track.owner_email) {
+      const title = C.escapeHtml(track.title || "your track");
+      await C.sendEmail(
+        track.owner_email,
+        "A friend added a layer to your Gemstar track",
+        `<div style="font-family:sans-serif;max-width:420px;margin:auto;padding:24px;">` +
+        `<img src="https://gemstaraudio.com/email-logo.png" width="140" alt="Gemstar" style="display:block;margin:0 auto 20px;">` +
+        `<h2 style="margin:0 0 12px;">New layer on "${title}"</h2>` +
+        `<p style="color:#555;font-size:14px;">Someone you invited just recorded a layer. Listen, then accept or mute it.</p>` +
+        `<p style="margin:24px 0;"><a href="${C.siteUrl()}/track.html?id=${trackId}" ` +
+        `style="background:#FF2E88;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:700;">Review the layer</a></p>` +
+        `</div>`
+      );
+    }
 
     return res.status(200).json({ layerId, uploadUrl });
   } catch (err) {

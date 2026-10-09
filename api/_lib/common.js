@@ -123,7 +123,52 @@ async function signedUploadUrl(cfg, path) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Verifies the access token and the Mix/Unlimited tier. Sends the error
+// response itself and returns null on failure, so callers can just
+// `if (!who) return;`.
+function requireCollab(body, res) {
+  const who = verifyAccessToken(body.token, body.deviceId);
+  if (!who) { res.status(401).json({ error: "Please verify your Gemstar account first." }); return null; }
+  if (!canCollaborate(who.tier)) {
+    res.status(403).json({ error: "Collaboration is available on the Mix and Unlimited plans.", upgrade: true });
+    return null;
+  }
+  return who;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function siteUrl() {
+  return (process.env.SITE_URL || "https://gemstaraudio.com").replace(/\/+$/, "");
+}
+
+// Best-effort email via Resend. Never throws: a failed notification must
+// never fail the action that triggered it.
+async function sendEmail(to, subject, html) {
+  try {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) return false;
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: process.env.EMAIL_FROM || "Gemstar <onboarding@resend.dev>", to: [to], subject, html }),
+    });
+    return !!(resp && resp.ok);
+  } catch (e) { return false; }
+}
+
+// Best-effort delete of a stored file (used when a layer is removed).
+async function deleteObject(cfg, path) {
+  try {
+    const resp = await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${path}`, { method: "DELETE", headers: cfg.headers });
+    return !!(resp && resp.ok);
+  } catch (e) { return false; }
+}
+
 module.exports = {
-  BUCKET, UUID_RE, canCollaborate, parseBody, verifyAccessToken, signGuestToken, verifyGuestToken,
+  BUCKET, UUID_RE, canCollaborate, requireCollab, escapeHtml, siteUrl, sendEmail, deleteObject,
+  parseBody, verifyAccessToken, signGuestToken, verifyGuestToken,
   newInviteToken, sbConfig, sbRest, signedDownloadUrl, signedUploadUrl,
 };

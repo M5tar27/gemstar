@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Collab tracks · Gemstar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0A12; --bg-panel:#101018; --cyan:#00F5FF; --gem:#FF2E88;
+    --ink:#EAF6FF; --ink-muted:#8B93A8; --line:rgba(0,245,255,0.16);
+    --line-strong:rgba(0,245,255,0.4); --danger:#FF5C7A; --ok:#3CF2A0; --yellow:#FFE600;
+    --font-display:'Chakra Petch','Segoe UI',sans-serif;
+    --font-body:'Manrope',-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);min-height:100%}
+  body{font-family:var(--font-body);line-height:1.6;display:flex;justify-content:center;padding:24px 16px 60px}
+  main{width:100%;max-width:560px}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+  .brand{font-family:var(--font-display);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:.85rem;color:var(--cyan);text-decoration:none}
+  .back{color:var(--ink-muted);font-size:.85rem;text-decoration:none}
+  h1{font-family:var(--font-display);font-weight:700;font-size:1.5rem;line-height:1.25;word-break:break-word}
+  h2{font-family:var(--font-display);font-weight:700;font-size:1.05rem;margin:0 0 10px}
+  .card{background:var(--bg-panel);border:1px solid var(--line);border-radius:16px;padding:20px 18px;margin-bottom:16px}
+  .muted{color:var(--ink-muted);font-size:.9rem}
+  .cta{width:100%;padding:15px;border:0;border-radius:12px;background:var(--gem);color:#fff;font-family:var(--font-display);
+    font-weight:700;font-size:1rem;letter-spacing:.03em;cursor:pointer}
+  .cta:hover,.cta:focus-visible{filter:brightness(1.1);outline:none}
+  .cta[disabled]{background:#2a2a38;color:var(--ink-muted);cursor:not-allowed;filter:none}
+  .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line-strong);background:transparent;color:var(--ink);
+    font-family:var(--font-display);font-weight:600;font-size:.85rem;cursor:pointer}
+  .btn:hover,.btn:focus-visible{background:rgba(0,245,255,.08);outline:none}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  .btn.ok{border-color:rgba(60,242,160,.5);color:var(--ok)}
+  .btn.bad{border-color:rgba(255,92,122,.5);color:var(--danger)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .grow{flex:1}
+  input[type=text],input[type=number],input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line-strong);
+    background:#0d0d16;color:var(--ink);font-family:var(--font-body);font-size:.95rem}
+  label{display:block;font-size:.82rem;color:var(--ink-muted);margin:12px 0 4px}
+  .tcard{display:block;text-decoration:none;color:inherit;cursor:pointer}
+  .tcard:hover{border-color:var(--line-strong)}
+  .badge{display:inline-block;font-size:.72rem;padding:2px 8px;border-radius:99px;border:1px solid var(--line-strong);color:var(--cyan);margin-left:6px;vertical-align:middle}
+  .badge.pending{border-color:rgba(255,230,0,.5);color:var(--yellow)}
+  .badge.accepted{border-color:rgba(60,242,160,.5);color:var(--ok)}
+  .badge.muted{border-color:var(--ink-muted);color:var(--ink-muted)}
+  .layer{border-top:1px solid var(--line);padding:14px 0}
+  .layer:first-of-type{border-top:0}
+  .layer input[type=range]{width:100%;accent-color:var(--cyan)}
+  .sm{font-size:.8rem;color:var(--ink-muted);margin-top:8px}
+  .note{min-height:1.4em;font-size:.88rem;margin-top:10px;color:var(--ink-muted)}
+  .note.ok{color:var(--ok)} .note.bad{color:var(--danger)}
+  .hidden{display:none}
+  a.link{color:var(--cyan)}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <a class="brand" href="/">Gemstar</a>
+    <a class="back hidden" id="back" href="/track.html">← All tracks</a>
+  </div>
+
+  <div id="v-loading" class="card"><p class="muted">Loading…</p></div>
+
+  <div id="v-blocked" class="card hidden">
+    <h2 id="b-title">Verify your plan first</h2>
+    <p class="muted" id="b-msg"></p>
+    <p style="margin-top:16px"><a class="cta" style="display:block;text-align:center;text-decoration:none" id="b-link" href="/">Open Gemstar</a></p>
+  </div>
+
+  <!-- Track list + create -->
+  <div id="v-list" class="hidden">
+    <h1>Collab tracks</h1>
+    <p class="muted" style="margin:6px 0 18px">Invite a friend to record a layer on your track.</p>
+    <div class="card">
+      <h2>New track</h2>
+      <label for="n-file">Audio file (WAV, MP3, M4A, up to 25 MB)</label>
+      <input type="file" id="n-file" accept="audio/*">
+      <label for="n-title">Title</label>
+      <input type="text" id="n-title" maxlength="80" placeholder="My song">
+      <label for="n-bpm">BPM (optional)</label>
+      <input type="number" id="n-bpm" min="30" max="300" step="1" placeholder="93">
+      <button class="cta" id="n-create" type="button" style="margin-top:16px">Create track</button>
+      <p class="note" id="n-note" role="status"></p>
+    </div>
+    <div id="tracks"></div>
+  </div>
+
+  <!-- One track -->
+  <div id="v-track" class="hidden">
+    <h1 id="t-title"></h1>
+    <p class="muted" id="t-meta" style="margin:4px 0 16px"></p>
+
+    <div class="card">
+      <h2>Play &amp; download</h2>
+      <div class="row">
+        <button class="btn grow" id="t-play" type="button">▶ Play all accepted</button>
+        <button class="btn" id="t-stop" type="button">■ Stop</button>
+      </div>
+      <button class="cta" id="t-dl" type="button" style="margin-top:12px">Download mix (WAV)</button>
+      <p class="note" id="t-note" role="status"></p>
+    </div>
+
+    <div class="card">
+      <h2>Invite a friend</h2>
+      <p class="muted" id="t-spots"></p>
+      <button class="btn" id="i-make" type="button" style="margin-top:10px">Create invite link</button>
+      <div id="i-box" class="hidden" style="margin-top:12px">
+        <input type="text" id="i-link" readonly>
+        <div class="row" style="margin-top:8px">
+          <button class="btn grow" id="i-copy" type="button">Copy link</button>
+          <button class="btn grow hidden" id="i-share" type="button">Share…</button>
+        </div>
+        <p class="sm" id="i-exp"></p>
+      </div>
+      <p class="note" id="i-note" role="status"></p>
+    </div>
+
+    <div class="card">
+      <h2>Layers</h2>
+      <p class="muted" id="l-empty">No layers yet. Send an invite and they'll show up here.</p>
+      <div id="layers"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function show(id) { ["v-loading", "v-blocked", "v-list", "v-track"].forEach(function (x) { $(x).classList.toggle("hidden", x !== id); }); }
+  function say(id, t, cls) { $(id).className = "note" + (cls ? " " + cls : ""); $(id).textContent = t || ""; }
+
+  var TOKEN = "", DEVICE = "";
+  try { TOKEN = localStorage.getItem("gemstar_access_token") || ""; DEVICE = localStorage.getItem("gemstar_device_id") || ""; } catch (e) {}
+
+  function api(path, payload) {
+    return fetch("/api/" + path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ token: TOKEN, deviceId: DEVICE }, payload || {}))
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); });
+  }
+  function blocked(title, msg, linkText, href) {
+    $("b-title").textContent = title; $("b-msg").textContent = msg;
+    $("b-link").textContent = linkText || "Open Gemstar"; $("b-link").setAttribute("href", href || "/");
+    show("v-blocked");
+  }
+
+  // ---- Upload helper (same multipart shape supabase-js uses) --------------
+  var MIME = { wav: "audio/wav", mp3: "audio/mpeg", m4a: "audio/mp4", webm: "audio/webm", ogg: "audio/ogg" };
+  function putFile(uploadUrl, file, ext) {
+    var fd = new FormData();
+    fd.append("cacheControl", "3600");
+    fd.append("", new Blob([file], { type: MIME[ext] || "audio/wav" }));
+    return fetch(uploadUrl, { method: "PUT", body: fd });
+  }
+
+  // ---- Track list ----------------------------------------------------------
+  function renderList(tracks) {
+    var box = $("tracks"); box.textContent = "";
+    if (!tracks.length) { box.appendChild(el("p", "muted", "No tracks yet. Create your first one above.")); return; }
+    tracks.forEach(function (t) {
+      var a = el("a", "card tcard"); a.href = "/track.html?id=" + encodeURIComponent(t.id);
+      var h = el("h2", null, t.title || "Untitled track");
+      if (t.pending) h.appendChild(el("span", "badge pending", t.pending + " new"));
+      a.appendChild(h);
+      a.appendChild(el("p", "muted", (t.bpm ? Math.round(t.bpm) + " BPM · " : "") + t.accepted + " accepted layer" + (t.accepted === 1 ? "" : "s")));
+      box.appendChild(a);
+    });
+  }
+
+  $("n-file").addEventListener("change", function () {
+    var f = $("n-file").files[0];
+    if (f && !$("n-title").value) $("n-title").value = f.name.replace(/\.[^.]+$/, "").slice(0, 80);
+  });
+
+  $("n-create").addEventListener("click", function () {
+    var f = $("n-file").files[0];
+    if (!f) { say("n-note", "Choose an audio file first.", "bad"); return; }
+    if (f.size > 25 * 1024 * 1024) { say("n-note", "That file is over 25 MB. Export a smaller version.", "bad"); return; }
+    var ext = (f.name.split(".").pop() || "").toLowerCase();
+    if (!MIME[ext]) { say("n-note", "Use a WAV, MP3, or M4A file.", "bad"); return; }
+    $("n-create").disabled = true; say("n-note", "Creating your track…");
+    api("create-track", { title: $("n-title").value, bpm: $("n-bpm").value, ext: ext }).then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || "Could not create the track.");
+      say("n-note", "Uploading audio…");
+      return putFile(res.d.uploadUrl, f, ext).then(function (r) {
+        if (!r.ok) throw new Error("Upload failed. Please try again.");
+        location.href = "/track.html?id=" + encodeURIComponent(res.d.trackId);
+      });
+    }).catch(function (e) { $("n-create").disabled = false; say("n-note", e.message || "Something went wrong.", "bad"); });
+  });
+
+  // ---- Audio engine --------------------------------------------------------
+  // Offset convention (matches join.html): positive = layer starts later than
+  // the base, negative = earlier. Everything is shifted so nothing starts
+  // before time zero.
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ctx = null, playing = [], playTimer = null;
+  var S = { trackId: null, title: "Mix", baseUrl: null, baseBuf: null, layers: [] };
+
+  function getCtx() { if (!ctx) ctx = new AC(); if (ctx.state === "suspended") ctx.resume(); return ctx; }
+  function decode(url) {
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error("fetch"); return r.arrayBuffer(); })
+      .then(function (ab) { return new Promise(function (ok, no) { getCtx().decodeAudioData(ab, ok, no); }); });
+  }
+  function ensureBase() {
+    if (S.baseBuf) return Promise.resolve(S.baseBuf);
+    if (!S.baseUrl) return Promise.reject(new Error("no base"));
+    return decode(S.baseUrl).then(function (b) { S.baseBuf = b; return b; });
+  }
+  function ensureLayer(l) {
+    if (l.buffer || l.err) return Promise.resolve();
+    return decode(l.url).then(function (b) { l.buffer = b; }).catch(function () {
+      l.err = "Can't play this layer here. It may still be uploading, or your browser can't read its format. Try Chrome.";
+    });
+  }
+  function schedule(c, items, startBase) {
+    var minRel = 0, end = 0, nodes = [];
+    items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
+    items.forEach(function (i) {
+      var s = c.createBufferSource(); s.buffer = i.buffer;
+      var g = c.createGain(); g.gain.value = i.gain;
+      s.connect(g); g.connect(c.destination);
+      var at = i.rel - minRel; s.start(startBase + at); nodes.push(s);
+      if (at + i.buffer.duration > end) end = at + i.buffer.duration;
+    });
+    return { nodes: nodes, end: end };
+  }
+  function itemsFor(layers) {
+    var items = [{ buffer: S.baseBuf, gain: 1, rel: 0 }];
+    layers.forEach(function (l) { if (l.buffer) items.push({ buffer: l.buffer, gain: l.volume, rel: l.offsetMs / 1000 }); });
+    return items;
+  }
+  function stopAll() {
+    playing.forEach(function (n) { try { n.stop(); } catch (e) {} }); playing = [];
+    clearTimeout(playTimer);
+    $("t-play").textContent = "▶ Play all accepted";
+  }
+  function playLayers(layers, label) {
+    stopAll();
+    return ensureBase().then(function () { return Promise.all(layers.map(ensureLayer)); }).then(function () {
+      var c = getCtx(); var r = schedule(c, itemsFor(layers), c.currentTime + 0.1);
+      playing = r.nodes; if (label) $("t-play").textContent = label;
+      playTimer = setTimeout(stopAll, (r.end + 0.3) * 1000);
+      renderLayers();
+    }).catch(function () { say("t-note", "Couldn't load the track audio. Refresh and try again.", "bad"); });
+  }
+  function accepted() { return S.layers.filter(function (l) { return l.status === "accepted"; }); }
+
+  function encodeWav(buf) {
+    var ch = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate, peak = 0, c, i;
+    for (c = 0; c < ch; c++) { var d = buf.getChannelData(c); for (i = 0; i < len; i++) { var a = Math.abs(d[i]); if (a > peak) peak = a; } }
+    var scale = peak > 0.98 ? 0.98 / peak : 1;     // no clipping when layers stack
+    var out = new DataView(new ArrayBuffer(44 + len * ch * 2));
+    function str(o, s) { for (var k = 0; k < s.length; k++) out.setUint8(o + k, s.charCodeAt(k)); }
+    str(0, "RIFF"); out.setUint32(4, 36 + len * ch * 2, true); str(8, "WAVE"); str(12, "fmt ");
+    out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, ch, true);
+    out.setUint32(24, sr, true); out.setUint32(28, sr * ch * 2, true); out.setUint16(32, ch * 2, true);
+    out.setUint16(34, 16, true); str(36, "data"); out.setUint32(40, len * ch * 2, true);
+    var o = 44, chans = []; for (c = 0; c < ch; c++) chans.push(buf.getChannelData(c));
+    for (i = 0; i < len; i++) for (c = 0; c < ch; c++) {
+      var v = Math.max(-1, Math.min(1, chans[c][i] * scale)); out.setInt16(o, v < 0 ? v * 0x8000 : v * 0x7FFF, true); o += 2;
+    }
+    return new Blob([out], { type: "audio/wav" });
+  }
+
+  $("t-play").addEventListener("click", function () {
+    if (!accepted().length) { say("t-note", "Accept a layer first, then play everything together.", "bad"); return; }
+    say("t-note", ""); playLayers(accepted(), "▶ Playing…");
+  });
+  $("t-stop").addEventListener("click", stopAll);
+
+  $("t-dl").addEventListener("click", function () {
+    var acc = accepted();
+    if (!acc.length) { say("t-note", "Accept at least one layer to download a mix.", "bad"); return; }
+    $("t-dl").disabled = true; say("t-note", "Building your mix…");
+    stopAll();
+    ensureBase().then(function () { return Promise.all(acc.map(ensureLayer)); }).then(function () {
+      var items = itemsFor(acc);
+      var minRel = 0, end = 0;
+      items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
+      items.forEach(function (i) { var e = i.rel - minRel + i.buffer.duration; if (e > end) end = e; });
+      var sr = 44100, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      var off = new OAC(2, Math.ceil((end + 0.1) * sr), sr);
+      schedule(off, items, 0);
+      return off.startRendering();
+    }).then(function (rendered) {
+      var blob = encodeWav(rendered), a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = ((S.title || "gemstar").replace(/[^\w\- ]+/g, "").trim() || "gemstar") + "-mix.wav";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      say("t-note", "Mix downloaded.", "ok");
+    }).catch(function () { say("t-note", "Couldn't build the mix. Check that every accepted layer plays, then try again.", "bad"); })
+      .then(function () { $("t-dl").disabled = false; });
+  });
+
+  // ---- Layers --------------------------------------------------------------
+  function patchLayer(l, payload, okMsg) {
+    return api("update-layer", Object.assign({ layerId: l.id }, payload)).then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || "Could not update the layer.");
+      var u = res.d.layer; l.status = u.status; l.volume = u.volume; l.offsetMs = u.offsetMs;
+      if (u.status === "removed") S.layers = S.layers.filter(function (x) { return x.id !== l.id; });
+      if (okMsg) say("t-note", okMsg, "ok");
+      renderLayers();
+    }).catch(function (e) { say("t-note", e.message || "Something went wrong.", "bad"); });
+  }
+  function renderLayers() {
+    var box = $("layers"); box.textContent = "";
+    $("l-empty").classList.toggle("hidden", S.layers.length > 0);
+    S.layers.forEach(function (l) {
+      var row = el("div", "layer");
+      var head = el("div", "row");
+      var name = el("strong", null, l.label); name.appendChild(el("span", "badge " + l.status, l.status));
+      head.appendChild(name); row.appendChild(head);
+      if (l.err) { row.appendChild(el("p", "sm", l.err)); }
+
+      var acts = el("div", "row"); acts.style.marginTop = "10px";
+      var pv = el("button", "btn", "▶ Hear with track"); pv.type = "button";
+      pv.addEventListener("click", function () { say("t-note", ""); playLayers([l], "▶ Playing…"); });
+      acts.appendChild(pv);
+      if (l.status !== "accepted") { var ac = el("button", "btn ok", "Accept"); ac.type = "button"; ac.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer accepted."); }); acts.appendChild(ac); }
+      if (l.status === "accepted") { var mu = el("button", "btn", "Mute"); mu.type = "button"; mu.addEventListener("click", function () { patchLayer(l, { status: "muted" }); }); acts.appendChild(mu); }
+      var rm = el("button", "btn bad", "Remove"); rm.type = "button";
+      rm.addEventListener("click", function () { if (confirm("Remove this layer? This deletes the recording.")) patchLayer(l, { status: "removed" }, "Layer removed."); });
+      acts.appendChild(rm);
+      var rp = el("button", "btn", "Report"); rp.type = "button";
+      rp.addEventListener("click", function () { if (confirm("Report this layer to Gemstar and remove it?")) patchLayer(l, { report: true, reason: "reported by owner" }, "Reported and removed."); });
+      acts.appendChild(rp);
+      row.appendChild(acts);
+
+      var vol = el("p", "sm", "Volume: " + Math.round(l.volume * 100) + "%");
+      var vr = document.createElement("input"); vr.type = "range"; vr.min = 0; vr.max = 150; vr.step = 5; vr.value = Math.round(l.volume * 100);
+      vr.addEventListener("input", function () { vol.textContent = "Volume: " + vr.value + "%"; });
+      vr.addEventListener("change", function () { patchLayer(l, { volume: vr.value / 100 }); });
+      row.appendChild(vol); row.appendChild(vr);
+
+      var tm = el("p", "sm", "Timing: " + (l.offsetMs > 0 ? "+" : "") + l.offsetMs + " ms");
+      var tr = document.createElement("input"); tr.type = "range"; tr.min = -300; tr.max = 300; tr.step = 5; tr.value = Math.max(-300, Math.min(300, l.offsetMs));
+      tr.addEventListener("input", function () { tm.textContent = "Timing: " + (tr.value > 0 ? "+" : "") + tr.value + " ms"; });
+      tr.addEventListener("change", function () { patchLayer(l, { offsetMs: parseInt(tr.value, 10) }); });
+      row.appendChild(tm); row.appendChild(tr);
+      box.appendChild(row);
+    });
+  }
+
+  // ---- Invite --------------------------------------------------------------
+  $("i-make").addEventListener("click", function () {
+    $("i-make").disabled = true; say("i-note", "Creating link…");
+    api("create-invite", { trackId: S.trackId }).then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || "Could not create the invite.");
+      $("i-link").value = res.d.link; $("i-box").classList.remove("hidden");
+      $("i-exp").textContent = "Expires " + new Date(res.d.expiresAt).toLocaleDateString() + ". " + res.d.spotsLeft + " spot" + (res.d.spotsLeft === 1 ? "" : "s") + " left.";
+      if (navigator.share) $("i-share").classList.remove("hidden");
+      say("i-note", "");
+    }).catch(function (e) { say("i-note", e.message || "Something went wrong.", "bad"); })
+      .then(function () { $("i-make").disabled = false; });
+  });
+  $("i-copy").addEventListener("click", function () {
+    var v = $("i-link").value;
+    function done() { say("i-note", "Link copied.", "ok"); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(v).then(done, function () { $("i-link").select(); say("i-note", "Press and hold the link to copy it."); });
+    else { $("i-link").select(); try { document.execCommand("copy"); done(); } catch (e) { say("i-note", "Press and hold the link to copy it."); } }
+  });
+  $("i-share").addEventListener("click", function () {
+    navigator.share({ title: "Add your voice to my track", text: "Record a layer on my track in Gemstar:", url: $("i-link").value }).catch(function () {});
+  });
+
+  // ---- Boot ----------------------------------------------------------------
+  function loadTrack(id) {
+    return api("get-track", { trackId: id }).then(function (res) {
+      if (res.status === 404) { blocked("Track not found", "This track doesn't exist, or it belongs to another account.", "See your tracks", "/track.html"); return; }
+      if (!res.ok) throw new Error(res.d.error);
+      var d = res.d;
+      S.trackId = d.track.id; S.title = d.track.title; S.baseUrl = d.baseUrl;
+      S.layers = d.layers.map(function (l) { return { id: l.id, label: l.label, status: l.status, offsetMs: l.offsetMs, volume: l.volume, url: l.url }; });
+      $("t-title").textContent = d.track.title || "Untitled track";
+      $("t-meta").textContent = d.track.bpm ? Math.round(d.track.bpm) + " BPM" : "";
+      $("t-spots").textContent = d.spotsLeft > 0 ? d.spotsLeft + " collaborator spot" + (d.spotsLeft === 1 ? "" : "s") + " open." : "All collaborator spots are filled.";
+      if (d.spotsLeft <= 0) $("i-make").disabled = true;
+      $("back").classList.remove("hidden");
+      renderLayers(); show("v-track");
+    });
+  }
+
+  if (!TOKEN) {
+    blocked("Verify your plan first", "Collab tracks are part of the Mix and Unlimited plans. Open Gemstar and enter your subscriber email so this browser knows who you are, then come back.");
+    return;
+  }
+  api("my-tracks").then(function (res) {
+    if (res.status === 401) { blocked("Verify your plan first", "Open Gemstar and enter your subscriber email so this browser knows who you are, then come back."); return; }
+    if (res.status === 403) { blocked("Available on Mix and Unlimited", "Inviting friends to record on your tracks is part of the Mix ($49) and Unlimited ($99) plans.", "See plans", "/#pricing"); return; }
+    if (!res.ok) throw new Error(res.d.error);
+    var id = new URLSearchParams(location.search).get("id");
+    if (id) return loadTrack(id);
+    renderList(res.d.tracks); show("v-list");
+  }).catch(function () { blocked("Something went wrong", "We couldn't load your tracks. Check your connection and refresh.", "Back to Gemstar", "/"); });
+})();
+</script>
+</body>
+</html>
