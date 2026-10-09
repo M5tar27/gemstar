@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Join a track · Gemstar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0A12; --bg-panel:#101018; --cyan:#00F5FF; --gem:#FF2E88;
+    --ink:#EAF6FF; --ink-muted:#8B93A8; --line:rgba(0,245,255,0.16);
+    --line-strong:rgba(0,245,255,0.4); --danger:#FF5C7A; --ok:#3CF2A0;
+    --font-display:'Chakra Petch','Segoe UI',sans-serif;
+    --font-body:'Manrope',-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);min-height:100%}
+  body{font-family:var(--font-body);line-height:1.6;display:flex;justify-content:center;padding:24px 16px}
+  main{width:100%;max-width:440px;padding-top:6vh}
+  .brand{font-family:var(--font-display);font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    font-size:.85rem;color:var(--cyan);text-align:center;margin-bottom:28px}
+  .card{background:var(--bg-panel);border:1px solid var(--line);border-radius:16px;padding:28px 22px;text-align:center}
+  h1{font-family:var(--font-display);font-weight:700;font-size:1.5rem;line-height:1.25;margin-bottom:6px;word-break:break-word}
+  .meta{color:var(--ink-muted);font-size:.9rem;margin-bottom:22px}
+  .play{width:76px;height:76px;border-radius:50%;border:2px solid var(--cyan);background:transparent;
+    color:var(--cyan);font-size:1.7rem;cursor:pointer;margin:0 auto 14px;display:flex;align-items:center;justify-content:center}
+  .play:hover,.play:focus-visible{background:rgba(0,245,255,.1);outline:none}
+  .bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin:0 0 22px}
+  .bar>i{display:block;height:100%;width:0;background:var(--cyan)}
+  .cta{width:100%;padding:16px;border:0;border-radius:12px;background:var(--gem);color:#fff;
+    font-family:var(--font-display);font-weight:700;font-size:1.05rem;letter-spacing:.04em;cursor:pointer}
+  .cta:hover,.cta:focus-visible{filter:brightness(1.1);outline:none}
+  .cta[disabled]{background:#2a2a38;color:var(--ink-muted);cursor:not-allowed;filter:none}
+  .note{margin-top:14px;font-size:.88rem;color:var(--ink-muted);min-height:1.4em}
+  .note.ok{color:var(--ok)}
+  .err{color:var(--danger);font-size:1rem}
+  .fine{margin-top:20px;font-size:.78rem;color:var(--ink-muted);text-align:center}
+  .fine a{color:var(--cyan);text-decoration:none}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">Gemstar</div>
+
+  <div class="card" id="loading"><p class="meta" style="margin:0">Loading your invite…</p></div>
+
+  <div class="card hidden" id="error"><h1>Hmm.</h1><p class="err" id="errmsg"></p>
+    <p class="fine" style="margin-top:18px"><a href="/">Go to Gemstar</a></p></div>
+
+  <div class="card hidden" id="ready">
+    <p class="meta" style="margin-bottom:8px">You've been invited to add your voice to</p>
+    <h1 id="title"></h1>
+    <p class="meta" id="meta"></p>
+    <button class="play" id="play" type="button" aria-label="Play track">▶</button>
+    <div class="bar" aria-hidden="true"><i id="prog"></i></div>
+    <button class="cta" id="add" type="button">Add your layer</button>
+    <p class="note" id="note" role="status"></p>
+    <audio id="audio" preload="metadata"></audio>
+  </div>
+
+  <p class="fine">Vocals sound better with <a href="/">Gemstar</a>.</p>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  function show(id) { ["loading", "error", "ready"].forEach(function (x) { $(x).classList.toggle("hidden", x !== id); }); }
+  function fail(msg) { $("errmsg").textContent = msg; show("error"); }
+
+  var invite = new URLSearchParams(location.search).get("t") || "";
+  if (!invite) { fail("This invite link isn't valid."); return; }
+
+  fetch("/api/resolve-invite", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ invite: invite })
+  }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+    .then(function (res) {
+      if (!res.ok) { fail(res.d.error || "This invite link isn't valid."); return; }
+      var d = res.d;
+      $("title").textContent = d.title || "Untitled track";
+      $("meta").textContent = d.bpm ? Math.round(d.bpm) + " BPM" : "";
+      try { sessionStorage.setItem("gemstar_guest_token", d.guestToken); sessionStorage.setItem("gemstar_invite", invite); } catch (e) {}
+
+      var audio = $("audio");
+      if (d.audioUrl) audio.src = d.audioUrl; else $("play").disabled = true;
+      $("play").addEventListener("click", function () { audio.paused ? audio.play() : audio.pause(); });
+      audio.addEventListener("play", function () { $("play").textContent = "❚❚"; });
+      audio.addEventListener("pause", function () { $("play").textContent = "▶"; });
+      audio.addEventListener("ended", function () { $("play").textContent = "▶"; $("prog").style.width = "0"; });
+      audio.addEventListener("timeupdate", function () {
+        if (audio.duration) $("prog").style.width = (audio.currentTime / audio.duration * 100) + "%";
+      });
+
+      if (d.spotsLeft <= 0) {
+        $("add").disabled = true;
+        $("note").textContent = "This track already has all its collaborators.";
+      } else {
+        $("note").textContent = d.spotsLeft + (d.spotsLeft === 1 ? " spot" : " spots") + " left on this track.";
+        $("add").addEventListener("click", function () {
+          // Phase 2 wires this to the Gemstar recording chain.
+          $("note").className = "note ok";
+          $("note").textContent = "Layer recording opens in the next update. Your invite is saved.";
+        });
+      }
+      show("ready");
+    })
+    .catch(function () { fail("Couldn't load this invite. Check your connection and try again."); });
+})();
+</script>
+</body>
+</html>
