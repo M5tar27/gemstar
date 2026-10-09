@@ -96,6 +96,25 @@
     background:rgba(6,6,12,0.72);
   }
   #help-overlay.show{display:flex;}
+  #collab-overlay{
+    display:none; position:fixed; inset:0; z-index:410;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(6,6,12,0.72);
+  }
+  #collab-overlay.show{display:flex;}
+  .collab-actions{display:flex; flex-direction:column; gap:8px; margin-top:6px;}
+  .collab-go{
+    display:block; width:100%; padding:13px 16px; border:0; border-radius:12px; cursor:pointer;
+    background:var(--gem); color:#fff; font-family:var(--font-display); font-weight:700;
+    font-size:0.95rem; letter-spacing:0.03em; box-shadow:0 0 14px rgba(255,46,136,0.35);
+  }
+  .collab-go:hover, .collab-go:focus-visible{filter:brightness(1.12); outline:none;}
+  .collab-later{
+    background:none; border:0; color:var(--ink-dim); font-family:var(--font-body);
+    font-size:0.8rem; cursor:pointer; padding:8px;
+  }
+  .collab-later:hover, .collab-later:focus-visible{color:var(--cyan); outline:none;}
+  .collab-note{color:var(--ink-dim); font-size:0.78rem; line-height:1.5; margin:0 0 14px;}
   .help-card{
     max-width:440px; width:100%; max-height:82vh; overflow-y:auto;
     background:var(--bg-panel); border:1px solid var(--line-strong);
@@ -1042,6 +1061,27 @@
     </div>
   </div>
 
+  <div id="collab-overlay" role="dialog" aria-modal="true" aria-labelledby="collab-title">
+    <div class="help-card">
+      <div class="help-card-head">
+        <h3 id="collab-title" data-i18n="collabIntroTitle">Collab: record with a friend</h3>
+        <button type="button" class="help-close" id="collab-close" aria-label="Close">&times;</button>
+      </div>
+      <p data-i18n="collabIntroText">Invite anyone to add their voice to your track. They don't need an app or an account.</p>
+      <ul class="help-tips">
+        <li data-i18n="collabTip1">Upload your track (a beat, a rough mix, or a finished song) and tap Create invite link.</li>
+        <li data-i18n="collabTip2">Send the link to a friend. They open it on their phone, hear your track, and record a layer right over it.</li>
+        <li data-i18n="collabTip3">You get an email. Listen to each layer, accept or mute it, and adjust its volume and timing.</li>
+        <li data-i18n="collabTip4">Download the finished mix when you're happy with it.</li>
+      </ul>
+      <p class="collab-note" data-i18n="collabNote">Collab is part of the Mix and Unlimited plans. Your friend never has to pay or sign up.</p>
+      <div class="collab-actions">
+        <button type="button" class="collab-go" id="collab-go" data-i18n="collabStart">Start collaborating</button>
+        <button type="button" class="collab-later" id="collab-later" data-i18n="collabLater">Maybe later</button>
+      </div>
+    </div>
+  </div>
+
   <div id="midi-overlay">
     <div class="help-card midi-card">
       <div class="help-card-head">
@@ -1761,6 +1801,14 @@
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
       helpIntro:"A quick rundown of the basics — every knob also shows this same text if you double-tap it (or hover over it on computer).",
+      collabIntroTitle:"Collab: record with a friend",
+      collabIntroText:"Invite anyone to add their voice to your track. They don't need an app or an account.",
+      collabTip1:"Upload your track (a beat, a rough mix, or a finished song) and tap Create invite link.",
+      collabTip2:"Send the link to a friend. They open it on their phone, hear your track, and record a layer right over it.",
+      collabTip3:"You get an email. Listen to each layer, accept or mute it, and adjust its volume and timing.",
+      collabTip4:"Download the finished mix when you're happy with it.",
+      collabNote:"Collab is part of the Mix and Unlimited plans. Your friend never has to pay or sign up.",
+      collabStart:"Start collaborating", collabLater:"Maybe later",
       helpTip1:"Record straight from your mic or upload a file — either way, Gemstar processes it right in your browser, nothing to install.",
       helpTip2:"Use the A/B button to flip between your raw vocal (“Before”) and the processed version (“After”) so you can hear exactly what the knobs are doing.",
       helpTip3:"Try a Preset from the dropdown for a quick starting point, or start from scratch — every knob starts at 0 until you move it.",
@@ -1949,6 +1997,14 @@
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
       helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la tocas dos veces (o pasas el cursor sobre ella en computadora).",
+      collabIntroTitle:"Collab: graba con un amigo",
+      collabIntroText:"Invita a quien quieras a agregar su voz a tu canción. No necesita app ni cuenta.",
+      collabTip1:"Sube tu pista (un beat, una mezcla o una canción terminada) y toca Crear enlace de invitación.",
+      collabTip2:"Envía el enlace a un amigo. Lo abre en su teléfono, escucha tu pista y graba una capa encima.",
+      collabTip3:"Te llega un correo. Escucha cada capa, acéptala o silénciala, y ajusta su volumen y tiempo.",
+      collabTip4:"Descarga la mezcla final cuando estés contento.",
+      collabNote:"Collab es parte de los planes Mix y Unlimited. Tu amigo nunca tiene que pagar ni registrarse.",
+      collabStart:"Empezar a colaborar", collabLater:"Quizás luego",
       helpTip1:"Graba directo desde tu micrófono o sube un archivo — en ambos casos, Gemstar procesa todo en tu navegador, sin instalar nada.",
       helpTip2:"Usa el botón A/B para alternar entre tu voz sin procesar (“Antes”) y la versión procesada (“Después”) para escuchar exactamente lo que hacen las perillas.",
       helpTip3:"Prueba un Preset del menú desplegable para un punto de partida rápido, o empieza desde cero — cada perilla comienza en 0 hasta que la muevas.",
@@ -7672,6 +7728,37 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   document.addEventListener("keydown", function(e){
     if (e.key === "Escape" && helpOverlay && helpOverlay.classList.contains("show")) closeHelp();
   });
+
+  /* collab-intro:start */
+  /* ---------- Collab intro pop-up ---------- */
+  // First tap on "Collab" explains what it is; after "Start collaborating"
+  // the button goes straight to the collab page. "Maybe later" / close /
+  // Esc don't mark it seen, so the explanation comes back next time.
+  var COLLAB_SEEN_KEY = "gemstarSeenCollabIntro";
+  var collabOverlay = document.getElementById("collab-overlay");
+  var collabBtn = document.getElementById("btn-collab");
+  function collabIntroSeen(){ try { return localStorage.getItem(COLLAB_SEEN_KEY) === "1"; } catch(e){ return false; } }
+  function openCollabIntro(){ if (collabOverlay) collabOverlay.classList.add("show"); }
+  function closeCollabIntro(){ if (collabOverlay) collabOverlay.classList.remove("show"); }
+  if (collabBtn) collabBtn.addEventListener("click", function(e){
+    if (!collabOverlay || collabIntroSeen()) return;   // let the link navigate
+    e.preventDefault();
+    openCollabIntro();
+  });
+  var collabGo = document.getElementById("collab-go");
+  if (collabGo) collabGo.addEventListener("click", function(){
+    try { localStorage.setItem(COLLAB_SEEN_KEY, "1"); } catch(e){}
+    window.location.href = "/track.html";
+  });
+  var collabLater = document.getElementById("collab-later");
+  if (collabLater) collabLater.addEventListener("click", closeCollabIntro);
+  var collabClose = document.getElementById("collab-close");
+  if (collabClose) collabClose.addEventListener("click", closeCollabIntro);
+  if (collabOverlay) collabOverlay.addEventListener("click", function(e){ if (e.target === collabOverlay) closeCollabIntro(); });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape" && collabOverlay && collabOverlay.classList.contains("show")) closeCollabIntro();
+  });
+  /* collab-intro:end */
 
   /* ---------- first-visit welcome tour ---------- */
   var WELCOME_SEEN_KEY = "gemstarSeenWelcome";
