@@ -39,6 +39,18 @@
   .err{color:var(--danger);font-size:1rem}
   .fine{margin-top:20px;font-size:.78rem;color:var(--ink-muted);text-align:center}
   .fine a{color:var(--cyan);text-decoration:none}
+  .btn2{width:100%;padding:13px;border-radius:12px;border:1px solid var(--line-strong);background:transparent;
+    color:var(--ink);font-family:var(--font-display);font-weight:600;font-size:.95rem;cursor:pointer;margin-top:10px}
+  .btn2:hover,.btn2:focus-visible{background:rgba(0,245,255,.08);outline:none}
+  .btn2[disabled]{opacity:.5;cursor:not-allowed}
+  .rec-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--danger);margin-right:8px;animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  .note.bad{color:var(--danger)}
+  .tip{margin-top:12px;font-size:.82rem;color:var(--ink-muted);background:rgba(255,230,0,.07);
+    border:1px solid rgba(255,230,0,.25);border-radius:10px;padding:10px 12px;text-align:left}
+  .nudge{margin:14px 0 4px;text-align:left;font-size:.85rem;color:var(--ink-muted)}
+  .nudge input{width:100%;accent-color:var(--cyan);margin-top:6px}
+  .stage-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem;margin-bottom:10px}
   .hidden{display:none}
 </style>
 </head>
@@ -59,6 +71,36 @@
     <div class="bar" aria-hidden="true"><i id="prog"></i></div>
     <button class="cta" id="add" type="button">Add your layer</button>
     <p class="note" id="note" role="status"></p>
+
+    <div id="rec" class="hidden">
+      <div id="s-intro">
+        <p class="stage-title">Record your layer</p>
+        <p class="meta" style="margin-bottom:6px">The track plays while you record. Sing, rap, or harmonize over it.</p>
+        <p class="tip">🎧 Wear headphones so the track doesn't bleed into your mic.</p>
+        <p class="tip hidden" id="inapp">Opened from an app? Tap the ⋯ or share icon and choose <b>Open in Browser</b> so recording works.</p>
+        <button class="cta" id="startRec" type="button" style="margin-top:16px">Start recording</button>
+      </div>
+      <div id="s-rec" class="hidden">
+        <p class="stage-title"><span class="rec-dot"></span>Recording…</p>
+        <button class="cta" id="stopRec" type="button">Stop</button>
+      </div>
+      <div id="s-review" class="hidden">
+        <p class="stage-title">Sounds good?</p>
+        <button class="btn2" id="prev" type="button" style="margin-top:0">▶ Play together</button>
+        <div class="nudge">
+          <label for="nudge">Line it up: <b id="nudgeVal">0 ms</b> <span>(drag if your layer sounds early or late)</span></label>
+          <input type="range" id="nudge" min="-300" max="300" step="5" value="0">
+        </div>
+        <button class="cta" id="save" type="button" style="margin-top:14px">Save layer</button>
+        <button class="btn2" id="rerec" type="button">Re-record</button>
+      </div>
+      <div id="s-done" class="hidden">
+        <p class="stage-title" style="color:var(--ok)">Layer sent! 🎉</p>
+        <p class="meta">Your friend will hear it and can add it to the track.</p>
+        <a class="cta" href="/" style="display:block;text-decoration:none;padding:16px">Make your own with Gemstar</a>
+      </div>
+      <p class="note" id="rnote" role="status"></p>
+    </div>
     <audio id="audio" preload="metadata"></audio>
   </div>
 
@@ -70,6 +112,125 @@
   var $ = function (id) { return document.getElementById(id); };
   function show(id) { ["loading", "error", "ready"].forEach(function (x) { $(x).classList.toggle("hidden", x !== id); }); }
   function fail(msg) { $("errmsg").textContent = msg; show("error"); }
+
+  // ---- Recording a layer -------------------------------------------------
+  // Offset convention (must match playback in the owner view, Phase 3):
+  // positive = layer starts later than the base track, negative = earlier.
+  var recorderReady = false;
+  function setupRecorder(audio, invite, guestToken) {
+    if (recorderReady) return;
+    recorderReady = true;
+    var stream = null, mr = null, chunks = [], blob = null, mime = "", layerAudio = null, offset = 0, timers = [];
+
+    function say(t, cls) { $("rnote").className = "note" + (cls ? " " + cls : ""); $("rnote").textContent = t; }
+    function setStage(s) {
+      ["s-intro", "s-rec", "s-review", "s-done"].forEach(function (x) { $(x).classList.toggle("hidden", x !== s); });
+    }
+    function pickMime() {
+      var c = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg"];
+      for (var i = 0; i < c.length; i++) {
+        if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c[i])) return c[i];
+      }
+      return "";
+    }
+    function baseMime(m) { return (m || "audio/webm").split(";")[0]; }
+    function extFor(m) { return /mp4/.test(m) ? "m4a" : /ogg/.test(m) ? "ogg" : "webm"; }
+    function stopPreview() {
+      timers.forEach(clearTimeout); timers = [];
+      audio.pause(); if (layerAudio) layerAudio.pause();
+    }
+
+    if (/Instagram|FBAN|FBAV|TikTok|Snapchat|musical_ly/i.test(navigator.userAgent)) $("inapp").classList.remove("hidden");
+
+    function onBaseEnded() { stopRecording(); }
+    function stopRecording() {
+      audio.removeEventListener("ended", onBaseEnded);
+      audio.pause();
+      if (mr && mr.state !== "inactive") mr.stop();
+    }
+    function onStopped() {
+      if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+      blob = new Blob(chunks, { type: baseMime(mime) });
+      if (blob.size < 2000) { setStage("s-intro"); say("Nothing was recorded. Try again.", "bad"); return; }
+      if (layerAudio) URL.revokeObjectURL(layerAudio.src);
+      layerAudio = new Audio(URL.createObjectURL(blob));
+      offset = 0; $("nudge").value = 0; $("nudgeVal").textContent = "0 ms";
+      say("");
+      setStage("s-review");
+    }
+
+    $("startRec").addEventListener("click", function () {
+      say("");
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+        say("This browser can't record. Open the link in Safari or Chrome.", "bad"); return;
+      }
+      stopPreview();
+      // Raw capture: no echo cancel / noise suppression / auto gain so the
+      // owner gets a clean take (headphones prevent bleed).
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+        .then(function (s) {
+          stream = s; chunks = []; mime = pickMime();
+          try { mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s); }
+          catch (e) { s.getTracks().forEach(function (t) { t.stop(); }); say("This browser can't record. Open the link in Safari or Chrome.", "bad"); return; }
+          mime = mr.mimeType || mime;
+          mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+          mr.onstop = onStopped;
+          audio.currentTime = 0;
+          mr.start();
+          audio.addEventListener("ended", onBaseEnded);
+          var p = audio.play(); if (p && p.catch) p.catch(function () {});
+          setStage("s-rec");
+        })
+        .catch(function () { say("Microphone access was blocked. Allow it in your browser settings, then try again.", "bad"); });
+    });
+
+    $("stopRec").addEventListener("click", stopRecording);
+
+    $("prev").addEventListener("click", function () {
+      stopPreview();
+      audio.currentTime = 0; layerAudio.currentTime = 0;
+      if (offset >= 0) {
+        audio.play();
+        timers.push(setTimeout(function () { layerAudio.play(); }, offset));
+      } else {
+        layerAudio.play();
+        timers.push(setTimeout(function () { audio.play(); }, -offset));
+      }
+    });
+
+    $("nudge").addEventListener("input", function () {
+      offset = parseInt($("nudge").value, 10) || 0;
+      $("nudgeVal").textContent = (offset > 0 ? "+" : "") + offset + " ms";
+    });
+
+    $("rerec").addEventListener("click", function () { stopPreview(); say(""); setStage("s-intro"); });
+
+    $("save").addEventListener("click", function () {
+      stopPreview();
+      $("save").disabled = true; $("rerec").disabled = true; say("Saving your layer…");
+      var type = baseMime(mime);
+      fetch("/api/submit-layer", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invite: invite, guestToken: guestToken, ext: extFor(mime), offsetMs: offset })
+      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.d.error || "Could not save your layer.");
+          // Same multipart shape supabase-js uses for signed uploads.
+          var fd = new FormData();
+          fd.append("cacheControl", "3600");
+          fd.append("", new Blob([blob], { type: type }));
+          return fetch(res.d.uploadUrl, { method: "PUT", body: fd });
+        })
+        .then(function (r) {
+          if (!r.ok) throw new Error("Upload failed. Please try again.");
+          say(""); setStage("s-done");
+        })
+        .catch(function (e) {
+          $("save").disabled = false; $("rerec").disabled = false;
+          say(e.message || "Something went wrong. Please try again.", "bad");
+        });
+    });
+  }
 
   var invite = new URLSearchParams(location.search).get("t") || "";
   if (!invite) { fail("This invite link isn't valid."); return; }
@@ -101,9 +262,10 @@
       } else {
         $("note").textContent = d.spotsLeft + (d.spotsLeft === 1 ? " spot" : " spots") + " left on this track.";
         $("add").addEventListener("click", function () {
-          // Phase 2 wires this to the Gemstar recording chain.
-          $("note").className = "note ok";
-          $("note").textContent = "Layer recording opens in the next update. Your invite is saved.";
+          $("add").classList.add("hidden");
+          $("note").classList.add("hidden");
+          $("rec").classList.remove("hidden");
+          setupRecorder(audio, invite, d.guestToken);
         });
       }
       show("ready");
