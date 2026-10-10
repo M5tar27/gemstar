@@ -39,7 +39,7 @@
   .btn.bad{border-color:rgba(255,92,122,.5);color:var(--danger)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .grow{flex:1}
-  input[type=text],input[type=number],input[type=file]{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line-strong);
+  input[type=text],input[type=number],input[type=file],select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line-strong);
     background:#0d0d16;color:var(--ink);font-family:var(--font-body);font-size:.95rem}
   label{display:block;font-size:.82rem;color:var(--ink-muted);margin:12px 0 4px}
   .tcard{display:block;text-decoration:none;color:inherit;cursor:pointer}
@@ -125,6 +125,11 @@
         <p class="sm" id="v-voc-l">Vocals volume: 100%</p>
         <input type="range" id="v-voc" min="0" max="150" step="5" value="100" aria-label="Vocals volume">
       </div>
+      <div class="mixrow" style="margin-top:12px">
+        <label for="v-polish" style="margin:0">Vocal polish</label>
+        <select id="v-polish" aria-label="Vocal polish for guest layers"><option value="off">Off (raw)</option><option value="light" selected>Light</option><option value="full">Full</option></select>
+        <p class="sm">Cleans up, evens out and adds air to guest layers. Your original recordings are never changed.</p>
+      </div>
       <button class="cta" id="t-dl" type="button" style="margin-top:12px">Download mix (WAV)</button>
       <p class="note" id="t-note" role="status"></p>
     </div>
@@ -158,6 +163,7 @@
   </div>
 </main>
 
+<script src="/vocal-polish.js"></script>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -233,6 +239,7 @@
   var ctx = null;
   var S = { trackId: null, title: "Mix", baseUrl: null, baseBuf: null, layers: [] };
   var mixVol = { beat: 1, voc: 1 };
+  var polish = "light";                                  // vocal polish for guest layers: off | light | full
   var PB = { state: "stopped", nodes: [], masters: null, layers: null, pos: 0, dur: 0, startCtx: 0, pos0: 0, timer: null };
 
   function getCtx() { if (!ctx) ctx = new AC(); if (ctx.state === "suspended") ctx.resume(); return ctx; }
@@ -270,12 +277,13 @@
     var beatM = c.createGain(), vocM = c.createGain();
     beatM.gain.value = mixVol.beat; vocM.gain.value = mixVol.voc;
     beatM.connect(c.destination); vocM.connect(c.destination);
+    var pol = (window.GemstarPolish && polish !== "off") ? window.GemstarPolish.create(c, polish, vocM) : null;
     items.forEach(function (i) {
       var at = i.rel - tl.minRel;
       if (at + i.buffer.duration <= fromPos) return;           // already finished before this point
       var s = c.createBufferSource(); s.buffer = i.buffer;
       var g = c.createGain(); g.gain.value = i.gain;
-      s.connect(g); g.connect(i.kind === "beat" ? beatM : vocM);
+      s.connect(g); g.connect(i.kind === "beat" ? beatM : (pol ? pol.channel() : vocM));
       if (at >= fromPos) s.start(startBase + (at - fromPos)); else s.start(startBase, fromPos - at);
       nodes.push(s);
     });
@@ -373,6 +381,12 @@
     if (PB.masters && ctx) { PB.masters.beat.gain.setTargetAtTime(mixVol.beat, ctx.currentTime, 0.02); PB.masters.voc.gain.setTargetAtTime(mixVol.voc, ctx.currentTime, 0.02); }
     try { localStorage.setItem(volKey(), JSON.stringify(mixVol)); } catch (e) {}
   }
+  function polKey() { return "gemstar_collab_polish_" + S.trackId; }
+  $("v-polish").addEventListener("change", function () {
+    polish = $("v-polish").value;
+    try { localStorage.setItem(polKey(), polish); } catch (e) {}
+    if (PB.state === "playing") playFrom(PB.layers, curPos());   // hear the change right away
+  });
   $("v-beat").addEventListener("input", onVol);
   $("v-voc").addEventListener("input", onVol);
 
@@ -492,6 +506,7 @@
       $("t-spots").textContent = d.spotsLeft > 0 ? d.spotsLeft + " collaborator spot" + (d.spotsLeft === 1 ? "" : "s") + " open." : "All collaborator spots are filled.";
       if (d.spotsLeft <= 0) $("i-make").disabled = true;
       $("back").classList.remove("hidden");
+      try { var pv = localStorage.getItem(polKey()); if (pv === "off" || pv === "light" || pv === "full") { polish = pv; $("v-polish").value = pv; } } catch (e) {}
       try { var sv = JSON.parse(localStorage.getItem(volKey()) || "null"); if (sv) { mixVol.beat = Math.min(1.5, Math.max(0, +sv.beat)); mixVol.voc = Math.min(1.5, Math.max(0, +sv.voc)); } } catch (e) {}
       applyVolUI(); renderLayers(); show("v-track"); refreshDuration();
     });
