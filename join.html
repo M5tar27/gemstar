@@ -87,9 +87,10 @@
       <div id="s-review" class="hidden">
         <p class="stage-title">Sounds good?</p>
         <button class="btn2" id="prev" type="button" style="margin-top:0">▶ Play together</button>
+        <p class="note" id="syncnote" style="text-align:left;margin:10px 0 0"></p>
         <div class="nudge">
           <label for="nudge">Line it up: <b id="nudgeVal">0 ms</b> <span>(drag if your layer sounds early or late)</span></label>
-          <input type="range" id="nudge" min="-300" max="300" step="5" value="0">
+          <input type="range" id="nudge" min="-500" max="500" step="5" value="0">
         </div>
         <button class="cta" id="save" type="button" style="margin-top:14px">Save layer</button>
         <button class="btn2" id="rerec" type="button">Re-record</button>
@@ -107,6 +108,7 @@
   <p class="fine">Vocals sound better with <a href="/">Gemstar</a>.</p>
 </main>
 
+<script src="/layer-sync.js"></script>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -120,67 +122,146 @@
   function setupRecorder(audio, invite, guestToken) {
     if (recorderReady) return;
     recorderReady = true;
-    var stream = null, mr = null, chunks = [], blob = null, mime = "", layerAudio = null, offset = 0, timers = [];
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var MAX_SECONDS = 230;                       // keeps the WAV under the 25 MB upload cap
+    var stream = null, ctx = null, proc = null, srcNode = null, mute = null, playSrc = null;
+    var chunks = [], nSamples = 0, capStart = null, tStart = null, recording = false, usingBuffer = false;
+    var trackBuf = null, trackBufP = null;
+    var blob = null, layerAudio = null, offset = 0, timers = [];
 
     function say(t, cls) { $("rnote").className = "note" + (cls ? " " + cls : ""); $("rnote").textContent = t; }
     function setStage(s) {
       ["s-intro", "s-rec", "s-review", "s-done"].forEach(function (x) { $(x).classList.toggle("hidden", x !== s); });
     }
-    function pickMime() {
-      var c = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm", "audio/ogg"];
-      for (var i = 0; i < c.length; i++) {
-        if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c[i])) return c[i];
-      }
-      return "";
-    }
-    function baseMime(m) { return (m || "audio/webm").split(";")[0]; }
-    function extFor(m) { return /mp4/.test(m) ? "m4a" : /ogg/.test(m) ? "ogg" : "webm"; }
     function stopPreview() {
       timers.forEach(clearTimeout); timers = [];
       audio.pause(); if (layerAudio) layerAudio.pause();
     }
+    function setNudge(v) {
+      offset = Math.max(-500, Math.min(500, Math.round(v / 5) * 5));
+      $("nudge").value = offset; $("nudgeVal").textContent = (offset > 0 ? "+" : "") + offset + " ms";
+    }
 
     if (/Instagram|FBAN|FBAV|TikTok|Snapchat|musical_ly/i.test(navigator.userAgent)) $("inapp").classList.remove("hidden");
 
+    // Decode the track in the background (needed to match your volume to it and to
+    // measure the delay). Recording still works if this fails.
+    try { if (AC) ctx = new AC(); } catch (e) { ctx = null; }
+    function getTrackBuffer() {
+      if (trackBufP) return trackBufP;
+      if (!ctx || !audio.src) return (trackBufP = Promise.resolve(null));
+      trackBufP = fetch(audio.src).then(function (r) { if (!r.ok) throw new Error("fetch"); return r.arrayBuffer(); })
+        .then(function (ab) { return new Promise(function (ok, no) { var p = ctx.decodeAudioData(ab, ok, no); if (p && p.catch) p.catch(no); }); })
+        .then(function (b) { trackBuf = b; return b; })
+        .catch(function () { return null; });
+      return trackBufP;
+    }
+    getTrackBuffer();
+
     function onBaseEnded() { stopRecording(); }
+
+    function startCapture(s) {
+      stream = s; chunks = []; nSamples = 0; capStart = null; tStart = null; recording = true;
+      srcNode = ctx.createMediaStreamSource(s);
+      proc = ctx.createScriptProcessor(2048, 1, 1);
+      mute = ctx.createGain(); mute.gain.value = 0;      // keeps the processor running without echoing the mic
+      srcNode.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+      proc.onaudioprocess = function (e) {
+        if (!recording) return;
+        var d = e.inputBuffer.getChannelData(0);
+        if (capStart === null) capStart = ctx.currentTime - d.length / ctx.sampleRate;
+        chunks.push(new Float32Array(d)); nSamples += d.length;
+        if (nSamples > ctx.sampleRate * MAX_SECONDS) stopRecording();
+      };
+      // Start the track so we know exactly when it began relative to the recording.
+      usingBuffer = !!trackBuf;
+      if (usingBuffer) {
+        playSrc = ctx.createBufferSource(); playSrc.buffer = trackBuf; playSrc.connect(ctx.destination);
+        playSrc.onended = function () { if (recording) onBaseEnded(); };
+        tStart = ctx.currentTime + 0.2; playSrc.start(tStart);
+      } else {
+        audio.currentTime = 0;
+        audio.addEventListener("playing", function once() { audio.removeEventListener("playing", once); tStart = ctx.currentTime; });
+        audio.addEventListener("ended", onBaseEnded);
+        var p = audio.play(); if (p && p.catch) p.catch(function () {});
+      }
+      setStage("s-rec");
+    }
+
     function stopRecording() {
+      if (!recording) return;
+      recording = false;
       audio.removeEventListener("ended", onBaseEnded);
       audio.pause();
-      if (mr && mr.state !== "inactive") mr.stop();
-    }
-    function onStopped() {
+      try { if (playSrc) { playSrc.onended = null; playSrc.stop(); } } catch (e) {}
+      if (proc) { proc.onaudioprocess = null; try { proc.disconnect(); srcNode.disconnect(); mute.disconnect(); } catch (e) {} }
+      // Device-reported delay (mic -> processing -> speakers/headphones), where the browser tells us.
+      var est = { ms: 0, known: false };
+      try {
+        var out = ctx.outputLatency, base = ctx.baseLatency || 0, inn = 0;
+        var st = stream && stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings();
+        if (st && st.latency) inn = st.latency;
+        est.known = typeof out === "number" && out > 0;
+        est.ms = ((est.known ? out : 0.04) + base + inn) * 1000;
+      } catch (e) { est.ms = 40; }
       if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
-      blob = new Blob(chunks, { type: baseMime(mime) });
-      if (blob.size < 2000) { setStage("s-intro"); say("Nothing was recorded. Try again.", "bad"); return; }
+      finalize(est);
+    }
+
+    function finalize(est) {
+      var sr = ctx.sampleRate, i, pos = 0, all = new Float32Array(nSamples);
+      for (i = 0; i < chunks.length; i++) { all.set(chunks[i], pos); pos += chunks[i].length; }
+      chunks = [];
+      var n0 = tStart === null || capStart === null ? 0 : Math.max(0, Math.round((tStart - capStart) * sr));
+      var rec = all.subarray(Math.min(n0, all.length));   // sample 0 now = start of the track
+      if (rec.length < sr * 0.5) { setStage("s-intro"); say("Nothing was recorded. Try again.", "bad"); return; }
+      var tb = trackBuf, trackMono = null;
+      if (tb) {
+        var tch = [];
+        for (i = 0; i < tb.numberOfChannels; i++) tch.push(tb.getChannelData(i));
+        trackMono = GemstarSync.toMono(tch);
+      }
+
+      // 1) Timing: measure the real delay if the track leaked into the mic, else use the device's own figure.
+      var lagMs = est.ms, how = est.known ? "device" : "guess";
+      if (trackMono) {
+        var m = null;
+        try { m = GemstarSync.measureLag(rec, trackMono, sr); } catch (e) {}
+        if (m && m.lagMs >= 0 && m.lagMs <= 450) { lagMs = m.lagMs; how = "sound"; }
+      }
+      lagMs = Math.max(0, Math.min(500, lagMs));
+
+      // 2) Volume: bake in the gain that puts the vocal just under the track's loudness.
+      var vr = GemstarSync.gatedRms(rec, sr), pk = GemstarSync.peakOf(rec);
+      var lg = GemstarSync.levelGain(trackMono ? GemstarSync.gatedRms(trackMono, sr) : 0, vr, pk);
+      var out = new Float32Array(rec.length);
+      for (i = 0; i < rec.length; i++) out[i] = rec[i] * lg.gain;
+      blob = new Blob([GemstarSync.encodeWav16(out, sr)], { type: "audio/wav" });
+
       if (layerAudio) URL.revokeObjectURL(layerAudio.src);
       layerAudio = new Audio(URL.createObjectURL(blob));
-      offset = 0; $("nudge").value = 0; $("nudgeVal").textContent = "0 ms";
+      setNudge(-lagMs);
+      var shift = Math.abs(offset);
+      $("syncnote").textContent =
+        (how === "sound" ? "Auto-aligned: moved " + shift + " ms earlier (measured from your mic)." :
+         how === "device" ? "Auto-aligned: moved " + shift + " ms earlier (based on your device's delay). Fine-tune below if it's off." :
+         "Moved " + shift + " ms earlier as a best guess. Your browser doesn't report its delay, so fine-tune below.") +
+        (lg.matched ? " Volume matched to the track." : " Couldn't match the volume automatically, so the owner can adjust it.");
       say("");
       setStage("s-review");
     }
 
     $("startRec").addEventListener("click", function () {
       say("");
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !ctx || !ctx.createScriptProcessor) {
         say("This browser can't record. Open the link in Safari or Chrome.", "bad"); return;
       }
       stopPreview();
+      try { if (ctx.state === "suspended") ctx.resume(); } catch (e) {}
       // Raw capture: no echo cancel / noise suppression / auto gain so the
       // owner gets a clean take (headphones prevent bleed).
       navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
-        .then(function (s) {
-          stream = s; chunks = []; mime = pickMime();
-          try { mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s); }
-          catch (e) { s.getTracks().forEach(function (t) { t.stop(); }); say("This browser can't record. Open the link in Safari or Chrome.", "bad"); return; }
-          mime = mr.mimeType || mime;
-          mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-          mr.onstop = onStopped;
-          audio.currentTime = 0;
-          mr.start();
-          audio.addEventListener("ended", onBaseEnded);
-          var p = audio.play(); if (p && p.catch) p.catch(function () {});
-          setStage("s-rec");
-        })
+        .then(startCapture)
         .catch(function () { say("Microphone access was blocked. Allow it in your browser settings, then try again.", "bad"); });
     });
 
@@ -208,17 +289,16 @@
     $("save").addEventListener("click", function () {
       stopPreview();
       $("save").disabled = true; $("rerec").disabled = true; say("Saving your layer…");
-      var type = baseMime(mime);
       fetch("/api/submit-layer", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite: invite, guestToken: guestToken, ext: extFor(mime), offsetMs: offset })
+        body: JSON.stringify({ invite: invite, guestToken: guestToken, ext: "wav", offsetMs: offset })
       }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
           if (!res.ok) throw new Error(res.d.error || "Could not save your layer.");
           // Same multipart shape supabase-js uses for signed uploads.
           var fd = new FormData();
           fd.append("cacheControl", "3600");
-          fd.append("", new Blob([blob], { type: type }));
+          fd.append("", new Blob([blob], { type: "audio/wav" }));
           return fetch(res.d.uploadUrl, { method: "PUT", body: fd });
         })
         .then(function (r) {

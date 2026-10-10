@@ -351,7 +351,7 @@
       row.appendChild(vol); row.appendChild(vr);
 
       var tm = el("p", "sm", "Timing: " + (l.offsetMs > 0 ? "+" : "") + l.offsetMs + " ms");
-      var tr = document.createElement("input"); tr.type = "range"; tr.min = -300; tr.max = 300; tr.step = 5; tr.value = Math.max(-300, Math.min(300, l.offsetMs));
+      var tr = document.createElement("input"); tr.type = "range"; tr.min = -500; tr.max = 500; tr.step = 5; tr.value = Math.max(-500, Math.min(500, l.offsetMs));
       tr.addEventListener("input", function () { tm.textContent = "Timing: " + (tr.value > 0 ? "+" : "") + tr.value + " ms"; });
       tr.addEventListener("change", function () { patchLayer(l, { offsetMs: parseInt(tr.value, 10) }); });
       row.appendChild(tm); row.appendChild(tr);
