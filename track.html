@@ -50,6 +50,11 @@
   .badge.muted{border-color:var(--ink-muted);color:var(--ink-muted)}
   .layer{border-top:1px solid var(--line);padding:14px 0}
   .layer:first-of-type{border-top:0}
+  .seek{height:18px;background:#1b2132;border-radius:9px;cursor:pointer;margin:14px 0 4px;position:relative;overflow:hidden;touch-action:manipulation}
+  .seek i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--cyan);pointer-events:none}
+  .seek:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .times{display:flex;justify-content:space-between;font-size:.78rem;color:var(--ink-muted)}
+  .mixrow input[type=range]{width:100%;accent-color:var(--cyan)}
   .layer input[type=range]{width:100%;accent-color:var(--cyan)}
   .sm{font-size:.8rem;color:var(--ink-muted);margin-top:8px}
   .note{min-height:1.4em;font-size:.88rem;margin-top:10px;color:var(--ink-muted)}
@@ -108,8 +113,17 @@
     <div class="card">
       <h2>Play &amp; download</h2>
       <div class="row">
-        <button class="btn grow" id="t-play" type="button">▶ Play all accepted</button>
+        <button class="btn grow" id="t-play" type="button">▶ Play</button>
         <button class="btn" id="t-stop" type="button">■ Stop</button>
+      </div>
+      <div class="seek" id="t-seek" role="slider" tabindex="0" aria-label="Song position. Tap to start from here" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="t-prog"></i></div>
+      <div class="times"><span id="t-time">0:00</span><span id="t-dur">0:00</span></div>
+      <p class="sm" style="margin-top:6px">Plays the beat with your accepted layers. Tap the bar to start from any spot.</p>
+      <div class="mixrow" style="margin-top:12px">
+        <p class="sm" id="v-beat-l">Beat volume: 100%</p>
+        <input type="range" id="v-beat" min="0" max="150" step="5" value="100" aria-label="Beat volume">
+        <p class="sm" id="v-voc-l">Vocals volume: 100%</p>
+        <input type="range" id="v-voc" min="0" max="150" step="5" value="100" aria-label="Vocals volume">
       </div>
       <button class="cta" id="t-dl" type="button" style="margin-top:12px">Download mix (WAV)</button>
       <p class="note" id="t-note" role="status"></p>
@@ -134,6 +148,12 @@
       <h2>Layers</h2>
       <p class="muted" id="l-empty">No layers yet. Send an invite and they'll show up here.</p>
       <div id="layers"></div>
+    </div>
+
+    <div class="card">
+      <h2>Delete this track</h2>
+      <p class="muted">Permanently removes the track, every layer, and the invite links. This can't be undone.</p>
+      <button class="btn bad" id="t-del" type="button" style="margin-top:10px">Delete track</button>
     </div>
   </div>
 </main>
@@ -208,15 +228,17 @@
   // ---- Audio engine --------------------------------------------------------
   // Offset convention (matches join.html): positive = layer starts later than
   // the base, negative = earlier. Everything is shifted so nothing starts
-  // before time zero.
+  // before time zero. The song position "pos" is seconds on that shifted timeline.
   var AC = window.AudioContext || window.webkitAudioContext;
-  var ctx = null, playing = [], playTimer = null;
+  var ctx = null;
   var S = { trackId: null, title: "Mix", baseUrl: null, baseBuf: null, layers: [] };
+  var mixVol = { beat: 1, voc: 1 };
+  var PB = { state: "stopped", nodes: [], masters: null, layers: null, pos: 0, dur: 0, startCtx: 0, pos0: 0, timer: null };
 
   function getCtx() { if (!ctx) ctx = new AC(); if (ctx.state === "suspended") ctx.resume(); return ctx; }
   function decode(url) {
     return fetch(url).then(function (r) { if (!r.ok) throw new Error("fetch"); return r.arrayBuffer(); })
-      .then(function (ab) { return new Promise(function (ok, no) { getCtx().decodeAudioData(ab, ok, no); }); });
+      .then(function (ab) { return new Promise(function (ok, no) { var p = getCtx().decodeAudioData(ab, ok, no); if (p && p.catch) p.catch(no); }); });
   }
   function ensureBase() {
     if (S.baseBuf) return Promise.resolve(S.baseBuf);
@@ -229,38 +251,78 @@
       l.err = "Can't play this layer here. It may still be uploading, or your browser can't read its format. Try Chrome.";
     });
   }
-  function schedule(c, items, startBase) {
-    var minRel = 0, end = 0, nodes = [];
-    items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
-    items.forEach(function (i) {
-      var s = c.createBufferSource(); s.buffer = i.buffer;
-      var g = c.createGain(); g.gain.value = i.gain;
-      s.connect(g); g.connect(c.destination);
-      var at = i.rel - minRel; s.start(startBase + at); nodes.push(s);
-      if (at + i.buffer.duration > end) end = at + i.buffer.duration;
-    });
-    return { nodes: nodes, end: end };
-  }
+  function prepare(layers) { return ensureBase().then(function () { return Promise.all(layers.map(ensureLayer)); }); }
+
   function itemsFor(layers) {
-    var items = [{ buffer: S.baseBuf, gain: 1, rel: 0 }];
-    layers.forEach(function (l) { if (l.buffer) items.push({ buffer: l.buffer, gain: l.volume, rel: l.offsetMs / 1000 }); });
+    var items = [{ buffer: S.baseBuf, gain: 1, rel: 0, kind: "beat" }];
+    layers.forEach(function (l) { if (l.buffer) items.push({ buffer: l.buffer, gain: l.volume, rel: l.offsetMs / 1000, kind: "voc" }); });
     return items;
   }
-  function stopAll() {
-    playing.forEach(function (n) { try { n.stop(); } catch (e) {} }); playing = [];
-    clearTimeout(playTimer);
-    $("t-play").textContent = "▶ Play all accepted";
+  function timeline(items) {
+    var minRel = 0, end = 0;
+    items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
+    items.forEach(function (i) { var e = i.rel - minRel + i.buffer.duration; if (e > end) end = e; });
+    return { minRel: minRel, end: end };
   }
-  function playLayers(layers, label) {
-    stopAll();
-    return ensureBase().then(function () { return Promise.all(layers.map(ensureLayer)); }).then(function () {
-      var c = getCtx(); var r = schedule(c, itemsFor(layers), c.currentTime + 0.1);
-      playing = r.nodes; if (label) $("t-play").textContent = label;
-      playTimer = setTimeout(stopAll, (r.end + 0.3) * 1000);
-      renderLayers();
-    }).catch(function () { say("t-note", "Couldn't load the track audio. Refresh and try again.", "bad"); });
+  // Starts every item at the right moment, as if the song were already `fromPos` seconds in.
+  function schedule(c, items, startBase, fromPos) {
+    var tl = timeline(items), nodes = [];
+    var beatM = c.createGain(), vocM = c.createGain();
+    beatM.gain.value = mixVol.beat; vocM.gain.value = mixVol.voc;
+    beatM.connect(c.destination); vocM.connect(c.destination);
+    items.forEach(function (i) {
+      var at = i.rel - tl.minRel;
+      if (at + i.buffer.duration <= fromPos) return;           // already finished before this point
+      var s = c.createBufferSource(); s.buffer = i.buffer;
+      var g = c.createGain(); g.gain.value = i.gain;
+      s.connect(g); g.connect(i.kind === "beat" ? beatM : vocM);
+      if (at >= fromPos) s.start(startBase + (at - fromPos)); else s.start(startBase, fromPos - at);
+      nodes.push(s);
+    });
+    return { nodes: nodes, end: tl.end, masters: { beat: beatM, voc: vocM } };
   }
   function accepted() { return S.layers.filter(function (l) { return l.status === "accepted"; }); }
+
+  function fmt(t) { t = Math.max(0, Math.floor(t)); return Math.floor(t / 60) + ":" + (t % 60 < 10 ? "0" : "") + (t % 60); }
+  function curPos() { return PB.state === "playing" ? PB.pos0 + (ctx.currentTime - PB.startCtx) : PB.pos; }
+  function paint() {
+    var pos = Math.max(0, Math.min(curPos(), PB.dur || 0));
+    var pct = PB.dur ? pos / PB.dur * 100 : 0;
+    $("t-prog").style.width = pct + "%";
+    $("t-seek").setAttribute("aria-valuenow", String(Math.round(pct)));
+    $("t-time").textContent = fmt(pos); $("t-dur").textContent = PB.dur ? fmt(PB.dur) : "0:00";
+    $("t-play").textContent = PB.state === "playing" ? "❚❚ Pause" : (PB.pos > 0.05 ? "▶ Resume" : "▶ Play");
+  }
+  function killNodes() {
+    PB.nodes.forEach(function (n) { try { n.onended = null; n.stop(); } catch (e) {} }); PB.nodes = [];
+    clearInterval(PB.timer); PB.timer = null;
+  }
+  function stopAll() { killNodes(); PB.state = "stopped"; PB.pos = 0; PB.layers = null; paint(); }
+  function pauseAll() { PB.pos = Math.min(curPos(), PB.dur); killNodes(); PB.state = "paused"; paint(); }
+
+  function playFrom(layers, pos) {
+    killNodes(); PB.layers = layers;
+    return prepare(layers).then(function () {
+      var c = getCtx(), items = itemsFor(layers), tl = timeline(items);
+      PB.dur = tl.end;
+      pos = Math.max(0, Math.min(pos, Math.max(0, tl.end - 0.05)));
+      var r = schedule(c, items, c.currentTime + 0.05, pos);
+      PB.nodes = r.nodes; PB.masters = r.masters; PB.pos0 = pos; PB.startCtx = c.currentTime + 0.05; PB.state = "playing";
+      PB.timer = setInterval(function () { if (curPos() >= PB.dur) stopAll(); else paint(); }, 100);
+      paint(); renderLayers();
+    }).catch(function () { say("t-note", "Couldn't load the track audio. Refresh and try again.", "bad"); });
+  }
+  function seekTo(frac) {
+    var layers = PB.layers || accepted();
+    return prepare(layers).then(function () {
+      PB.dur = timeline(itemsFor(layers)).end;
+      say("t-note", ""); return playFrom(layers, frac * PB.dur);
+    }).catch(function () { say("t-note", "Couldn't load the track audio. Refresh and try again.", "bad"); });
+  }
+  function refreshDuration() {
+    var layers = PB.layers || accepted();
+    prepare(layers).then(function () { PB.dur = timeline(itemsFor(layers)).end; paint(); }).catch(function () {});
+  }
 
   function encodeWav(buf) {
     var ch = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate, peak = 0, c, i;
@@ -279,25 +341,51 @@
     return new Blob([out], { type: "audio/wav" });
   }
 
+  // Play / pause / resume. With no accepted layers it just plays the beat.
   $("t-play").addEventListener("click", function () {
-    if (!accepted().length) { say("t-note", "Accept a layer first, then play everything together.", "bad"); return; }
-    say("t-note", ""); playLayers(accepted(), "▶ Playing…");
+    say("t-note", "");
+    if (PB.state === "playing") { pauseAll(); return; }
+    if (PB.state === "paused" && PB.layers) playFrom(PB.layers, PB.pos);
+    else playFrom(accepted(), 0);
   });
   $("t-stop").addEventListener("click", stopAll);
+  $("t-seek").addEventListener("click", function (e) {
+    var r = $("t-seek").getBoundingClientRect();
+    seekTo(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)));
+  });
+  $("t-seek").addEventListener("keydown", function (e) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    var pos = Math.max(0, Math.min(PB.dur, curPos() + (e.key === "ArrowRight" ? 5 : -5)));
+    if (PB.dur) seekTo(pos / PB.dur);
+  });
+
+  // Master Beat / Vocals volume: live while playing, and baked into the download.
+  function volKey() { return "gemstar_collab_vol_" + S.trackId; }
+  function applyVolUI() {
+    $("v-beat").value = Math.round(mixVol.beat * 100); $("v-voc").value = Math.round(mixVol.voc * 100);
+    $("v-beat-l").textContent = "Beat volume: " + Math.round(mixVol.beat * 100) + "%";
+    $("v-voc-l").textContent = "Vocals volume: " + Math.round(mixVol.voc * 100) + "%";
+  }
+  function onVol() {
+    mixVol.beat = parseInt($("v-beat").value, 10) / 100; mixVol.voc = parseInt($("v-voc").value, 10) / 100;
+    applyVolUI();
+    if (PB.masters && ctx) { PB.masters.beat.gain.setTargetAtTime(mixVol.beat, ctx.currentTime, 0.02); PB.masters.voc.gain.setTargetAtTime(mixVol.voc, ctx.currentTime, 0.02); }
+    try { localStorage.setItem(volKey(), JSON.stringify(mixVol)); } catch (e) {}
+  }
+  $("v-beat").addEventListener("input", onVol);
+  $("v-voc").addEventListener("input", onVol);
 
   $("t-dl").addEventListener("click", function () {
     var acc = accepted();
     if (!acc.length) { say("t-note", "Accept at least one layer to download a mix.", "bad"); return; }
     $("t-dl").disabled = true; say("t-note", "Building your mix…");
     stopAll();
-    ensureBase().then(function () { return Promise.all(acc.map(ensureLayer)); }).then(function () {
-      var items = itemsFor(acc);
-      var minRel = 0, end = 0;
-      items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
-      items.forEach(function (i) { var e = i.rel - minRel + i.buffer.duration; if (e > end) end = e; });
+    prepare(acc).then(function () {
+      var items = itemsFor(acc), tl = timeline(items);
       var sr = 44100, OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      var off = new OAC(2, Math.ceil((end + 0.1) * sr), sr);
-      schedule(off, items, 0);
+      var off = new OAC(2, Math.ceil((tl.end + 0.1) * sr), sr);
+      schedule(off, items, 0, 0);
       return off.startRendering();
     }).then(function (rendered) {
       var blob = encodeWav(rendered), a = document.createElement("a");
@@ -310,6 +398,15 @@
       .then(function () { $("t-dl").disabled = false; });
   });
 
+  $("t-del").addEventListener("click", function () {
+    if (!confirm("Delete \"" + (S.title || "this track") + "\" and every layer on it? This can't be undone.")) return;
+    stopAll(); $("t-del").disabled = true; say("t-note", "Deleting…");
+    api("delete-track", { trackId: S.trackId }).then(function (res) {
+      if (!res.ok) throw new Error(res.d.error || "Could not delete the track.");
+      location.href = "/track.html";
+    }).catch(function (e) { $("t-del").disabled = false; say("t-note", e.message || "Something went wrong.", "bad"); });
+  });
+
   // ---- Layers --------------------------------------------------------------
   function patchLayer(l, payload, okMsg) {
     return api("update-layer", Object.assign({ layerId: l.id }, payload)).then(function (res) {
@@ -317,6 +414,7 @@
       var u = res.d.layer; l.status = u.status; l.volume = u.volume; l.offsetMs = u.offsetMs;
       if (u.status === "removed") S.layers = S.layers.filter(function (x) { return x.id !== l.id; });
       if (okMsg) say("t-note", okMsg, "ok");
+      if (PB.state === "stopped") refreshDuration();
       renderLayers();
     }).catch(function (e) { say("t-note", e.message || "Something went wrong.", "bad"); });
   }
@@ -332,7 +430,7 @@
 
       var acts = el("div", "row"); acts.style.marginTop = "10px";
       var pv = el("button", "btn", "▶ Hear with track"); pv.type = "button";
-      pv.addEventListener("click", function () { say("t-note", ""); playLayers([l], "▶ Playing…"); });
+      pv.addEventListener("click", function () { say("t-note", ""); playFrom([l], 0); });
       acts.appendChild(pv);
       if (l.status !== "accepted") { var ac = el("button", "btn ok", "Accept"); ac.type = "button"; ac.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer accepted."); }); acts.appendChild(ac); }
       if (l.status === "accepted") { var mu = el("button", "btn", "Mute"); mu.type = "button"; mu.addEventListener("click", function () { patchLayer(l, { status: "muted" }); }); acts.appendChild(mu); }
@@ -394,7 +492,8 @@
       $("t-spots").textContent = d.spotsLeft > 0 ? d.spotsLeft + " collaborator spot" + (d.spotsLeft === 1 ? "" : "s") + " open." : "All collaborator spots are filled.";
       if (d.spotsLeft <= 0) $("i-make").disabled = true;
       $("back").classList.remove("hidden");
-      renderLayers(); show("v-track");
+      try { var sv = JSON.parse(localStorage.getItem(volKey()) || "null"); if (sv) { mixVol.beat = Math.min(1.5, Math.max(0, +sv.beat)); mixVol.voc = Math.min(1.5, Math.max(0, +sv.voc)); } } catch (e) {}
+      applyVolUI(); renderLayers(); show("v-track"); refreshDuration();
     });
   }
 

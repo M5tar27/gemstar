@@ -29,6 +29,9 @@
     color:var(--cyan);font-size:1.7rem;cursor:pointer;margin:0 auto 14px;display:flex;align-items:center;justify-content:center}
   .play:hover,.play:focus-visible{background:rgba(0,245,255,.1);outline:none}
   .bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin:0 0 22px}
+  .bar{cursor:pointer;touch-action:manipulation;height:14px;border-radius:7px}
+  .beatvol{margin:14px 0 4px;text-align:left;font-size:.85rem;color:var(--ink-muted)}
+  .beatvol input{width:100%;accent-color:var(--cyan);margin-top:6px}
   .bar>i{display:block;height:100%;width:0;background:var(--cyan)}
   .cta{width:100%;padding:16px;border:0;border-radius:12px;background:var(--gem);color:#fff;
     font-family:var(--font-display);font-weight:700;font-size:1.05rem;letter-spacing:.04em;cursor:pointer}
@@ -68,11 +71,15 @@
     <h1 id="title"></h1>
     <p class="meta" id="meta"></p>
     <button class="play" id="play" type="button" aria-label="Play track">▶</button>
-    <div class="bar" aria-hidden="true"><i id="prog"></i></div>
+    <div class="bar" id="bar" role="slider" tabindex="0" aria-label="Song position. Tap to start from here" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="prog"></i></div>
     <button class="cta" id="add" type="button">Add your layer</button>
     <p class="note" id="note" role="status"></p>
 
     <div id="rec" class="hidden">
+      <div class="beatvol" id="beatvolBox">
+        <label for="beatvol">Beat volume: <b id="beatvolVal">100%</b></label>
+        <input type="range" id="beatvol" min="0" max="100" step="5" value="100">
+      </div>
       <div id="s-intro">
         <p class="stage-title">Record your layer</p>
         <p class="meta" style="margin-bottom:6px">The track plays while you record. Sing, rap, or harmonize over it.</p>
@@ -124,7 +131,7 @@
     recorderReady = true;
     var AC = window.AudioContext || window.webkitAudioContext;
     var MAX_SECONDS = 230;                       // keeps the WAV under the 25 MB upload cap
-    var stream = null, ctx = null, proc = null, srcNode = null, mute = null, playSrc = null;
+    var stream = null, ctx = null, proc = null, srcNode = null, mute = null, playSrc = null, beatGain = null, beatVol = 1;
     var chunks = [], nSamples = 0, capStart = null, tStart = null, recording = false, usingBuffer = false;
     var trackBuf = null, trackBufP = null;
     var blob = null, layerAudio = null, offset = 0, timers = [];
@@ -132,6 +139,7 @@
     function say(t, cls) { $("rnote").className = "note" + (cls ? " " + cls : ""); $("rnote").textContent = t; }
     function setStage(s) {
       ["s-intro", "s-rec", "s-review", "s-done"].forEach(function (x) { $(x).classList.toggle("hidden", x !== s); });
+      $("beatvolBox").classList.toggle("hidden", s === "s-done");
     }
     function stopPreview() {
       timers.forEach(clearTimeout); timers = [];
@@ -160,6 +168,14 @@
 
     function onBaseEnded() { stopRecording(); }
 
+    // Beat volume (in your headphones while recording, and in the preview). It doesn't change the recording itself.
+    $("beatvol").addEventListener("input", function () {
+      beatVol = parseInt($("beatvol").value, 10) / 100;
+      $("beatvolVal").textContent = Math.round(beatVol * 100) + "%";
+      audio.volume = beatVol;
+      if (beatGain) beatGain.gain.value = beatVol;
+    });
+
     function startCapture(s) {
       stream = s; chunks = []; nSamples = 0; capStart = null; tStart = null; recording = true;
       srcNode = ctx.createMediaStreamSource(s);
@@ -176,7 +192,8 @@
       // Start the track so we know exactly when it began relative to the recording.
       usingBuffer = !!trackBuf;
       if (usingBuffer) {
-        playSrc = ctx.createBufferSource(); playSrc.buffer = trackBuf; playSrc.connect(ctx.destination);
+        playSrc = ctx.createBufferSource(); playSrc.buffer = trackBuf;
+        beatGain = ctx.createGain(); beatGain.gain.value = beatVol; playSrc.connect(beatGain); beatGain.connect(ctx.destination);
         playSrc.onended = function () { if (recording) onBaseEnded(); };
         tStart = ctx.currentTime + 0.2; playSrc.start(tStart);
       } else {
@@ -334,6 +351,13 @@
       audio.addEventListener("ended", function () { $("play").textContent = "▶"; $("prog").style.width = "0"; });
       audio.addEventListener("timeupdate", function () {
         if (audio.duration) $("prog").style.width = (audio.currentTime / audio.duration * 100) + "%";
+      });
+      // Tap anywhere on the bar to start the song from that spot.
+      $("bar").addEventListener("click", function (e) {
+        if (!audio.duration || !$("s-rec").classList.contains("hidden")) return;   // not while recording
+        var r = $("bar").getBoundingClientRect();
+        audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * audio.duration;
+        var pp = audio.play(); if (pp && pp.catch) pp.catch(function () {});
       });
 
       if (d.spotsLeft <= 0) {
