@@ -17,7 +17,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  var VOCAL_UNDER_TRACK_DB = 2;   // vocal sits this far under the beat's loudness
+  var VOCAL_UNDER_TRACK_DB = 0;   // vocal loudness = track loudness (raise to sit it lower)
   var MAX_GAIN = 8;               // +18 dB cap so a whisper isn't boosted into hiss
   var MIN_GAIN = 0.1;
 
