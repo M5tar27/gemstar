@@ -643,6 +643,10 @@
   .tune-key-row{display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:-6px;}
   .tune-key-row select{min-width:0;}
   .tune-key-row select:disabled{opacity:0.45;}
+  .key-detect{flex-basis:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px; margin:2px 0 0; font-size:0.8rem; color:var(--ink);}
+  .key-detect[hidden]{display:none;}
+  .key-detect .kd-text b{color:var(--cyan);}
+  .key-detect .kd-btn{font-size:0.75rem; padding:4px 12px;}
   .tune-key-hint{flex-basis:100%; text-align:center; margin:0; font-size:0.72rem; color:var(--ink-dim);}
   .clean-status{color:var(--yellow);}
   .clean-status:empty{display:none;}
@@ -1415,6 +1419,10 @@
         <option value="minor" id="tune-scale-minor">Minor</option>
       </select>
       <p class="tune-key-hint" data-i18n="tuneKeyHint">Set your song's key so Tune only snaps to notes that fit it.</p>
+      <div class="key-detect" id="key-detect" hidden>
+        <span class="kd-text" id="key-detect-text" role="status" aria-live="polite"></span>
+        <button type="button" class="pill-btn pill-cyan kd-btn" id="key-detect-use" hidden></button>
+      </div>
     </div>
     <p class="signature-note" data-i18n="signatureNote">M5tar &amp; Jewels: each engineer's own signature touch, dialed in.</p>
 
@@ -1640,6 +1648,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+<script src="/key-detect.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1770,6 +1779,13 @@
       cleanNone:"No dead air long enough to clean up. Your vocals were already tight.",
       tuneKeyLabel:"Auto-Tune Key", tuneChromatic:"Chromatic (all notes)", scaleMajor:"Major", scaleMinor:"Minor",
       tuneKeyHint:"Set your song's key so Tune only snaps to notes that fit it.",
+      keyAnalyzing:"Listening to your beat to find its key…",
+      keyFound:"Your beat sounds like <b>{k}</b> (same notes as {r}).",
+      keyGuess:"Not totally sure, but your beat sounds closest to <b>{k}</b> (same notes as {r}).",
+      keyUnsure:"Couldn't pin down a clear key for this beat. Set it by ear above.",
+      keyUse:"Use this key",
+      keyUsing:"Auto-Tune is set to {k}.",
+      keyMajor:"major", keyMinor:"minor",
       faqEyebrow:"Help", faqTitle:"Frequently asked questions", faqSub:"Quick answers to the questions we hear most.",
       faqContact:"Still have a question? Email <a href=\"mailto:Gemstaraudio@gmail.com\">Gemstaraudio@gmail.com</a> and we'll help.",
       faqQ1:"What is Gemstar?", faqA1:"A vocal processing studio that runs right in your browser, built by engineers M5tar and Jewels. Upload or record a vocal, dial in the knobs or pick a preset, then export an MP3 or 24-bit WAV.",
@@ -1967,6 +1983,13 @@
       cleanNone:"No hay silencios lo bastante largos para limpiar. Tus voces ya estaban limpias.",
       tuneKeyLabel:"Tono del Auto-Tune", tuneChromatic:"Cromático (todas las notas)", scaleMajor:"Mayor", scaleMinor:"Menor",
       tuneKeyHint:"Elige el tono de tu canción para que Tune solo se ajuste a notas que encajan.",
+      keyAnalyzing:"Escuchando tu beat para encontrar su tono…",
+      keyFound:"Tu beat suena a <b>{k}</b> (mismas notas que {r}).",
+      keyGuess:"No estoy del todo seguro, pero tu beat suena más cercano a <b>{k}</b> (mismas notas que {r}).",
+      keyUnsure:"No pude identificar un tono claro para este beat. Elígelo de oído arriba.",
+      keyUse:"Usar este tono",
+      keyUsing:"Auto-Tune está en {k}.",
+      keyMajor:"mayor", keyMinor:"menor",
       faqEyebrow:"Ayuda", faqTitle:"Preguntas frecuentes", faqSub:"Respuestas rápidas a las preguntas más comunes.",
       faqContact:"¿Todavía tienes una pregunta? Escribe a <a href=\"mailto:Gemstaraudio@gmail.com\">Gemstaraudio@gmail.com</a> y te ayudamos.",
       faqQ1:"¿Qué es Gemstar?", faqA1:"Un estudio de procesamiento vocal que funciona en tu navegador, creado por los ingenieros M5tar y Jewels. Sube o graba una voz, ajusta las perillas o elige un preset, y exporta un MP3 o WAV de 24 bits.",
@@ -2064,6 +2087,7 @@
       var key = el.getAttribute("data-i18n-placeholder");
       if (STR[l][key] !== undefined) el.setAttribute("placeholder", STR[l][key]);
     });
+    if (window.gemstarKeyUI) window.gemstarKeyUI.render();
     KNOB_DEFS.forEach(function(k){
       var lbl = document.querySelector('.knob-label[data-key="'+k.id+'"]');
       if (lbl) lbl.textContent = STR[l].knobs[k.id];
@@ -4829,6 +4853,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         beatNameEl.textContent = file.name;
         updateBeatVisibility();
         applyBeatLevel();
+        if (window.gemstarKeyUI) window.gemstarKeyUI.onBeat(buf);
         if (isPlaying) startPlayback(); // restart in sync now that a beat exists
       }, function(){
         alert(lang==="es" ? "No se pudo leer ese archivo de audio." : "Couldn't read that audio file.");
@@ -4894,6 +4919,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   document.getElementById("btn-beat-remove").addEventListener("click", function(){
     beatBuffer = null;
+    if (window.gemstarKeyUI) window.gemstarKeyUI.clear();
     stopBeatSourceOnly();
     beatInput.value = "";
     updateBeatVisibility();
@@ -8080,6 +8106,62 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   if (tuneScaleSel) tuneScaleSel.addEventListener("change", function(){
     tuneScale = tuneScaleSel.value === "minor" ? "minor" : "major"; broadcastScale(); scheduleSave();
   });
+
+  /* ---------- Beat key detector (feeds the Auto-Tune key) ---------- */
+  // Analyzes a loaded beat with key-detect.js and offers a one-tap "Use this
+  // key". It never changes the Auto-Tune key by itself. A run token drops
+  // results that arrive after the beat was removed or replaced.
+  window.gemstarKeyUI = (function(){
+    var box = document.getElementById("key-detect");
+    var txt = document.getElementById("key-detect-text");
+    var useBtn = document.getElementById("key-detect-use");
+    var state = {kind:"none", res:null, applied:false};
+    var run = 0;
+    function t(k){ return (STR[lang] && STR[lang][k]) || STR.en[k] || ""; }
+    function label(root, mode){
+      return window.GemstarKey.names[root] + " " + (mode === "minor" ? t("keyMinor") : t("keyMajor"));
+    }
+    function render(){
+      if (!box) return;
+      if (state.kind === "none"){ box.hidden = true; return; }
+      box.hidden = false;
+      useBtn.hidden = true;
+      if (state.kind === "busy"){ txt.textContent = t("keyAnalyzing"); return; }
+      if (state.kind === "unsure"){ txt.textContent = t("keyUnsure"); return; }
+      var r = state.res, rel = r.relative;
+      var msg = t(state.kind === "found" ? "keyFound" : "keyGuess")
+        .replace("{k}", label(r.root, r.mode)).replace("{r}", label(rel.root, rel.mode));
+      if (state.applied) msg = t("keyUsing").replace("{k}", label(r.root, r.mode));
+      txt.innerHTML = msg;
+      useBtn.textContent = t("keyUse");
+      useBtn.hidden = state.applied;
+    }
+    function onBeat(buf){
+      var my = ++run;
+      if (!box || !window.GemstarKey){ return; }
+      state = {kind:"busy", res:null, applied:false};
+      render();
+      window.GemstarKey.detect(buf, {isCancelled: function(){ return my !== run; }}).then(function(res){
+        if (my !== run) return;
+        if (!res){ state = {kind:"none", res:null, applied:false}; }
+        else if (res.confidence === "low"){ state = {kind:"unsure", res:res, applied:false}; }
+        else state = {kind: res.confidence === "high" ? "found" : "guess", res:res, applied:false};
+        render();
+      });
+    }
+    function clear(){ run++; state = {kind:"none", res:null, applied:false}; render(); }
+    if (useBtn) useBtn.addEventListener("click", function(){
+      if (!state.res) return;
+      tuneKey = String(state.res.root); tuneScale = state.res.mode === "minor" ? "minor" : "major";
+      syncTuneKeyUI(); broadcastScale(); scheduleSave();
+      state.applied = true; render();
+    });
+    // If the user picks a key by hand afterwards, the "using" note no longer applies.
+    function resetApplied(){ if (state.applied){ state.applied = false; render(); } }
+    if (tuneKeySel) tuneKeySel.addEventListener("change", resetApplied);
+    if (tuneScaleSel) tuneScaleSel.addEventListener("change", resetApplied);
+    return {onBeat:onBeat, clear:clear, render:render};
+  })();
 
   /* ---------- Clean Silence (Mix / Unlimited) ---------- */
   // Mutes the dead air between phrases (hiss, room noise, stray breaths) on
