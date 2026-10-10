@@ -339,6 +339,18 @@
   }
   .mode-toggle .mode-btn:not(.active) .mix-badge{background:rgba(255,46,136,0.15); color:var(--gem);}
 
+  /* before / after demo */
+  #hear[hidden]{display:none;}
+  .hear-card{max-width:520px; margin:18px auto 0; padding:22px 18px; border:1px solid var(--line); border-radius:16px; background:var(--bg-panel, #0e0e18); display:flex; flex-direction:column; align-items:center; gap:16px;}
+  .hear-toggle{display:flex; border:1px solid var(--line); border-radius:22px; overflow:hidden; width:100%;}
+  .hear-btn{flex:1; background:none; border:none; color:var(--ink-dim); font-family:var(--font-display); font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; padding:12px 10px; cursor:pointer;}
+  .hear-btn.active{background:linear-gradient(90deg, var(--cyan), var(--gem)); color:#050508; font-weight:700;}
+  .hear-play{width:72px; height:72px; border-radius:50%; border:2px solid var(--cyan); background:rgba(0,245,255,0.08); color:var(--cyan); font-size:1.6rem; cursor:pointer;}
+  .hear-bar{width:100%; height:12px; border-radius:8px; background:#1c1c2a; border:1px solid var(--line); cursor:pointer; overflow:hidden;}
+  .hear-bar i{display:block; height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--gem));}
+  .hear-note{margin:0; font-size:0.82rem; color:var(--ink-dim); text-align:center;}
+  .hear-note[hidden]{display:none;}
+
   /* upload dropzone */
   .dropzone{
     border:1.5px dashed var(--line-strong); border-radius:10px; padding:clamp(28px,6vw,48px) 20px;
@@ -1510,6 +1522,26 @@
     <p class="export-status" id="export-status"></p>
   </div>
 
+  <section id="hear" hidden>
+    <div class="section-head">
+      <p class="eyebrow" data-i18n="hearEyebrow">Hear The Difference</p>
+      <h2 data-i18n="hearTitle">Same take. Before and after Gemstar.</h2>
+      <p data-i18n="hearSub">One raw vocal, one tap. Switch while it plays — headphones recommended.</p>
+    </div>
+    <div class="hear-card">
+      <div class="hear-toggle" role="tablist" aria-label="Before or after">
+        <button type="button" class="hear-btn active" id="hear-before" role="tab" aria-selected="true" data-i18n="hearBefore">Before · Raw</button>
+        <button type="button" class="hear-btn" id="hear-after" role="tab" aria-selected="false" data-i18n="hearAfter">After · Gemstar</button>
+      </div>
+      <button type="button" class="hear-play" id="hear-play" aria-label="Play">▶</button>
+      <div class="hear-bar" id="hear-bar" role="slider" tabindex="0" aria-label="Position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="hear-prog"></i></div>
+      <p class="hear-note" id="hear-note-before" data-i18n="hearNote">Currently hearing: the raw recording.</p>
+      <p class="hear-note" id="hear-note-after" data-i18n="hearNoteAfter" hidden>Currently hearing: the same take through Gemstar.</p>
+      <audio id="hear-a-before" preload="none" src="/demo/before.mp3"></audio>
+      <audio id="hear-a-after" preload="none" src="/demo/after.mp3"></audio>
+    </div>
+  </section>
+
   <hr class="divider" />
 
   <section id="engineers">
@@ -1683,6 +1715,8 @@
   var STR = {
     en:{
       brand:"GEMSTAR", eyebrow:"M5tar Studio x Gemsquad Production",
+      hearEyebrow:"Hear The Difference", hearTitle:"Same take. Before and after Gemstar.", hearSub:"One raw vocal, one tap. Switch while it plays — headphones recommended.",
+      hearBefore:"Before · Raw", hearAfter:"After · Gemstar", hearNote:"Currently hearing: the raw recording.", hearNoteAfter:"Currently hearing: the same take through Gemstar.",
       engEyebrow:"Behind The Chain", engTitle:"Two engineers, one chain",
       engSub:"Gemstar runs on two studios' worth of ears — both engineering since 2016.",
       m5tarRole:"M5tar Studio · Mixing & Production",
@@ -1887,6 +1921,8 @@
     },
     es:{
       brand:"GEMSTAR", eyebrow:"M5tar Studio x Gemsquad Production",
+      hearEyebrow:"Escucha La Diferencia", hearTitle:"La misma toma. Antes y después de Gemstar.", hearSub:"Una voz sin procesar, un toque. Cambia mientras suena — se recomiendan audífonos.",
+      hearBefore:"Antes · Sin procesar", hearAfter:"Después · Gemstar", hearNote:"Escuchando: la grabación sin procesar.", hearNoteAfter:"Escuchando: la misma toma con Gemstar.",
       engEyebrow:"Detrás De La Cadena", engTitle:"Dos ingenieros, una cadena",
       engSub:"Gemstar funciona con el oído de dos estudios — ambos ingenieros desde 2016.",
       m5tarRole:"M5tar Studio · Mezcla y Producción",
@@ -9052,6 +9088,51 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   showEmailStep();
   verifyStoredToken();
+})();
+</script>
+
+<script>
+/* Before / After demo: the section only appears once /demo/before.mp3 and /demo/after.mp3 exist.
+   Both play in sync; the buttons switch which one is audible. */
+(function(){
+  var sec = document.getElementById("hear"); if (!sec) return;
+  var A = document.getElementById("hear-a-before"), B = document.getElementById("hear-a-after");
+  var bBtn = document.getElementById("hear-before"), aBtn = document.getElementById("hear-after");
+  var play = document.getElementById("hear-play"), bar = document.getElementById("hear-bar"), prog = document.getElementById("hear-prog");
+  var nB = document.getElementById("hear-note-before"), nA = document.getElementById("hear-note-after");
+  var after = false, playing = false, timer = null;
+  if (typeof fetch !== "function") return;
+  fetch("/demo/after.mp3", {method:"HEAD"}).then(function(r){
+    if (!r.ok) return;
+    return fetch("/demo/before.mp3", {method:"HEAD"}).then(function(r2){ if (r2.ok) sec.hidden = false; });
+  }).catch(function(){});
+  function apply(){
+    A.muted = after; B.muted = !after;
+    bBtn.classList.toggle("active", !after); aBtn.classList.toggle("active", after);
+    bBtn.setAttribute("aria-selected", String(!after)); aBtn.setAttribute("aria-selected", String(after));
+    nB.hidden = after; nA.hidden = !after;
+  }
+  function tick(){
+    var d = A.duration || B.duration || 0, t = A.currentTime || 0;
+    prog.style.width = (d ? Math.min(100, t / d * 100) : 0) + "%";
+    bar.setAttribute("aria-valuenow", String(Math.round(d ? t / d * 100 : 0)));
+    if (playing && Math.abs(A.currentTime - B.currentTime) > 0.08) B.currentTime = A.currentTime;   // keep them locked together
+  }
+  function stop(){ playing = false; A.pause(); B.pause(); clearInterval(timer); timer = null; play.textContent = "\u25B6"; }
+  function start(){
+    playing = true; B.currentTime = A.currentTime; apply();
+    Promise.all([A.play(), B.play()]).catch(function(){ stop(); });
+    play.textContent = "\u275A\u275A"; timer = setInterval(tick, 100);
+  }
+  play.addEventListener("click", function(){ if (playing) stop(); else start(); });
+  bBtn.addEventListener("click", function(){ after = false; apply(); });
+  aBtn.addEventListener("click", function(){ after = true; apply(); });
+  A.addEventListener("ended", function(){ stop(); A.currentTime = 0; B.currentTime = 0; tick(); });
+  bar.addEventListener("click", function(e){
+    var r = bar.getBoundingClientRect(), d = A.duration || 0; if (!d) return;
+    A.currentTime = B.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * d; tick();
+  });
+  apply();
 })();
 </script>
 
