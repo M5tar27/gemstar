@@ -388,6 +388,30 @@
     transition:width .08s linear;
   }
   .record-controls{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
+  /* record-first layout: the big red button leads the panel */
+  #record-panel .record-controls{order:-2; width:100%;}
+  #record-panel #record-hint{order:-1;}
+  .pill-btn.rec-big{
+    width:100%; max-width:320px; min-height:76px; border-radius:42px; font-size:1.25rem; letter-spacing:0.06em;
+    font-weight:800; text-transform:uppercase; color:#fff; cursor:pointer;
+    background:radial-gradient(circle at 30% 25%, #ff6b6b, #e11d2e 55%, #a30d1b);
+    border:3px solid rgba(255,255,255,0.85); box-shadow:0 0 0 0 rgba(225,29,46,0.55), 0 10px 30px -8px rgba(225,29,46,0.8);
+    animation:rec-ready 2.4s ease-in-out infinite;
+  }
+  .pill-btn.rec-big:hover{filter:brightness(1.1);}
+  .pill-btn.rec-big:active{transform:scale(0.98);}
+  .pill-btn.rec-big[hidden]{display:none;}
+  .pill-btn.rec-big.rec-big-stop{
+    background:#14141f; border-color:#e11d2e; color:#ff6b6b; animation:none;
+    box-shadow:0 0 0 0 rgba(225,29,46,0.55); }
+  @keyframes rec-ready{0%,100%{box-shadow:0 0 0 0 rgba(225,29,46,0.45), 0 10px 30px -8px rgba(225,29,46,0.8);}
+    50%{box-shadow:0 0 0 14px rgba(225,29,46,0), 0 10px 30px -8px rgba(225,29,46,0.8);}}
+  @media (prefers-reduced-motion:reduce){ .pill-btn.rec-big{animation:none;} }
+  /* vocal upload is now the small option */
+  .dropzone-compact{padding:14px 16px;}
+  .dropzone-compact .dz-icon{display:none;}
+  .dropzone-compact h3{font-size:1rem; margin:0 0 4px;}
+  .dropzone-compact p{font-size:0.78rem;}
   .record-hint{margin:0; color:var(--ink-dim); font-size:0.82rem; max-width:42ch;}
   .record-bt-warn{color:var(--yellow); font-weight:600; max-width:48ch;}
   .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
@@ -1179,12 +1203,12 @@
     <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock the M5tar &amp; Jewels signature knobs and Full Song Mix; any plan unlocks export.</p>
     <div class="transport">
       <div class="mode-toggle" role="tablist" aria-label="Mix mode">
-        <button type="button" class="mode-btn active" id="mode-vocal" role="tab" aria-selected="true">
-          <span data-i18n="modeVocal">Vocal Only</span>
-        </button>
         <button type="button" class="mode-btn" id="mode-full" role="tab" aria-selected="false">
           <span data-i18n="modeFull">Full Song Mix</span>
           <span class="mix-badge">$49</span>
+        </button>
+        <button type="button" class="mode-btn active" id="mode-vocal" role="tab" aria-selected="true">
+          <span data-i18n="modeVocal">Vocal Only</span>
         </button>
       </div>
 
@@ -1198,12 +1222,17 @@
         <a href="#" id="plan-unlock-link" class="plan-unlock-link" data-i18n="planUnlockLink">Verify plan &rarr;</a>
       </div>
 
-      <div class="input-mode-row" id="input-mode-row">
-        <button type="button" class="pill-btn pill-cyan active" id="input-mode-upload" aria-selected="true" data-i18n="recordModeUpload">Upload File</button>
-        <button type="button" class="pill-btn pill-cyan" id="input-mode-record" aria-selected="false" data-i18n="recordModeRecord">Record Vocal</button>
+      <div class="beat-drop" id="beat-drop" tabindex="0" role="button" aria-label="Upload beat or instrumental" hidden>
+        <span data-i18n="beatDzTitle">Drop your beat here (MP3/WAV)</span>
+        <input type="file" id="beat-input" accept="audio/*" />
       </div>
 
-      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Upload vocal file">
+      <div class="input-mode-row" id="input-mode-row">
+        <button type="button" class="pill-btn pill-cyan active" id="input-mode-record" aria-selected="true" data-i18n="recordModeRecord">Record Vocal</button>
+        <button type="button" class="pill-btn pill-cyan" id="input-mode-upload" aria-selected="false" data-i18n="recordModeUpload">Drop Vocals</button>
+      </div>
+
+      <div class="dropzone dropzone-compact" id="dropzone" tabindex="0" role="button" aria-label="Upload vocal file" hidden>
         <div class="dz-icon">
           <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
             <path d="M17 22V6M17 6L10 13M17 6L24 13" stroke="#00F5FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1215,7 +1244,7 @@
         <input type="file" id="file-input" accept="audio/*" multiple />
       </div>
 
-      <div class="record-panel" id="record-panel" hidden>
+      <div class="record-panel" id="record-panel">
         <div class="record-visual">
           <div class="record-dot" id="record-dot"></div>
           <span class="record-time" id="record-time">00:00</span>
@@ -1225,28 +1254,24 @@
           <canvas id="record-waveform" width="900" height="80"></canvas>
         </div>
         <div class="record-meter-shell"><div class="record-meter-bar" id="record-meter-bar"></div></div>
-        <div class="record-device-row">
+        <div class="record-device-row" id="record-device-row">
           <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
           <p class="record-device-hint" id="record-device-hint"></p>
         </div>
+        <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
         <label class="record-fx-monitor-row">
           <input type="checkbox" id="record-fx-monitor" />
           <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
         </label>
         <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
         <div class="record-controls">
-          <button type="button" class="pill-btn pill-cyan" id="btn-record-start" data-i18n="recordStart">Start Recording</button>
-          <button type="button" class="pill-btn pill-purple" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
+          <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
+          <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
           <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
-      </div>
-
-      <div class="beat-drop" id="beat-drop" tabindex="0" role="button" aria-label="Upload beat or instrumental" hidden>
-        <span data-i18n="beatDzTitle">Drop your beat here (MP3/WAV)</span>
-        <input type="file" id="beat-input" accept="audio/*" />
       </div>
 
       <div id="beat-block" hidden>
@@ -1556,6 +1581,7 @@
           <li data-i18n="studio3">Stem Export — every vocal as its own 24-bit WAV, ready for your DAW</li>
           <li data-i18n="studio4">Recordings up to 10 minutes</li>
           <li data-i18n="studio5">✨ AI Mix — one-tap level, pan &amp; tone balancing across every track</li>
+          <li data-i18n="studio6">🤝 Collab — invite a friend to record a layer on your track, then accept, mix &amp; download</li>
         </ul>
         <a class="tier-cta" href="https://buy.stripe.com/9B69ASfva5IP9No8K71RC02" target="_blank" rel="noopener" data-i18n="join">Subscribe Now</a>
       </div>
@@ -1665,9 +1691,9 @@
       jewelsBio:"Singer and audio engineer, trained since 2016. Runs Gemsquad Production and shaped the vocal-first side of this chain.",
       subheadline:"Drop in a vocal, dial the chain, hear it change instantly. No sessions, no waiting on an engineer.",
       dzTitle:"Drop your vocals here", dzSub:"MP3 or WAV · drop one or several at once · or tap to browse",
-      recordModeUpload:"Upload File", recordModeRecord:"Record Vocal",
-      recordStart:"Start Recording", recordStop:"Stop", recordRetry:"Re-record",
-      recordHintIdle:"Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.",
+      recordModeUpload:"Drop Vocals", recordModeRecord:"Record Vocal", pickMicBtn:"🎚 Choose microphone",
+      recordStart:"● Record", recordStop:"Stop", recordRetry:"Re-record",
+      recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
       recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
@@ -1727,7 +1753,7 @@
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
       starterName:"Starter", starterSub:"For the bedroom studio — dial in your vocal chain (up to 3 vocal tracks, no Full Song Mix yet).", starter1:"Full vocal chain — 11 core knobs", starter2:"Pitch correction with key & scale lock — auto-detects your beat's key", starter3:"Recordings up to 3 minutes, 3 vocal tracks", starter4:"Standard MP3/WAV export",
       proName:"Mix", proSub:"For the home studio — full songs, mixed and mastered, with up to 5 vocal tracks that each get their own independent effects chain.", pro1:"Full Song Mix — vocal + beat, mastered together", pro2:"M5tar & Jewels signature knobs unlocked", pro3:"Up to 5 vocal tracks, each with its own full effects chain — plus pan, mute, solo & role presets", pro4:"Clean Silence, custom input device picker, recordings up to 6 minutes", pro5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", pro6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
-      studioName:"Unlimited", studioSub:"For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.", studio1:"Everything in Mix — including Collab", studio2:"Up to 8 vocal tracks, each with its own full effects chain", studio3:"Stem Export — every vocal as its own 24-bit WAV, ready for your DAW", studio4:"Recordings up to 10 minutes", studio5:"✨ AI Mix — one-tap level, pan & tone balancing across every track",
+      studioName:"Unlimited", studioSub:"For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.", studio1:"Everything in Mix, plus more", studio2:"Up to 8 vocal tracks, each with its own full effects chain", studio3:"Stem Export — every vocal as its own 24-bit WAV, ready for your DAW", studio4:"Recordings up to 10 minutes", studio5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", studio6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
       studioPitch:"Most producers pick this — more tracks than Mix, plus full stem export for your DAW.",
       bestSeller:"BEST SELLER", join:"Subscribe Now",
       wlTitle:"Not ready to subscribe?", wlSub:"Join the list and we'll email you about new features, plans, and updates.",
@@ -1869,9 +1895,9 @@
       jewelsBio:"Cantante e ingeniera de audio, formada desde 2016. Dirige Gemsquad Production y dio forma al lado vocal de esta cadena.",
       subheadline:"Sube una voz, ajusta la cadena, escucha el cambio al instante. Sin sesiones, sin esperar a un ingeniero.",
       dzTitle:"Suelta tus voces aquí", dzSub:"MP3 o WAV · una o varias a la vez · o toca para buscar",
-      recordModeUpload:"Subir Archivo", recordModeRecord:"Grabar Voz",
-      recordStart:"Empezar A Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
-      recordHintIdle:"Toca Empezar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
+      recordModeUpload:"Soltar Voces", recordModeRecord:"Grabar Voz", pickMicBtn:"🎚 Elegir micrófono",
+      recordStart:"● Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
+      recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
       recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
@@ -1931,7 +1957,7 @@
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
       starterName:"Inicial", starterSub:"Para el estudio casero — ajusta tu cadena vocal (hasta 3 pistas vocales, sin Mezcla De Canción Completa todavía).", starter1:"Cadena vocal completa — 11 perillas base", starter2:"Corrección de tono con bloqueo de tonalidad y escala — detecta automáticamente el tono de tu beat", starter3:"Grabaciones de hasta 3 minutos, 3 pistas vocales", starter4:"Exportación estándar en MP3/WAV",
       proName:"Mix", proSub:"Para el home studio — canciones completas, mezcladas y masterizadas, con hasta 5 pistas vocales, cada una con su propia cadena de efectos independiente.", pro1:"Mezcla De Canción Completa — voz + beat, masterizados juntos", pro2:"Perillas de firma M5tar y Jewels desbloqueadas", pro3:"Hasta 5 pistas vocales, cada una con su propia cadena de efectos completa — más pan, silencio, solo y roles preestablecidos", pro4:"Silencio Limpio, selector de dispositivo de entrada, grabaciones de hasta 6 minutos", pro5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", pro6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
-      studioName:"Ilimitado", studioSub:"Para el estudio profesional — hasta 8 pistas vocales, cada una con su propia cadena de efectos, más exportación de stems para tu DAW.", studio1:"Todo lo del plan Mix, incluido Collab", studio2:"Hasta 8 pistas vocales, cada una con su propia cadena de efectos completa", studio3:"Exportación de Stems — cada voz como su propio WAV de 24 bits, listo para tu DAW", studio4:"Grabaciones de hasta 10 minutos", studio5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque",
+      studioName:"Ilimitado", studioSub:"Para el estudio profesional — hasta 8 pistas vocales, cada una con su propia cadena de efectos, más exportación de stems para tu DAW.", studio1:"Todo lo del plan Mix, y más", studio2:"Hasta 8 pistas vocales, cada una con su propia cadena de efectos completa", studio3:"Exportación de Stems — cada voz como su propio WAV de 24 bits, listo para tu DAW", studio4:"Grabaciones de hasta 10 minutos", studio5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", studio6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
       studioPitch:"La mayoría de los productores elige este — más pistas que Mix, más exportación completa de stems.",
       bestSeller:"MÁS VENDIDO", join:"Suscribirme Ahora",
       wlTitle:"¿Aún no te suscribes?", wlSub:"Únete a la lista y te avisaremos sobre nuevas funciones, planes y novedades.",
@@ -4147,8 +4173,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     stopPlayback();
     playerBlock.hidden = true;
     if (inputModeRow) inputModeRow.hidden = false;
-    setInputMode("upload");
-    dropzone.hidden = false;
+    setInputMode("record", true);   // back to record-first
     fileInput.value = "";
     if (typeof miniTransportEl !== "undefined" && miniTransportEl) miniTransportEl.hidden = true;
   }
@@ -4739,7 +4764,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     else resetToDropzone();
   });
 
-  function setInputMode(m){
+  var micPickerReady = false;
+  function setInputMode(m, quiet){
     var isRecord = (m === "record");
     inputModeUploadBtn.classList.toggle("active", !isRecord);
     inputModeRecordBtn.classList.toggle("active", isRecord);
@@ -4750,12 +4776,32 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       dropzone.hidden = true;
       recordPanel.hidden = false;
       mainRecorder.refreshIdleHint();
-      mainDeviceSelector.populate();
+      // Quiet = the default landing view. Listing devices can pop the browser's
+      // mic-permission prompt, so don't do it until the person asks or hits Record.
+      var micBtn = document.getElementById("btn-pick-mic"), micRow = document.getElementById("record-device-row");
+      if (quiet && !micPickerReady){
+        if (micRow) micRow.hidden = true;
+        if (micBtn) micBtn.hidden = false;
+      } else {
+        micPickerReady = true;
+        if (micRow) micRow.hidden = false;
+        if (micBtn) micBtn.hidden = true;
+        mainDeviceSelector.populate();
+      }
     } else {
       recordPanel.hidden = true;
       dropzone.hidden = false;
     }
   }
+  (function(){
+    var micBtn = document.getElementById("btn-pick-mic");
+    if (micBtn) micBtn.addEventListener("click", function(){
+      micPickerReady = true;
+      micBtn.hidden = true;
+      var micRow = document.getElementById("record-device-row"); if (micRow) micRow.hidden = false;
+      mainDeviceSelector.populate();
+    });
+  })()
   inputModeUploadBtn.addEventListener("click", function(){ setInputMode("upload"); });
   inputModeRecordBtn.addEventListener("click", function(){ setInputMode("record"); });
 
@@ -4816,11 +4862,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   }
-  modeVocalBtn.addEventListener("click", function(){ setMode("vocal"); });
+  var userPickedMode = false;   // once they choose a tab themselves, never override it
+  modeVocalBtn.addEventListener("click", function(){ userPickedMode = true; setMode("vocal"); });
   modeFullBtn.addEventListener("click", function(){
     if (!isTierAtLeast("mix")){ openTierGate("fullMix"); return; }
+    userPickedMode = true;
     setMode("full");
   });
+  // Landing view: straight to recording. Mix / Unlimited members start in Full Song Mix.
+  window.gemstarLandingMode = function(){
+    if (!userPickedMode && isTierAtLeast("mix") && mode !== "full") setMode("full");
+  };
+  setInputMode("record", true);
 
   // The beat's actual output level, after the Mute/Solo Beat buttons and
   // any vocal solo (per-track or the Solo Vocal group button) are factored
@@ -6038,6 +6091,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // or a valid stored token on reload).
   window.gemstarApplyTier = function(tier){
     currentPlan = (tier === "mix" || tier === "unlimited") ? tier : "starter";
+    if (window.gemstarLandingMode) window.gemstarLandingMode();
     updatePlanSelectUI();
     applyCurrentPlanSideEffects();
     refreshKnobLocks();
