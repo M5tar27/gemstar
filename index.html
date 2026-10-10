@@ -900,6 +900,11 @@
   .master-status.ok{color:var(--ok);}
   .master-status.err{color:var(--danger);}
   #btn-master:disabled, select#lufs-target:disabled{opacity:0.5; cursor:default;}
+  .ai-master-box{margin-bottom:20px; padding-bottom:18px; border-bottom:1px dashed var(--line);}
+  .ai-master-row{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center;}
+  .ai-master-badge{background:linear-gradient(90deg, var(--cyan), var(--gem)); color:#050508; font-size:0.56rem; padding:2px 7px; border-radius:12px; letter-spacing:0.04em; font-weight:700; margin-left:4px;}
+  .ai-master-desc{margin-top:10px;}
+  #btn-ai-master:disabled{opacity:0.5; cursor:default;}
 
   .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px;}
   .export-note{font-size:0.74rem; color:var(--ink-dim); margin-top:8px;}
@@ -1217,7 +1222,7 @@
         <select id="plan-select" class="pill-btn pill-cyan">
           <option value="starter" id="plan-opt-starter" selected>Starter · 3 vocal tracks</option>
           <option value="mix" id="plan-opt-mix">Mix · 5 vocal tracks</option>
-          <option value="unlimited" id="plan-opt-unlimited">Unlimited · 8 vocal tracks</option>
+          <option value="unlimited" id="plan-opt-unlimited">Unlimited · 12 vocal tracks</option>
         </select>
         <a href="#" id="plan-unlock-link" class="plan-unlock-link" data-i18n="planUnlockLink">Verify plan &rarr;</a>
       </div>
@@ -1461,6 +1466,18 @@
           <option value="RAP_CLEAN">Rap Clean</option>
           <option value="AUTO_TUNED">Auto-Tuned</option>
           <option value="RNB_SMOOTH">R&amp;B Smooth</option>
+          <optgroup label="M5tar Pack · Unlimited">
+            <option value="M5TAR_TRAP">M5tar · Trap Melody</option>
+            <option value="M5TAR_DRILL">M5tar · Drill Edge</option>
+            <option value="M5TAR_LATENIGHT">M5tar · Late Night</option>
+            <option value="M5TAR_ANTHEM">M5tar · Anthem</option>
+          </optgroup>
+          <optgroup label="Jewels Pack · Unlimited">
+            <option value="JEWELS_SILKPOP">Jewels · Silk Pop</option>
+            <option value="JEWELS_GOSPEL">Jewels · Gospel Glow</option>
+            <option value="JEWELS_DREAMY">Jewels · Dreamy Harmony</option>
+            <option value="JEWELS_NEOSOUL">Jewels · Neo Soul</option>
+          </optgroup>
         </select>
         <button class="pill-btn pill-purple" id="btn-reset" type="button" data-i18n="reset">Reset to Default</button>
         <button class="pill-btn pill-cyan" id="btn-midi" type="button">
@@ -1479,6 +1496,14 @@
     </div>
 
     <div class="master-panel">
+      <div class="ai-master-box">
+        <div class="ai-master-row">
+          <button class="pill-btn pill-purple" id="btn-ai-master" type="button"><span data-i18n="aiMasterBtn">✨ AI Master</span> <span class="mix-badge ai-master-badge">Unlimited</span></button>
+          <button class="pill-btn pill-cyan" id="btn-ai-master-toggle" type="button" hidden aria-pressed="false">AI Master: On</button>
+        </div>
+        <p class="master-desc ai-master-desc" data-i18n="aiMasterDesc">Listens to your finished mix, gently evens out its tonal balance, adds glue compression, then sets the loudness. Takes about twice the song's length.</p>
+        <p class="master-status" id="ai-master-status" role="status" aria-live="polite"></p>
+      </div>
       <div class="master-panel-head">
         <p class="controls-heading" data-i18n="masterHeading">Auto-Master (LUFS)</p>
       </div>
@@ -1572,12 +1597,14 @@
       <div class="tier featured">
         <span class="badge" data-i18n="bestSeller">BEST SELLER</span>
         <p class="tier-name" data-i18n="studioName">Unlimited</p>
-        <p class="tier-sub" data-i18n="studioSub">For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.</p>
+        <p class="tier-sub" data-i18n="studioSub">For the working studio — up to 12 vocal tracks, each with its own effects chain, plus AI Master, signature packs and stem export for your DAW.</p>
         <p class="price">$99<small>/mo</small></p>
-        <p class="tier-pitch" data-i18n="studioPitch">Most producers pick this — more tracks than Mix, plus full stem export for your DAW.</p>
+        <p class="tier-pitch" data-i18n="studioPitch">Most producers pick this — 12 tracks, AI Master, signature packs and full stem export for your DAW.</p>
         <ul>
-          <li data-i18n="studio1">Everything in Mix — including Collab</li>
-          <li data-i18n="studio2">Up to 8 vocal tracks, each with its own full effects chain</li>
+          <li data-i18n="studio1">Everything in Mix, plus:</li>
+          <li data-i18n="studio7">🎚 AI Master — one tap balances, glues and sets the loudness of your finished song (Unlimited only)</li>
+          <li data-i18n="studio8">💎 Signature Packs — 8 extra presets from M5tar &amp; Jewels (Unlimited only)</li>
+          <li data-i18n="studio2">Up to 12 vocal tracks, each with its own full effects chain</li>
           <li data-i18n="studio3">Stem Export — every vocal as its own 24-bit WAV, ready for your DAW</li>
           <li data-i18n="studio4">Recordings up to 10 minutes</li>
           <li data-i18n="studio5">✨ AI Mix — one-tap level, pan &amp; tone balancing across every track</li>
@@ -1629,11 +1656,11 @@
         <details class="faq-item"><summary data-i18n="faqQ2">Do I need to install anything?</summary><p data-i18n="faqA2">No. Everything runs live in your browser on your own device, and your audio is never uploaded to a server. An up-to-date Chrome, Safari, Edge or Firefox works best.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ3">Can I record through my audio interface?</summary><p data-i18n="faqA3">Yes, on Mix and Unlimited. Plug it in, tap Record Vocal, and the input picker under the timer auto-selects your interface. If it still records from the computer mic, choose the interface in that dropdown and allow microphone access for the site. On Starter, Gemstar records from your computer's default input, so set your interface as the input in your computer's sound settings.</p></details>
         <details class="faq-item"><summary data-i18n="faqQRecording">What's the best way to record a vocal?</summary><p data-i18n="faqARecording">Gemstar records raw, unprocessed audio on purpose — its own Clean/Punch/etc. chain does the shaping, so set your gain at the source (your interface's preamp, or your computer/phone's input level) so the meter sits well below clipping; a quiet take is much easier to fix than a clipped one. Singing to a beat? Wear headphones so it doesn't bleed into the mic. On phone, use a wired headset mic if you have one and turn on Do Not Disturb. Not happy with a take? Tap 🎤 Re-record right on that track to redo it in place — Undo brings the old one back for a few seconds after.</p></details>
-        <details class="faq-item"><summary data-i18n="faqQ4">Can I load more than one vocal?</summary><p data-i18n="faqA4">On Starter (3 tracks), Mix (5 tracks) and Unlimited (8 tracks) you can drop several vocal files at once. Tap ☆ Make Lead to choose your lead, use 🎛 FX to give each vocal its own full effects chain, and set pan, mute, solo or a one-tap role (Background, Double, Ad-lib) on every track.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ4">Can I load more than one vocal?</summary><p data-i18n="faqA4">On Starter (3 tracks), Mix (5 tracks) and Unlimited (12 tracks) you can drop several vocal files at once. Tap ☆ Make Lead to choose your lead, use 🎛 FX to give each vocal its own full effects chain, and set pan, mute, solo or a one-tap role (Background, Double, Ad-lib) on every track.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ5">How do I play just one part of the song?</summary><p data-i18n="faqA5">Tap the timeline under the waveform to choose where playback starts, or drag across it to select a section. Dragging turns Loop on, so that section repeats while you dial in the knobs.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ6">Why does my vocal sound robotic?</summary><p data-i18n="faqA6">That's the Speed (Tune) knob, which is high in the Auto-Tuned preset. Turn Speed down for a gentler glide and raise Humanize for a more natural sound.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ7">I press Play but hear nothing.</summary><p data-i18n="faqA7">Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.</p></details>
-        <details class="faq-item"><summary data-i18n="faqQ8">What do the plans include?</summary><p data-i18n="faqA8">Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 8 vocal tracks, unlimited songs. Every plan includes auto key detection for your beat.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ8">What do the plans include?</summary><p data-i18n="faqA8">Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 12 vocal tracks, unlimited songs, AI Master (one-tap balance, glue and loudness for your finished song), the M5tar & Jewels Signature Packs, and Stem Export. Every plan includes auto key detection for your beat.</p></details>
         <details class="faq-item"><summary data-i18n="faqQCollab">What is Collab?</summary><p data-i18n="faqACollab">Collab lets you invite a friend to record a layer over one of your tracks, from their phone or computer, with no account needed. You get an email, listen, accept or mute their layer, adjust its volume and timing, and download the full mix. Collab is included on Mix and Unlimited.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ9">Does Gemstar remember my settings?</summary><p data-i18n="faqA9">Yes, in the same browser. Your knobs, output gain, Auto-Tune key and language are saved automatically. Audio files aren't stored, but drop the same files again and each one picks its level, pan and knob settings back up.</p></details>
       </div>
@@ -1675,6 +1702,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 <script src="/key-detect.js"></script>
+<script src="/ai-master.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1753,8 +1781,8 @@
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
       starterName:"Starter", starterSub:"For the bedroom studio — dial in your vocal chain (up to 3 vocal tracks, no Full Song Mix yet).", starter1:"Full vocal chain — 11 core knobs", starter2:"Pitch correction with key & scale lock — auto-detects your beat's key", starter3:"Recordings up to 3 minutes, 3 vocal tracks", starter4:"Standard MP3/WAV export",
       proName:"Mix", proSub:"For the home studio — full songs, mixed and mastered, with up to 5 vocal tracks that each get their own independent effects chain.", pro1:"Full Song Mix — vocal + beat, mastered together", pro2:"M5tar & Jewels signature knobs unlocked", pro3:"Up to 5 vocal tracks, each with its own full effects chain — plus pan, mute, solo & role presets", pro4:"Clean Silence, custom input device picker, recordings up to 6 minutes", pro5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", pro6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
-      studioName:"Unlimited", studioSub:"For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.", studio1:"Everything in Mix, plus more", studio2:"Up to 8 vocal tracks, each with its own full effects chain", studio3:"Stem Export — every vocal as its own 24-bit WAV, ready for your DAW", studio4:"Recordings up to 10 minutes", studio5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", studio6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
-      studioPitch:"Most producers pick this — more tracks than Mix, plus full stem export for your DAW.",
+      studioName:"Unlimited", studioSub:"For the working studio — up to 12 vocal tracks, each with its own effects chain, plus AI Master, signature packs and stem export for your DAW.", studio1:"Everything in Mix, plus:", studio7:"🎚 AI Master — one tap balances, glues and sets the loudness of your finished song (Unlimited only)", studio8:"💎 Signature Packs — 8 extra presets from M5tar & Jewels (Unlimited only)", studio2:"Up to 12 vocal tracks, each with its own full effects chain", studio3:"Stem Export — every vocal as its own 24-bit WAV, ready for your DAW", studio4:"Recordings up to 10 minutes", studio5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", studio6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
+      studioPitch:"Most producers pick this — 12 tracks, AI Master, signature packs and full stem export for your DAW.",
       bestSeller:"BEST SELLER", join:"Subscribe Now",
       wlTitle:"Not ready to subscribe?", wlSub:"Join the list and we'll email you about new features, plans, and updates.",
       emailLabel:"Email", planLabel:"Plan you're interested in", wlSubmit:"Notify Me",
@@ -1773,8 +1801,15 @@
       allVocalsLabel:"Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here",
       volumeKnobLabel:"Volume",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
-      planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
+      planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 12 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
+      aiMasterBtn:"✨ AI Master", aiMasterOn:"AI Master: On", aiMasterOff:"AI Master: Off",
+      aiMasterDesc:"Listens to your finished mix, gently evens out its tonal balance, adds glue compression, then sets the loudness. Takes about twice the song's length.",
+      aiMasterPass1:"Step 1/2 — listening to your mix… play through the full track.",
+      aiMasterPass2:"Step 2/2 — mastering and setting loudness… play through again.",
+      aiMasterErrNoTrack:"Load a track first.",
+      aiMasterFail:"Couldn't master this track — it looks silent or too short.",
+      aiMasterResult:"Mastered: low {low} dB, low-mid {mid} dB, presence {pres} dB, air {air} dB, glue {ratio}:1. Loudness set for {target} LUFS. Tap the button to hear it with and without.",
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
       aiMixHint:"Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.",
       aiMixAppliedToast:"✨ AI Mix applied",
@@ -1818,13 +1853,13 @@
       faqQ2:"Do I need to install anything?", faqA2:"No. Everything runs live in your browser on your own device, and your audio is never uploaded to a server. An up-to-date Chrome, Safari, Edge or Firefox works best.",
       faqQ3:"Can I record through my audio interface?", faqA3:"Yes, on Mix and Unlimited. Plug it in, tap Record Vocal, and the input picker under the timer auto-selects your interface. If it still records from the computer mic, choose the interface in that dropdown and allow microphone access for the site. On Starter, Gemstar records from your computer's default input, so set your interface as the input in your computer's sound settings.",
       faqQRecording:"What's the best way to record a vocal?", faqARecording:"Gemstar records raw, unprocessed audio on purpose — its own Clean/Punch/etc. chain does the shaping, so set your gain at the source (your interface's preamp, or your computer/phone's input level) so the meter sits well below clipping; a quiet take is much easier to fix than a clipped one. Singing to a beat? Wear headphones so it doesn't bleed into the mic. On phone, use a wired headset mic if you have one and turn on Do Not Disturb. Not happy with a take? Tap 🎤 Re-record right on that track to redo it in place — Undo brings the old one back for a few seconds after.",
-      faqQ4:"Can I load more than one vocal?", faqA4:"On Starter (3 tracks), Mix (5 tracks) and Unlimited (8 tracks) you can drop several vocal files at once. Tap ☆ Make Lead to choose your lead, use 🎛 FX to give each vocal its own full effects chain, and set pan, mute, solo or a one-tap role (Background, Double, Ad-lib) on every track.",
+      faqQ4:"Can I load more than one vocal?", faqA4:"On Starter (3 tracks), Mix (5 tracks) and Unlimited (12 tracks) you can drop several vocal files at once. Tap ☆ Make Lead to choose your lead, use 🎛 FX to give each vocal its own full effects chain, and set pan, mute, solo or a one-tap role (Background, Double, Ad-lib) on every track.",
       faqQCollab:"What is Collab?", faqACollab:"Collab lets you invite a friend to record a layer over one of your tracks, from their phone or computer, with no account needed. You get an email, listen, accept or mute their layer, adjust its volume and timing, and download the full mix. Collab is included on Mix and Unlimited.",
       faqQ9:"Does Gemstar remember my settings?", faqA9:"Yes, in the same browser. Your knobs, output gain, Auto-Tune key and language are saved automatically. Audio files aren't stored, but drop the same files again and each one picks its level, pan and knob settings back up.",
       faqQ5:"How do I play just one part of the song?", faqA5:"Tap the timeline under the waveform to choose where playback starts, or drag across it to select a section. Dragging turns Loop on, so that section repeats while you dial in the knobs.",
       faqQ6:"Why does my vocal sound robotic?", faqA6:"That's the Speed (Tune) knob, which is high in the Auto-Tuned preset. Turn Speed down for a gentler glide and raise Humanize for a more natural sound.",
       faqQ7:"I press Play but hear nothing.", faqA7:"Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.",
-      faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 8 vocal tracks, unlimited songs. Every plan includes auto key detection for your beat.",
+      faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 12 vocal tracks, unlimited songs, AI Master (one-tap balance, glue and loudness for your finished song), the M5tar & Jewels Signature Packs, and Stem Export. Every plan includes auto key detection for your beat.",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
       knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Delay"},
       pitchGroupLabel:"Auto-Tune",
@@ -1957,8 +1992,8 @@
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
       starterName:"Inicial", starterSub:"Para el estudio casero — ajusta tu cadena vocal (hasta 3 pistas vocales, sin Mezcla De Canción Completa todavía).", starter1:"Cadena vocal completa — 11 perillas base", starter2:"Corrección de tono con bloqueo de tonalidad y escala — detecta automáticamente el tono de tu beat", starter3:"Grabaciones de hasta 3 minutos, 3 pistas vocales", starter4:"Exportación estándar en MP3/WAV",
       proName:"Mix", proSub:"Para el home studio — canciones completas, mezcladas y masterizadas, con hasta 5 pistas vocales, cada una con su propia cadena de efectos independiente.", pro1:"Mezcla De Canción Completa — voz + beat, masterizados juntos", pro2:"Perillas de firma M5tar y Jewels desbloqueadas", pro3:"Hasta 5 pistas vocales, cada una con su propia cadena de efectos completa — más pan, silencio, solo y roles preestablecidos", pro4:"Silencio Limpio, selector de dispositivo de entrada, grabaciones de hasta 6 minutos", pro5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", pro6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
-      studioName:"Ilimitado", studioSub:"Para el estudio profesional — hasta 8 pistas vocales, cada una con su propia cadena de efectos, más exportación de stems para tu DAW.", studio1:"Todo lo del plan Mix, y más", studio2:"Hasta 8 pistas vocales, cada una con su propia cadena de efectos completa", studio3:"Exportación de Stems — cada voz como su propio WAV de 24 bits, listo para tu DAW", studio4:"Grabaciones de hasta 10 minutos", studio5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", studio6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
-      studioPitch:"La mayoría de los productores elige este — más pistas que Mix, más exportación completa de stems.",
+      studioName:"Ilimitado", studioSub:"Para el estudio profesional — hasta 12 pistas vocales, cada una con su propia cadena de efectos, más Master IA, packs firma y exportación de stems para tu DAW.", studio1:"Todo lo del plan Mix, y además:", studio7:"🎚 Master IA — con un toque equilibra, cohesiona y ajusta el volumen de tu canción terminada (solo Ilimitado)", studio8:"💎 Packs Firma — 8 presets extra de M5tar y Jewels (solo Ilimitado)", studio2:"Hasta 12 pistas vocales, cada una con su propia cadena de efectos completa", studio3:"Exportación de Stems — cada voz como su propio WAV de 24 bits, listo para tu DAW", studio4:"Grabaciones de hasta 10 minutos", studio5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", studio6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
+      studioPitch:"La mayoría de los productores elige este — 12 pistas, Master IA, packs firma y exportación completa de stems.",
       bestSeller:"MÁS VENDIDO", join:"Suscribirme Ahora",
       wlTitle:"¿Aún no te suscribes?", wlSub:"Únete a la lista y te avisaremos sobre nuevas funciones, planes y novedades.",
       emailLabel:"Correo", planLabel:"Plan de tu interés", wlSubmit:"Avísenme",
@@ -1977,8 +2012,15 @@
       allVocalsLabel:"Todo a la vez — toca una voz para ajustar sus perillas, o silencia/solo cualquier pista (voces o beat) aquí mismo",
       volumeKnobLabel:"Volumen",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
-      planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
+      planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 12 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
+      aiMasterBtn:"✨ Master IA", aiMasterOn:"Master IA: Activado", aiMasterOff:"Master IA: Desactivado",
+      aiMasterDesc:"Escucha tu mezcla terminada, equilibra con suavidad su tono, añade compresión de cohesión y luego ajusta el volumen. Tarda aproximadamente el doble de la duración de la canción.",
+      aiMasterPass1:"Paso 1/2 — escuchando tu mezcla… reproduce la pista completa.",
+      aiMasterPass2:"Paso 2/2 — masterizando y ajustando el volumen… reproduce otra vez.",
+      aiMasterErrNoTrack:"Primero carga una pista.",
+      aiMasterFail:"No se pudo masterizar esta pista — parece silenciosa o demasiado corta.",
+      aiMasterResult:"Masterizado: graves {low} dB, medios-bajos {mid} dB, presencia {pres} dB, aire {air} dB, cohesión {ratio}:1. Volumen ajustado a {target} LUFS. Toca el botón para oírlo con y sin.",
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
       aiMixHint:"Equilibra niveles, panorama y tono en cada pista (y en la pista instrumental, si hay una) con un toque. Se puede deshacer.",
       aiMixAppliedToast:"✨ Mezcla IA aplicada",
@@ -2022,13 +2064,13 @@
       faqQ2:"¿Necesito instalar algo?", faqA2:"No. Todo funciona en vivo en tu navegador, en tu propio dispositivo, y tu audio nunca se sube a un servidor. Funciona mejor en Chrome, Safari, Edge o Firefox actualizados.",
       faqQ3:"¿Puedo grabar con mi interfaz de audio?", faqA3:"Sí, en Mix y Unlimited. Conéctala, toca Grabar Voz y el selector de entrada debajo del temporizador elige tu interfaz automáticamente. Si sigue grabando del micrófono de la computadora, elige la interfaz en ese menú y permite el acceso al micrófono. En Starter, Gemstar graba desde la entrada predeterminada de tu computadora, así que elige tu interfaz como entrada en los ajustes de sonido.",
       faqQRecording:"¿Cuál es la mejor forma de grabar una voz?", faqARecording:"Gemstar grava audio crudo, sin procesar, a propósito — su propia cadena Clean/Punch/etc. se encarga de darle forma, así que ajusta la ganancia en la fuente (el preamplificador de tu interfaz, o el nivel de entrada de tu computadora/teléfono) para que el medidor se mantenga bien por debajo del clipping; una toma baja de nivel es mucho más fácil de arreglar que una con clipping. ¿Cantando con una pista? Usa audífonos para que no se filtre en el micrófono. En el teléfono, usa un micrófono con cable si tienes uno y activa No Molestar. ¿Una toma no quedó bien? Toca 🎤 Regrabar justo en esa pista para rehacerla en el mismo lugar — Deshacer trae de vuelta la anterior por unos segundos.",
-      faqQ4:"¿Puedo cargar más de una voz?", faqA4:"En Starter (3 pistas), Mix (5 pistas) y Unlimited (8 pistas) puedes soltar varios archivos a la vez. Toca ☆ Hacer Principal para elegir tu voz principal, usa 🎛 FX para darle a cada voz su propia cadena de efectos, y ajusta pan, silencio, solo o un rol de un toque (Coros, Doble, Ad-lib) en cada pista.",
+      faqQ4:"¿Puedo cargar más de una voz?", faqA4:"En Starter (3 pistas), Mix (5 pistas) y Unlimited (12 pistas) puedes soltar varios archivos a la vez. Toca ☆ Hacer Principal para elegir tu voz principal, usa 🎛 FX para darle a cada voz su propia cadena de efectos, y ajusta pan, silencio, solo o un rol de un toque (Coros, Doble, Ad-lib) en cada pista.",
       faqQCollab:"¿Qué es Collab?", faqACollab:"Collab te permite invitar a un amigo a grabar una capa sobre una de tus pistas, desde su teléfono o computadora, sin necesidad de cuenta. Recibes un correo, escuchas, aceptas o silencias su capa, ajustas su volumen y tiempo, y descargas la mezcla completa. Collab está incluido en Mix y Unlimited.",
       faqQ9:"¿Gemstar recuerda mis ajustes?", faqA9:"Sí, en el mismo navegador. Tus perillas, ganancia de salida, tono del Auto-Tune e idioma se guardan solos. Los archivos de audio no se guardan, pero si sueltas los mismos archivos otra vez, cada uno recupera su nivel, pan y perillas.",
       faqQ5:"¿Cómo reproduzco solo una parte de la canción?", faqA5:"Toca la línea de tiempo debajo de la forma de onda para elegir dónde empieza, o arrastra para seleccionar una sección. Al arrastrar se activa el Bucle y esa sección se repite mientras ajustas.",
       faqQ6:"¿Por qué mi voz suena robótica?", faqA6:"Es la perilla Speed (Tune), que está alta en el preset Auto-Tuned. Bájala para un deslizamiento más suave y sube Humanize para un sonido más natural.",
       faqQ7:"Presiono Reproducir y no escucho nada.", faqA7:"Revisa el volumen y que la pestaña no esté silenciada, y recarga la página. Si usas una interfaz de audio, verifica que la salida de sonido de tu computadora sea la que estás escuchando. ¿Sigue sin funcionar? Escribe a Gemstaraudio@gmail.com.",
-      faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 3 pistas vocales. Mix ($49/mes): Mezcla Completa con tu beat, las perillas firma de M5tar y Jewels, 5 pistas vocales con su propia cadena de efectos, Mezcla IA con un toque y Collab (invita amigos a grabar en tus pistas). Unlimited ($99/mes): todo lo de Mix (incluyendo Mezcla IA y Collab), 8 pistas vocales, canciones ilimitadas. Todos los planes incluyen detección automática del tono de tu beat.",
+      faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 3 pistas vocales. Mix ($49/mes): Mezcla Completa con tu beat, las perillas firma de M5tar y Jewels, 5 pistas vocales con su propia cadena de efectos, Mezcla IA con un toque y Collab (invita amigos a grabar en tus pistas). Unlimited ($99/mes): todo lo de Mix (incluyendo Mezcla IA y Collab), 12 pistas vocales, canciones ilimitadas, Master IA (equilibrio, cohesión y volumen con un toque), los Packs Firma de M5tar y Jewels y Exportación de Stems. Todos los planes incluyen detección automática del tono de tu beat.",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
       knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Retardo"},
       pitchGroupLabel:"Auto-Tune",
@@ -2152,6 +2194,7 @@
     var bcs = document.getElementById("btn-clean-silence"); if (bcs) bcs.title = STR[l].cleanHint;
     if (typeof scheduleSave === "function") scheduleSave();
     if (typeof renderExtraVocals === "function") renderExtraVocals();
+    if (typeof setAiMasterUI === "function") setAiMasterUI();
     if (typeof renderTrackEditTabs === "function") renderTrackEditTabs();
     // Device-picker option text ("System default", "Detected: …") is
     // language-dependent and built in JS, not via data-i18n -- refresh
@@ -2186,8 +2229,18 @@
     SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, radio:15, m5tar:0,  jewels:40, humanize:25, delay:0},
     RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  radio:45, m5tar:40, jewels:0,  humanize:10, delay:0},
     AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, radio:35, m5tar:15, jewels:15, humanize:5,  delay:0},
-    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30, delay:0}
+    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30, delay:0},
+    // ---- Signature Packs (Unlimited): starting points from M5tar and Jewels, meant to be tuned by ear ----
+    M5TAR_TRAP:       {clean:50, punch:70, bass:50, voice:62, highs:25, smooth:45, tune:55, space:30, wide:20, radio:40, m5tar:80, jewels:0,  humanize:10, delay:15},
+    M5TAR_DRILL:      {clean:65, punch:80, bass:60, voice:70, highs:12, smooth:55, tune:20, space:15, wide:5,  radio:50, m5tar:85, jewels:0,  humanize:8,  delay:0},
+    M5TAR_LATENIGHT:  {clean:40, punch:55, bass:60, voice:58, highs:18, smooth:45, tune:25, space:55, wide:30, radio:25, m5tar:60, jewels:10, humanize:20, delay:25},
+    M5TAR_ANTHEM:     {clean:45, punch:75, bass:50, voice:68, highs:30, smooth:42, tune:15, space:40, wide:35, radio:55, m5tar:75, jewels:15, humanize:12, delay:10},
+    JEWELS_SILKPOP:   {clean:35, punch:50, bass:30, voice:64, highs:45, smooth:40, tune:20, space:45, wide:50, radio:30, m5tar:0,  jewels:80, humanize:22, delay:0},
+    JEWELS_GOSPEL:    {clean:30, punch:40, bass:35, voice:60, highs:35, smooth:35, tune:10, space:70, wide:55, radio:15, m5tar:0,  jewels:60, humanize:35, delay:0},
+    JEWELS_DREAMY:    {clean:35, punch:35, bass:25, voice:55, highs:50, smooth:40, tune:30, space:75, wide:70, radio:10, m5tar:0,  jewels:75, humanize:30, delay:30},
+    JEWELS_NEOSOUL:   {clean:30, punch:45, bass:45, voice:58, highs:30, smooth:50, tune:12, space:50, wide:40, radio:20, m5tar:15, jewels:55, humanize:40, delay:0}
   };
+  var PACK_PRESETS = {M5TAR_TRAP:1, M5TAR_DRILL:1, M5TAR_LATENIGHT:1, M5TAR_ANTHEM:1, JEWELS_SILKPOP:1, JEWELS_GOSPEL:1, JEWELS_DREAMY:1, JEWELS_NEOSOUL:1};
 
   // `values` is whichever vocal track's knob settings are currently shown on
   // the knob grid. The lead's settings live in leadValues; on Mix/Unlimited
@@ -2475,7 +2528,7 @@
     }
     return buffer;
   }
-  var PLAN_LIMITS = {starter:3, mix:5, unlimited:8}; // max vocal tracks per plan tier
+  var PLAN_LIMITS = {starter:3, mix:5, unlimited:12}; // max vocal tracks per plan tier
   var RECORD_LENGTH_LIMITS = {starter:180, mix:360, unlimited:600}; // max mic recording length (sec) per plan tier
   var currentPlan = "starter"; // free baseline until a Mix/Unlimited email verifies (see window.gemstarApplyTier)
   function maxRecordSeconds(){ return RECORD_LENGTH_LIMITS[currentPlan] || RECORD_LENGTH_LIMITS.starter; }
@@ -2519,6 +2572,7 @@
   var vocalGroupMuted = false, vocalGroupSolo = false;
   var mixEnabled = false;    // true when mode === "full" (Full Song Mix)
   var mode = "vocal";        // "vocal" | "full"
+  var aiMasterPlan = null, aiMasterOn = false;   // AI Master (Unlimited): last mastering plan + whether it is engaged
   var outputGainDb = 3;      // Loud is now this fader, not a knob
   var isPlaying = false;
   var bypassed = false;
@@ -3846,7 +3900,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.safetyClip.curve = getSafetyClipCurve();
     g.safetyClip.oversample = "4x";
 
-    g.mixSum.connect(g.outputGain);
+    // AI Master (Unlimited): sits on the master bus between the mix and the
+    // output fader. Transparent (dry path only) until a mastering run enables it.
+    g.aiMaster = window.GemstarMaster ? window.GemstarMaster.create(ctx) : null;
+    if (g.aiMaster){
+      g.mixSum.connect(g.aiMaster.input);
+      g.aiMaster.output.connect(g.outputGain);
+    } else {
+      g.mixSum.connect(g.outputGain);
+    }
     g.outputGain.connect(g.finalLimiter);
     g.finalLimiter.connect(g.safetyClip);
     g.safetyClip.connect(g.analyser);
@@ -3871,6 +3933,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     applyAllParams();
     applyOutputGain();
     applyBeatEQ();
+    if (chain.aiMaster && aiMasterPlan){ chain.aiMaster.apply(aiMasterPlan); chain.aiMaster.setEnabled(aiMasterOn); }
   }
 
   // Reads the Low/Mid/High beat-EQ sliders and applies them to whatever
@@ -6869,6 +6932,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   document.getElementById("preset-select").addEventListener("change", function(e){
     var key = e.target.value;
     if (!key || !PRESETS[key]) return;
+    if (PACK_PRESETS[key] && (!window.gemstarHasAccess || !isTierAtLeast("unlimited"))){
+      e.target.value = "";
+      openTierGate("signaturePack");
+      return;
+    }
     var p = PRESETS[key];
     Object.keys(p).forEach(function(id){ setKnob(id, p[id], {silent:true}); });
     onParamsChanged();
@@ -7285,6 +7353,81 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       lufsTargetSelect.disabled = false;
     }
   }
+
+  /* ---------- AI Master (Unlimited) ---------- */
+  var btnAiMaster = document.getElementById("btn-ai-master");
+  var btnAiMasterToggle = document.getElementById("btn-ai-master-toggle");
+  var aiMasterStatusEl = document.getElementById("ai-master-status");
+  function setAiMasterUI(){
+    if (!btnAiMasterToggle) return;
+    btnAiMasterToggle.hidden = !aiMasterPlan;
+    btnAiMasterToggle.textContent = aiMasterOn ? STR[lang].aiMasterOn : STR[lang].aiMasterOff;
+    btnAiMasterToggle.setAttribute("aria-pressed", String(aiMasterOn));
+    btnAiMasterToggle.classList.toggle("active", aiMasterOn);
+  }
+  function fmtDb(v){ return (v > 0 ? "+" : "") + v.toFixed(1); }
+  async function runAiMaster(){
+    analyzing = true;
+    btnAiMaster.disabled = true; btnMaster.disabled = true; lufsTargetSelect.disabled = true;
+    stopPlayback();
+    var target = parseFloat(lufsTargetSelect.value);
+    var dur = currentTotalDuration();
+    var prevGain = outputGainDb, prevPlan = aiMasterPlan, prevOn = aiMasterOn;
+    try {
+      if (!chain || !chain.aiMaster) throw new Error("no-master");
+      // Step 1: listen to the mix with the mastering stage out of the way.
+      chain.aiMaster.setEnabled(false);
+      outputGainDb = 0; applyOutputGain();
+      aiMasterStatusEl.className = "master-status";
+      aiMasterStatusEl.textContent = STR[lang].aiMasterPass1;
+      await wait(250);
+      var pass1 = await runAnalysisPass(dur);
+      var an = window.GemstarMaster.analyze(pass1[0], pass1[1], ctx.sampleRate);
+      var plan = window.GemstarMaster.plan(an);
+      if (!plan) throw new Error("silent");
+      aiMasterPlan = plan; aiMasterOn = true;
+      chain.aiMaster.apply(plan); chain.aiMaster.setEnabled(true);
+      // Step 2: measure the mastered result and set loudness to the target.
+      aiMasterStatusEl.textContent = STR[lang].aiMasterPass2;
+      await wait(250);
+      var pass2 = await runAnalysisPass(dur);
+      var m2 = measureIntegratedLUFS(pass2, ctx.sampleRate);
+      if (!isFinite(m2)) throw new Error("silent");
+      var gain = Math.max(-24, Math.min(12, Math.round((target - m2) * 10) / 10));
+      outputGainDb = gain; outputGainFader.value = String(gain); updateGainReadout(); applyOutputGain();
+      aiMasterStatusEl.textContent = STR[lang].aiMasterResult
+        .replace("{low}", fmtDb(plan.lowShelfDb)).replace("{mid}", fmtDb(plan.lowMidDb))
+        .replace("{pres}", fmtDb(plan.presenceDb)).replace("{air}", fmtDb(plan.airDb))
+        .replace("{ratio}", plan.compRatio.toFixed(1)).replace("{target}", target.toFixed(0));
+      aiMasterStatusEl.className = "master-status ok";
+    } catch (err){
+      aiMasterPlan = prevPlan; aiMasterOn = prevOn;
+      if (chain && chain.aiMaster){ if (prevPlan) chain.aiMaster.apply(prevPlan); chain.aiMaster.setEnabled(prevOn); }
+      outputGainDb = prevGain; outputGainFader.value = String(prevGain); updateGainReadout(); applyOutputGain();
+      aiMasterStatusEl.textContent = STR[lang].aiMasterFail;
+      aiMasterStatusEl.className = "master-status err";
+    } finally {
+      analyzing = false;
+      btnAiMaster.disabled = false; btnMaster.disabled = false; lufsTargetSelect.disabled = false;
+      setAiMasterUI();
+    }
+  }
+  if (btnAiMaster) btnAiMaster.addEventListener("click", function(){
+    if (analyzing) return;
+    if (!window.gemstarHasAccess || !isTierAtLeast("unlimited")){ openTierGate("aiMaster"); return; }
+    if (!audioBuffer){
+      aiMasterStatusEl.textContent = STR[lang].aiMasterErrNoTrack;
+      aiMasterStatusEl.className = "master-status err";
+      return;
+    }
+    withRunningContext(runAiMaster);
+  });
+  if (btnAiMasterToggle) btnAiMasterToggle.addEventListener("click", function(){
+    if (!aiMasterPlan || !chain || !chain.aiMaster) return;
+    aiMasterOn = !aiMasterOn;
+    chain.aiMaster.setEnabled(aiMasterOn);
+    setAiMasterUI();
+  });
 
   btnMaster.addEventListener("click", function(){
     if (analyzing) return;
@@ -8895,6 +9038,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     autoTrim: {
       t: "Unlock Clean Silence",
       d: "Clean Silence (auto-muting the dead air between your phrases) is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
+    },
+    aiMaster: {
+      t: "Unlock AI Master",
+      d: "AI Master — one tap to balance, glue and set the loudness of your finished mix — is part of the Unlimited plan. Enter the email you used to subscribe to unlock it."
+    },
+    signaturePack: {
+      t: "Unlock the Signature Packs",
+      d: "The M5tar & Jewels Signature Packs — extra presets from both engineers — are part of the Unlimited plan. Enter the email you used to subscribe to unlock them."
     },
     aiMix: {
       t: "Unlock AI Mix",
