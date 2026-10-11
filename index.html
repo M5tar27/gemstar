@@ -659,8 +659,10 @@
   .trk-btn{width:30px; height:30px; border-radius:6px; border:1px solid var(--line-strong); background:var(--bg-panel-2);
     color:var(--ink-muted); font-family:var(--font-display); font-weight:700; font-size:0.78rem; cursor:pointer;}
   .trk-btn:hover{color:#fff;}
-  .trk-mute.on{background:var(--gem); border-color:var(--gem); color:#050508;}
-  .trk-solo.on{background:var(--yellow); border-color:var(--yellow); color:#050508;}
+  .trk-btn.trk-mute.on, .trk-btn.trk-mute[aria-pressed="true"]{background:#FF3B4E; border-color:#fff; color:#fff;
+    box-shadow:0 0 0 2px rgba(255,59,78,0.45), 0 0 12px rgba(255,59,78,0.75); transform:scale(1.06);}
+  .trk-btn.trk-solo.on, .trk-btn.trk-solo[aria-pressed="true"]{background:var(--yellow); border-color:#fff; color:#050508;
+    box-shadow:0 0 0 2px rgba(255,214,10,0.45), 0 0 12px rgba(255,214,10,0.75); transform:scale(1.06);}
   .vocal-track-row.is-muted .vocal-track-name, .vocal-track-row.is-muted input[type=range]{opacity:0.4;}
 
   /* Auto-Tune key & scale */
@@ -1274,6 +1276,70 @@
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
       </div>
 
+      <div id="player-block" hidden>
+        <div class="track-row" id="lead-track-row">
+          <span class="track-name" id="track-name"></span>
+          <div class="transport-btns">
+            <button class="icon-btn small" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
+            <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
+            <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
+          </div>
+        </div>
+        <div class="waveform-shell" id="lead-waveform-shell">
+          <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
+          <canvas id="waveform" width="900" height="110"></canvas>
+        </div>
+        <div class="all-vocals-strip" id="all-vocals-strip" hidden>
+          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
+          <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
+            <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
+            <div class="live-row" id="grid-live-row" hidden>
+              <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
+              <canvas id="grid-live-waveform" width="600" height="42"></canvas>
+            </div>
+            <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
+          </div>
+        </div>
+        <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
+          <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
+          <canvas id="beat-waveform" width="900" height="56"></canvas>
+        </div>
+        <div class="timeline-wrap" id="timeline-wrap">
+          <div class="timeline-scroll" id="timeline-scroll">
+            <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+              <div class="tl-region" id="tl-region" hidden></div>
+              <div class="tl-cursor" id="tl-cursor"></div>
+              <div class="tl-playhead" id="tl-playhead" hidden></div>
+            </div>
+          </div>
+          <div class="timeline-meta">
+            <span class="tl-time" id="tl-time">0:00 / 0:00</span>
+            <div class="tl-zoom" id="tl-zoom">
+              <button class="icon-btn small" id="btn-tl-zoom-out" type="button" data-i18n-aria="tlZoomOutAria" aria-label="Zoom out">−</button>
+              <span class="tl-zoom-level" id="tl-zoom-level">1×</span>
+              <button class="icon-btn small" id="btn-tl-zoom-in" type="button" data-i18n-aria="tlZoomInAria" aria-label="Zoom in">+</button>
+            </div>
+            <div class="transport-btns">
+              <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
+              <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
+            </div>
+          </div>
+          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
+        </div>
+        <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
+        <div class="track-row">
+          <div class="transport-btns">
+            <button class="icon-btn" id="btn-play" type="button" data-i18n="play">▶ Play</button>
+            <button class="icon-btn" id="btn-ab" type="button" data-i18n="ab">A/B: After</button>
+          </div>
+        </div>
+      </div>
+      <div class="spectrum-shell" id="spectrum-shell">
+        <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
+        <span class="spectrum-readout" id="spectrum-readout">-- Hz</span>
+        <canvas id="spectrum-canvas" width="900" height="90"></canvas>
+      </div>
+
       <div id="beat-block" hidden>
         <div class="track-row">
           <span class="track-name" id="beat-name"></span>
@@ -1357,72 +1423,9 @@
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
       </div>
 
-      <div id="player-block" hidden>
-        <div class="track-row" id="lead-track-row">
-          <span class="track-name" id="track-name"></span>
-          <div class="transport-btns">
-            <button class="icon-btn small" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
-            <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
-            <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
-          </div>
-        </div>
-        <div class="waveform-shell" id="lead-waveform-shell">
-          <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
-          <canvas id="waveform" width="900" height="110"></canvas>
-        </div>
-        <div class="all-vocals-strip" id="all-vocals-strip" hidden>
-          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
-          <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
-            <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
-            <div class="live-row" id="grid-live-row" hidden>
-              <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
-              <canvas id="grid-live-waveform" width="600" height="42"></canvas>
-            </div>
-            <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
-          </div>
-        </div>
-        <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
-          <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
-          <canvas id="beat-waveform" width="900" height="56"></canvas>
-        </div>
-        <div class="timeline-wrap" id="timeline-wrap">
-          <div class="timeline-scroll" id="timeline-scroll">
-            <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
-              <div class="tl-region" id="tl-region" hidden></div>
-              <div class="tl-cursor" id="tl-cursor"></div>
-              <div class="tl-playhead" id="tl-playhead" hidden></div>
-            </div>
-          </div>
-          <div class="timeline-meta">
-            <span class="tl-time" id="tl-time">0:00 / 0:00</span>
-            <div class="tl-zoom" id="tl-zoom">
-              <button class="icon-btn small" id="btn-tl-zoom-out" type="button" data-i18n-aria="tlZoomOutAria" aria-label="Zoom out">−</button>
-              <span class="tl-zoom-level" id="tl-zoom-level">1×</span>
-              <button class="icon-btn small" id="btn-tl-zoom-in" type="button" data-i18n-aria="tlZoomInAria" aria-label="Zoom in">+</button>
-            </div>
-            <div class="transport-btns">
-              <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
-              <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
-            </div>
-          </div>
-          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
-        </div>
-        <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
-        <div class="track-row">
-          <div class="transport-btns">
-            <button class="icon-btn" id="btn-play" type="button" data-i18n="play">▶ Play</button>
-            <button class="icon-btn" id="btn-ab" type="button" data-i18n="ab">A/B: After</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
-    <div class="spectrum-shell" id="spectrum-shell">
-      <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
-      <span class="spectrum-readout" id="spectrum-readout">-- Hz</span>
-      <canvas id="spectrum-canvas" width="900" height="90"></canvas>
-    </div>
     <div class="track-edit-row" id="track-edit-row" hidden>
       <span class="status-label" data-i18n="editingLabel">Editing FX for</span>
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
@@ -4476,6 +4479,35 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       resetContextForCleanPlaybackRouting();
     }
 
+    // Latency compensation. What the singer hears is late by the output
+    // latency, and what the mic delivers is late by the input latency, so a
+    // take sung in time with the beat lands behind it on playback. Work out
+    // where beat-zero sits inside the captured samples and shift the take so
+    // it lines up with the transport. Only runs when a beat/mix was being
+    // monitored; capped so a bad latency report can never wreck a take.
+    var capStartCtx = 0, monitorZeroCtx = null, inputLatencyUsed = 0;
+    function alignTakeToMonitor(merged, sr){
+      if (monitorZeroCtx == null || !ctx) return merged;
+      var inLat = inputLatencyUsed;
+      if (!(inLat > 0)) inLat = 0.02;               // browsers that don't report it
+      var outLat = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
+      if (!(ctx.outputLatency > 0)) outLat += 0.04; // Safari: no outputLatency
+      var lagSec = (monitorZeroCtx - capStartCtx) + outLat + inLat;
+      lagSec = Math.max(-1, Math.min(1, lagSec));
+      var n = Math.round(lagSec * sr);
+      window.gemstarLastTakeLag = { seconds: lagSec, out: outLat, input: inLat };
+      if (n > 0){
+        if (n >= merged.length) return merged;
+        return merged.subarray(n);                  // drop lead-in so beat-zero is sample 0
+      }
+      if (n < 0){
+        var out = new Float32Array(merged.length - n); // pad silence at the start
+        out.set(merged, -n);
+        return out;
+      }
+      return merged;
+    }
+
     // Stop + keep whatever was captured — used by the Stop button and by
     // the plan's max-length auto-cutoff.
     function finishRecording(){
@@ -4492,6 +4524,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       pcmChunks.forEach(function(c){ merged.set(c, off); off += c.length; });
       pcmChunks = [];
       pcmLength = 0;
+      merged = alignTakeToMonitor(merged, sr);
       var wavBlob = encodeWavBlob(merged, sr);
       var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
       // Reset before handing off the captured file -- handleFile() /
@@ -4516,6 +4549,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function onStreamAcquired(stream){
       recordStream = stream;
       ensureContext();
+      inputLatencyUsed = 0;
+      try { var t0 = stream.getAudioTracks()[0]; inputLatencyUsed = (t0 && t0.getSettings && t0.getSettings().latency) || 0; } catch(e){}
 
       if (opts.btWarnEl){
         var micTrack = stream.getAudioTracks()[0];
@@ -4557,7 +4592,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         // signal path from the mic capture above (which only ever feeds the
         // silent tap), so nothing about this can bleed into or corrupt the
         // take actually being recorded, even if the monitor itself stutters.
+        capStartCtx = ctx.currentTime;
+        monitorZeroCtx = null;
         startRecordMonitor();
+        if (recordMonitorOwnsPlayback || recordMonitorBeatOnly) monitorZeroCtx = playStartCtxTime - playStartOffset;
 
         // Optional, OFF-by-default monitor-only touch of reverb: a separate
         // live tap off recordSrcNode straight to speakers, same idea as the
@@ -5883,12 +5921,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // enough to tame rumble/hiss without thinning the tone out. Background
   // vocals get Clean turned down lower (10) since they're meant to sit
   // further back/blended rather than sound as de-noised/forward as the lead.
+  // AI Mix / roles: clean + enhanced, no reverb (space) and no Clean knob -- tone, punch and polish only.
   var ROLE_PRESETS = {
-    lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
-    background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
-    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
+    lead:       {level:0.8,  pan:0,    knobs:{clean:0, punch:55, bass:45, voice:62, highs:30, smooth:40, space:0, wide:10, radio:30}},
+    background: {level:0.6,  pan:0,    knobs:{clean:0, punch:40, bass:20, voice:35, highs:40, smooth:50, space:0, wide:60, radio:10}},
+    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:0, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:15, radio:20}},
+    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:0, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:15, radio:20}},
+    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:0, punch:60, bass:30, voice:55, highs:35, smooth:45, space:0, wide:30, radio:35}}
   };
   function applyRole(tr, role){
     tr.role = role || "";
