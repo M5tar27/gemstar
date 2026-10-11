@@ -1826,16 +1826,17 @@
       faqQ7:"I press Play but hear nothing.", faqA7:"Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.",
       faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 8 vocal tracks, unlimited songs. Every plan includes auto key detection for your beat.",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
-      knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Delay"},
+      knobs:{lowcut:"Low Cut",clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Delay"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
-        clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
+        clean:"Clean: removes background hiss and room noise between phrases before anything else touches the vocal. (Rumble has its own Low Cut knob.)",
         punch:"Punch: compresses the vocal for punch and consistency, evening out loud and quiet moments.",
         bass:"Bass: shapes low-end body and warmth in the vocal.",
         voice:"Voice: boosts midrange presence and clarity so the vocal cuts through the mix.",
         highs:"Highs: shapes top-end sparkle and air — cut for a darker, mellow tone or boost for extra brightness and shine.",
         smooth:"Smooth: de-esses harsh S's and sibilance.",
         tune:"Speed: real pitch correction that snaps the vocal to the nearest note — low is a gentle glide, high is the classic hard, robotic T-Pain snap.",
+        lowcut:"Low Cut: removes low rumble (thumps, hum, mic bumps, breath blasts) that adds no voice. 0 is off; around 40–50 is 80 Hz, the usual vocal setting; higher thins the sound.",
         humanize:"Humanize: adds a touch of natural vibrato back on top of the correction so it doesn't sound stiff — 0 is glass-clean, higher adds more wobble.",
         space:"Space: reverb only — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
@@ -2030,16 +2031,17 @@
       faqQ7:"Presiono Reproducir y no escucho nada.", faqA7:"Revisa el volumen y que la pestaña no esté silenciada, y recarga la página. Si usas una interfaz de audio, verifica que la salida de sonido de tu computadora sea la que estás escuchando. ¿Sigue sin funcionar? Escribe a Gemstaraudio@gmail.com.",
       faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 3 pistas vocales. Mix ($49/mes): Mezcla Completa con tu beat, las perillas firma de M5tar y Jewels, 5 pistas vocales con su propia cadena de efectos, Mezcla IA con un toque y Collab (invita amigos a grabar en tus pistas). Unlimited ($99/mes): todo lo de Mix (incluyendo Mezcla IA y Collab), 8 pistas vocales, canciones ilimitadas. Todos los planes incluyen detección automática del tono de tu beat.",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
-      knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Retardo"},
+      knobs:{lowcut:"Corte Grave",clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Retardo"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
-        clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
+        clean:"Limpio: elimina el ruido de fondo y de sala entre frases antes de que cualquier otro efecto toque la voz. (El retumbo tiene su propia perilla, Corte Grave.)",
         punch:"Pegada: comprime la voz para dar pegada y consistencia, nivelando los momentos fuertes y suaves.",
         bass:"Bajo: da forma al cuerpo y la calidez de graves en la voz.",
         voice:"Voz: realza la presencia y claridad en los medios para que la voz destaque en la mezcla.",
         highs:"Agudos: da forma al brillo y aire en los agudos — reduce para un tono más oscuro y suave, o sube para más brillo.",
         smooth:"Suave: quita eses ásperas y sibilancia.",
         tune:"Velocidad: corrección de tono real que ajusta la voz a la nota más cercana — bajo es un deslizamiento suave, alto es el clásico efecto robótico tipo T-Pain.",
+        lowcut:"Corte Grave: quita el retumbo grave (golpes, zumbido, roces del micro, soplidos) que no aporta a la voz. 0 es apagado; cerca de 40–50 equivale a 80 Hz, el ajuste normal para voz; más alto adelgaza el sonido.",
         humanize:"Humanizar: agrega un toque de vibrato natural sobre la corrección para que no suene rígido — 0 es limpio y cristalino, más alto agrega más vibrato.",
         space:"Espacio: solo reverb — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
@@ -2163,6 +2165,7 @@
 
   /* ================= knob definitions ================= */
   var KNOB_DEFS = [
+    {id:"lowcut", group:"chain",  color:"#00C2D1"},
     {id:"clean", group:"chain",  color:"#00F5FF"},
     {id:"punch", group:"chain",  color:"#29C9FF"},
     {id:"bass",  group:"chain",  color:"#4FD8E8"},
@@ -2179,14 +2182,14 @@
     {id:"humanize", group:"pitch", color:"#FF8FE0"}
   ];
 
-  var DEFAULT_VALUES   = {clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  radio:0,  m5tar:0,  jewels:0, humanize:0, delay:0};
+  var DEFAULT_VALUES   = {lowcut:0,  clean:0,  punch:0,  bass:0,  voice:0,  highs:0,  smooth:0,  tune:0,  space:0,  wide:0,  radio:0,  m5tar:0,  jewels:0, humanize:0, delay:0};
   var PRESETS = {
-    M5TAR_VOCAL:  {clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, radio:25, m5tar:70, jewels:0,  humanize:15, delay:0},
-    JEWELS_VOCAL: {clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, radio:20, m5tar:0,  jewels:70, humanize:20, delay:0},
-    SINGER_STACK: {clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, radio:15, m5tar:0,  jewels:40, humanize:25, delay:0},
-    RAP_CLEAN:    {clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  radio:45, m5tar:40, jewels:0,  humanize:10, delay:0},
-    AUTO_TUNED:   {clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, radio:35, m5tar:15, jewels:15, humanize:5,  delay:0},
-    RNB_SMOOTH:   {clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30, delay:0}
+    M5TAR_VOCAL:  {lowcut:39, clean:45, punch:65, bass:55, voice:66, highs:20, smooth:40, tune:10, space:25, wide:15, radio:25, m5tar:70, jewels:0,  humanize:15, delay:0},
+    JEWELS_VOCAL: {lowcut:32, clean:35, punch:45, bass:26, voice:66, highs:35, smooth:38, tune:15, space:50, wide:45, radio:20, m5tar:0,  jewels:70, humanize:20, delay:0},
+    SINGER_STACK: {lowcut:28, clean:30, punch:50, bass:40, voice:60, highs:30, smooth:40, tune:20, space:60, wide:55, radio:15, m5tar:0,  jewels:40, humanize:25, delay:0},
+    RAP_CLEAN:    {lowcut:49, clean:60, punch:70, bass:55, voice:65, highs:15, smooth:50, tune:10, space:20, wide:5,  radio:45, m5tar:40, jewels:0,  humanize:10, delay:0},
+    AUTO_TUNED:   {lowcut:35, clean:40, punch:55, bass:45, voice:60, highs:20, smooth:45, tune:85, space:45, wide:15, radio:35, m5tar:15, jewels:15, humanize:5,  delay:0},
+    RNB_SMOOTH:   {lowcut:32, clean:35, punch:45, bass:50, voice:55, highs:25, smooth:55, tune:15, space:55, wide:35, radio:20, m5tar:10, jewels:25, humanize:30, delay:0}
   };
 
   // `values` is whichever vocal track's knob settings are currently shown on
@@ -3929,7 +3932,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var effVoice  = v.voice;
     var effJewels = v.jewels;
 
-    chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
+    // Low Cut is its own knob now (Clean no longer moves the rumble filter).
+    // Old sessions saved before this knob existed fall back to Clean's old mapping.
+    var hpfHz = (typeof v.lowcut === "number") ? lerp(v.lowcut,0,100,20,150) : lerp(v.clean,0,100,30,120);
+    chain.rumbleHPF.frequency.setTargetAtTime(hpfHz, now, 0.02);
     var newGateCurve = getGateShaperCurve(v.clean/100);
     if (chain.gateShaper.curve !== newGateCurve) chain.gateShaper.curve = newGateCurve;
     chain.hissFilter.gain.setTargetAtTime(lerp(v.clean,0,100,0,-6), now, 0.02);
@@ -8365,6 +8371,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function pickKnobs(v){
     var o = {};
     if (v) KNOB_DEFS.forEach(function(d){ if (typeof v[d.id] === "number") o[d.id] = v[d.id]; });
+    // Sessions saved before Low Cut existed: keep the rumble cut Clean used to apply.
+    if (v && typeof v.lowcut !== "number" && typeof v.clean === "number") o.lowcut = Math.round((30 + 0.9*v.clean - 20) / 1.3);
     return o;
   }
   function scheduleSave(){
