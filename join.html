@@ -154,7 +154,7 @@
 
     // Decode the track in the background (needed to match your volume to it and to
     // measure the delay). Recording still works if this fails.
-    try { if (AC) ctx = new AC(); } catch (e) { ctx = null; }
+    try { if (AC) { try { ctx = new AC({ latencyHint: "interactive" }); } catch (e1) { ctx = new AC(); } } } catch (e) { ctx = null; }
     function getTrackBuffer() {
       if (trackBufP) return trackBufP;
       if (!ctx || !audio.src) return (trackBufP = Promise.resolve(null));
@@ -176,19 +176,53 @@
       if (beatGain) beatGain.gain.value = beatVol;
     });
 
+    // Capture runs on the audio thread (AudioWorklet) so a busy page can't drop
+    // samples and leave clicks/static in the take; older browsers fall back to
+    // ScriptProcessor.
+    var WORKLET_SRC = "class GemstarGuestCap extends AudioWorkletProcessor{constructor(){super();this.buf=new Float32Array(2048);this.n=0;this.t0=0;}" +
+      "process(inputs){var i=inputs[0];if(i&&i[0]&&i[0].length){var d=i[0];for(var k=0;k<d.length;k++){if(this.n===0)this.t0=currentTime+k/sampleRate;this.buf[this.n++]=d[k];" +
+      "if(this.n===2048){var o=this.buf;this.port.postMessage({t:this.t0,d:o},[o.buffer]);this.buf=new Float32Array(2048);this.n=0;}}}return true;}}" +
+      "registerProcessor('gemstar-guest-cap',GemstarGuestCap);";
+    var workletP = null;
+    function loadWorklet() {
+      if (workletP) return workletP;
+      if (!ctx || !ctx.audioWorklet || typeof AudioWorkletNode === "undefined") return (workletP = Promise.resolve(false));
+      try {
+        var url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: "application/javascript" }));
+        workletP = ctx.audioWorklet.addModule(url).then(function () { return true; }, function () { return false; });
+      } catch (e) { workletP = Promise.resolve(false); }
+      return workletP;
+    }
+    function onChunk(d, t) {
+      if (!recording) return;
+      if (capStart === null) capStart = t;
+      chunks.push(d); nSamples += d.length;
+      if (nSamples > ctx.sampleRate * MAX_SECONDS) stopRecording();
+    }
+
     function startCapture(s) {
       stream = s; chunks = []; nSamples = 0; capStart = null; tStart = null; recording = true;
       srcNode = ctx.createMediaStreamSource(s);
-      proc = ctx.createScriptProcessor(2048, 1, 1);
-      mute = ctx.createGain(); mute.gain.value = 0;      // keeps the processor running without echoing the mic
-      srcNode.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
-      proc.onaudioprocess = function (e) {
+      mute = ctx.createGain(); mute.gain.value = 0;      // keeps the capture node running without echoing the mic
+      loadWorklet().then(function (ok) {
         if (!recording) return;
-        var d = e.inputBuffer.getChannelData(0);
-        if (capStart === null) capStart = ctx.currentTime - d.length / ctx.sampleRate;
-        chunks.push(new Float32Array(d)); nSamples += d.length;
-        if (nSamples > ctx.sampleRate * MAX_SECONDS) stopRecording();
-      };
+        if (ok) {
+          try {
+            proc = new AudioWorkletNode(ctx, "gemstar-guest-cap", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+            proc.port.onmessage = function (e) { onChunk(e.data.d, e.data.t); };
+          } catch (e) { proc = null; }
+        }
+        if (!proc) {
+          proc = ctx.createScriptProcessor(2048, 1, 1);
+          proc.onaudioprocess = function (e) {
+            var d = e.inputBuffer.getChannelData(0);
+            onChunk(new Float32Array(d), ctx.currentTime - d.length / ctx.sampleRate);
+          };
+        }
+        srcNode.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+        startTrack();
+      });
+      function startTrack() {
       // Start the track so we know exactly when it began relative to the recording.
       usingBuffer = !!trackBuf;
       if (usingBuffer) {
@@ -203,6 +237,7 @@
         var p = audio.play(); if (p && p.catch) p.catch(function () {});
       }
       setStage("s-rec");
+      }
     }
 
     function stopRecording() {
@@ -211,7 +246,7 @@
       audio.removeEventListener("ended", onBaseEnded);
       audio.pause();
       try { if (playSrc) { playSrc.onended = null; playSrc.stop(); } } catch (e) {}
-      if (proc) { proc.onaudioprocess = null; try { proc.disconnect(); srcNode.disconnect(); mute.disconnect(); } catch (e) {} }
+      if (proc) { proc.onaudioprocess = null; try { if (proc.port) proc.port.onmessage = null; proc.disconnect(); srcNode.disconnect(); mute.disconnect(); } catch (e) {} proc = null; }
       // Device-reported delay (mic -> processing -> speakers/headphones), where the browser tells us.
       var est = { ms: 0, known: false };
       try {
@@ -231,6 +266,8 @@
       chunks = [];
       var n0 = tStart === null || capStart === null ? 0 : Math.max(0, Math.round((tStart - capStart) * sr));
       var rec = all.subarray(Math.min(n0, all.length));   // sample 0 now = start of the track
+      var rawRec = rec;                                    // keep the untouched take for lag measurement
+      try { rec = GemstarSync.cleanTake(rec, sr); } catch (e) { rec = rawRec; }
       if (rec.length < sr * 0.5) { setStage("s-intro"); say("Nothing was recorded. Try again.", "bad"); return; }
       var tb = trackBuf, trackMono = null;
       if (tb) {
@@ -243,7 +280,7 @@
       var lagMs = est.ms, how = est.known ? "device" : "guess";
       if (trackMono) {
         var m = null;
-        try { m = GemstarSync.measureLag(rec, trackMono, sr); } catch (e) {}
+        try { m = GemstarSync.measureLag(rawRec, trackMono, sr); } catch (e) {}
         if (m && m.lagMs >= 0 && m.lagMs <= 450) { lagMs = m.lagMs; how = "sound"; }
       }
       lagMs = Math.max(0, Math.min(500, lagMs));
@@ -277,7 +314,7 @@
       try { if (ctx.state === "suspended") ctx.resume(); } catch (e) {}
       // Raw capture: no echo cancel / noise suppression / auto gain so the
       // owner gets a clean take (headphones prevent bleed).
-      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, latency: { ideal: 0 } } })
         .then(startCapture)
         .catch(function () { say("Microphone access was blocked. Allow it in your browser settings, then try again.", "bad"); });
     });

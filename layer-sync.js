@@ -120,6 +120,46 @@
     return { lagMs: (peakLag + frac) / dsr * 1000, confidence: Math.min(1, ratio / 15), corr: peak };
   }
 
+  /**
+   * Automatic take cleanup (guest + owner recordings): removes rumble/DC,
+   * gently turns down room hiss between phrases (max 9 dB, follows the take's
+   * own noise floor), and soft-limits overs so a hot mic can't crackle.
+   * Returns a new Float32Array.
+   */
+  function cleanTake(x, sr) {
+    var n = x.length, i, out = new Float32Array(n);
+    var w0 = 2 * Math.PI * 75 / sr, cw = Math.cos(w0), al = Math.sin(w0) / Math.SQRT2, a0 = 1 + al;
+    var b0 = (1 + cw) / 2 / a0, b1 = -(1 + cw) / a0, b2 = b0, a1 = -2 * cw / a0, a2 = (1 - al) / a0;
+    var x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (i = 0; i < n; i++) {
+      var xi = x[i], y = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = xi; y2 = y1; y1 = y; out[i] = y;
+    }
+    var blk = Math.max(64, Math.round(sr * 0.02)), nb = Math.floor(n / blk), rms = [], b, sum;
+    for (b = 0; b < nb; b++) { sum = 0; for (i = b * blk; i < (b + 1) * blk; i++) sum += out[i] * out[i]; rms.push(Math.sqrt(sum / blk)); }
+    if (nb >= 10) {
+      var sorted = rms.slice().sort(function (p, q) { return p - q; });
+      var floor = sorted[Math.floor(nb * 0.15)], peakRms = sorted[nb - 1];
+      var thr = Math.min(floor * 3.0, peakRms * 0.1);
+      if (floor > 1e-5 && thr > floor) {
+        var atk = 1 - Math.exp(-1 / (sr * 0.004)), rel = 1 - Math.exp(-1 / (sr * 0.15)), ea = 1 - Math.exp(-1 / (sr * 0.01));
+        var gs = 1, env = 0, minG = Math.pow(10, -9 / 20);
+        for (i = 0; i < n; i++) {
+          var a = Math.abs(out[i]);
+          env += (a - env) * (a > env ? 1 : ea);
+          var target = env >= thr ? 1 : Math.max(minG, Math.pow(env / thr, 0.5));
+          gs += (target - gs) * (target > gs ? atk : rel);
+          out[i] *= gs;
+        }
+      }
+    }
+    for (i = 0; i < n; i++) {
+      var v = out[i], av = Math.abs(v);
+      if (av > 0.9) { var q = 0.9 + 0.095 * Math.tanh((av - 0.9) / 0.095); out[i] = v < 0 ? -q : q; }
+    }
+    return out;
+  }
+
   function encodeWav16(data, sr) {
     var n = data.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf), i;
     function str(o, s) { for (var k = 0; k < s.length; k++) v.setUint8(o + k, s.charCodeAt(k)); }
@@ -127,9 +167,9 @@
     v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
     v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
     str(36, "data"); v.setUint32(40, n * 2, true);
-    for (i = 0; i < n; i++) { var s = Math.max(-1, Math.min(1, data[i])); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }
+    for (i = 0; i < n; i++) { var s = Math.max(-1, Math.min(1, data[i] + (Math.random() - Math.random()) / 32768)); v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true); }   // TPDF dither: no quantization grit on quiet passages
     return buf;
   }
 
-  return { toMono: toMono, gatedRms: gatedRms, peakOf: peakOf, levelGain: levelGain, measureLag: measureLag, encodeWav16: encodeWav16 };
+  return { toMono: toMono, gatedRms: gatedRms, peakOf: peakOf, levelGain: levelGain, measureLag: measureLag, encodeWav16: encodeWav16, cleanTake: cleanTake };
 });
