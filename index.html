@@ -1269,6 +1269,7 @@
           <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
           <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
+          <button type="button" class="icon-btn small" id="btn-send-collab" hidden data-i18n="sendCollabBtn">Send to Collab</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
@@ -1695,6 +1696,7 @@
       recordStart:"● Record", recordStop:"Stop", recordRetry:"Re-record",
       recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
+      sendCollabBtn:"Send to Collab",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
       recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
       recordFxMonitorLabel:"🎧 Hear a touch of reverb while tracking",
@@ -1899,6 +1901,7 @@
       recordStart:"● Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
       recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
+      sendCollabBtn:"Enviar a Collab",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
       recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
       recordFxMonitorLabel:"🎧 Escuchar un toque de reverb mientras grabas",
@@ -4342,6 +4345,36 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
      shape handleFile() and the extra-vocal-track uploader already expect.
      Used twice below: once for the main vocal dropzone, once for extra
      harmony/ad-lib tracks. */
+  (function(){
+    var btn = document.getElementById("btn-send-collab");
+    if (!btn) return;
+    function wav16(x, sr){
+      var n = x.length, buf = new ArrayBuffer(44 + n*2), v = new DataView(buf), i;
+      function w(o, t){ for (i=0;i<t.length;i++) v.setUint8(o+i, t.charCodeAt(i)); }
+      w(0,"RIFF"); v.setUint32(4, 36+n*2, true); w(8,"WAVE"); w(12,"fmt "); v.setUint32(16,16,true);
+      v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+      v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40,n*2,true);
+      for (i=0;i<n;i++){ var s = Math.max(-1, Math.min(1, x[i])); v.setInt16(44+i*2, s<0 ? s*0x8000 : s*0x7FFF, true); }
+      return new Blob([v], {type:"audio/wav"});
+    }
+    btn.addEventListener("click", function(){
+      if (!isTierAtLeast("mix")){ openTierGate("collab"); return; }
+      var t = window.gemstarLastTake;
+      if (!t || !t.samples || !t.samples.length) return;
+      var blob = wav16(t.samples, t.sr);
+      try {
+        var open = indexedDB.open("gemstar-handoff", 1);
+        open.onupgradeneeded = function(){ open.result.createObjectStore("files"); };
+        open.onerror = function(){ location.href = "/track.html"; };
+        open.onsuccess = function(){
+          var tx = open.result.transaction("files", "readwrite");
+          tx.objectStore("files").put({ blob: blob, name: "My recording", at: Date.now() }, "pending");
+          tx.oncomplete = function(){ location.href = "/track.html?from=recording"; };
+          tx.onerror = function(){ location.href = "/track.html"; };
+        };
+      } catch(e){ location.href = "/track.html"; }
+    });
+  })();
   function createVocalRecorder(opts){
     var recordStream = null;
     var recordStartTs = 0;
@@ -4492,6 +4525,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       pcmChunks.forEach(function(c){ merged.set(c, off); off += c.length; });
       pcmChunks = [];
       pcmLength = 0;
+      window.gemstarLastTake = { samples: merged, sr: sr };
+      var sc = document.getElementById('btn-send-collab'); if (sc) sc.hidden = false;
       var wavBlob = encodeWavBlob(merged, sr);
       var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
       // Reset before handing off the captured file -- handleFile() /
@@ -8899,6 +8934,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     aiMix: {
       t: "Unlock AI Mix",
       d: "AI Mix — one-tap level, pan and tone balancing across every track (and the beat) — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
+    },
+    collab: {
+      t: "Unlock Collab",
+      d: "Collab — invite a friend to record a layer on your track — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
     },
     plan: {
       t: "Verify Your Plan",
