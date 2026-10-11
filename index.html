@@ -412,6 +412,11 @@
   .dropzone-compact .dz-icon{display:none;}
   .dropzone-compact h3{font-size:1rem; margin:0 0 4px;}
   .dropzone-compact p{font-size:0.78rem;}
+  .metro-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:8px 0 0; font-size:0.82rem; color:var(--ink-dim);}
+  .metro-toggle{display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:#fff;}
+  .metro-row input[type=number]{width:64px; background:var(--bg-panel-2); color:#fff; border:1px solid var(--line-strong); border-radius:6px; padding:5px 6px; font-size:0.85rem;}
+  .metro-row input[type=range]{width:90px; accent-color:var(--gem);}
+  .metro-hint{font-size:0.72rem; margin-top:2px; color:var(--yellow);}
   .record-hint{margin:0; color:var(--ink-dim); font-size:0.82rem; max-width:42ch;}
   .record-bt-warn{color:var(--yellow); font-weight:600; max-width:48ch;}
   .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
@@ -1270,6 +1275,13 @@
           <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
+        <div class="metro-row" id="metro-row">
+          <label class="metro-toggle"><input type="checkbox" id="metro-on" /> <span data-i18n="metroLabel">Click track</span></label>
+          <input type="number" id="metro-bpm" min="40" max="240" step="1" value="90" aria-label="Click track BPM" />
+          <span class="metro-unit">BPM</span>
+          <input type="range" id="metro-vol" min="0" max="100" value="60" aria-label="Click volume" />
+        </div>
+        <p class="record-hint metro-hint" id="metro-hint" hidden data-i18n="metroHint">Use headphones: the click plays out loud, so on speakers your mic would pick it up. It is never added to your recording.</p>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
       </div>
@@ -1693,6 +1705,7 @@
       dzTitle:"Drop your vocals here", dzSub:"MP3 or WAV · drop one or several at once · or tap to browse",
       recordModeUpload:"Drop Vocals", recordModeRecord:"Record Vocal", pickMicBtn:"🎚 Choose microphone",
       recordStart:"● Record", recordStop:"Stop", recordRetry:"Re-record",
+      metroLabel:"Click track", metroHint:"Use headphones: the click plays out loud, so on speakers your mic would pick it up. It is never added to your recording.",
       recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
@@ -1897,6 +1910,7 @@
       dzTitle:"Suelta tus voces aquí", dzSub:"MP3 o WAV · una o varias a la vez · o toca para buscar",
       recordModeUpload:"Soltar Voces", recordModeRecord:"Grabar Voz", pickMicBtn:"🎚 Elegir micrófono",
       recordStart:"● Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
+      metroLabel:"Metrónomo", metroHint:"Usa audífonos: el clic suena en voz alta y con bocinas el micrófono lo captaría. Nunca se agrega a tu grabación.",
       recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
@@ -4342,6 +4356,68 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
      shape handleFile() and the extra-vocal-track uploader already expect.
      Used twice below: once for the main vocal dropzone, once for extra
      harmony/ad-lib tracks. */
+  /* Click track (metronome): plays through the speakers/headphones only. It is
+     scheduled on the audio clock and goes straight to ctx.destination, never
+     into the mic capture path or the mix chain, so it can't end up in a take
+     or an export. Accent on beat 1 of every 4. */
+  var Metro = (function(){
+    var timer = null, nextT = 0, beat = 0, gain = null;
+    var on = document.getElementById("metro-on"), bpmEl = document.getElementById("metro-bpm"),
+        volEl = document.getElementById("metro-vol"), hint = document.getElementById("metro-hint");
+    function load(){
+      try {
+        var sv = JSON.parse(localStorage.getItem("gemstarMetro") || "null");
+        if (sv){ if (bpmEl && sv.bpm) bpmEl.value = sv.bpm; if (volEl && sv.vol != null) volEl.value = sv.vol; }
+      } catch(e){}
+    }
+    function save(){ try { localStorage.setItem("gemstarMetro", JSON.stringify({ bpm: bpmEl.value, vol: volEl.value })); } catch(e){} }
+    function bpm(){ var b = parseFloat(bpmEl && bpmEl.value); return (b >= 40 && b <= 240) ? b : 90; }
+    function tick(t, accent){
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "square"; o.frequency.value = accent ? 1600 : 1000;
+      var v = (volEl ? volEl.value / 100 : 0.6) * 0.5;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(v, t + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t); o.stop(t + 0.06);
+    }
+    function pump(){
+      if (!ctx) return;
+      var spb = 60 / bpm();
+      while (nextT < ctx.currentTime + 0.12){
+        tick(nextT, beat % 4 === 0); beat++; nextT += spb;
+      }
+    }
+    return {
+      enabled: function(){ return !!(on && on.checked); },
+      start: function(){
+        if (!this.enabled() || !ctx || timer) return;
+        beat = 0; nextT = ctx.currentTime + 0.1;
+        pump(); timer = setInterval(pump, 25);
+      },
+      stop: function(){ if (timer){ clearInterval(timer); timer = null; } },
+      init: function(){
+        if (!on) return;
+        load();
+        function showHint(){
+          if (!hint) return;
+          hint.hidden = !on.checked;
+          // Hide the warning when a headphone/headset output is detected.
+          if (on.checked && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+            navigator.mediaDevices.enumerateDevices().then(function(ds){
+              var hp = ds.some(function(d){ return d.kind === "audiooutput" && /head(phone|set)|airpods|buds|bluetooth/i.test(d.label || ""); });
+              hint.hidden = !on.checked || hp;
+            }).catch(function(){});
+          }
+        }
+        on.addEventListener("change", showHint);
+        bpmEl.addEventListener("input", save); volEl.addEventListener("input", save);
+      }
+    };
+  })();
+  Metro.init();
+
   function createVocalRecorder(opts){
     var recordStream = null;
     var recordStartTs = 0;
@@ -4385,6 +4461,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       }
     }
     function stopCapture(){
+      Metro.stop();
       recording = false;
       isMicRecording = false;
       if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip(); // hides the grid's live row
@@ -4558,6 +4635,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         // silent tap), so nothing about this can bleed into or corrupt the
         // take actually being recorded, even if the monitor itself stutters.
         startRecordMonitor();
+        Metro.start();
 
         // Optional, OFF-by-default monitor-only touch of reverb: a separate
         // live tap off recordSrcNode straight to speakers, same idea as the
