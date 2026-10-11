@@ -412,6 +412,10 @@
   .dropzone-compact .dz-icon{display:none;}
   .dropzone-compact h3{font-size:1rem; margin:0 0 4px;}
   .dropzone-compact p{font-size:0.78rem;}
+  .sync-nudge{display:flex; align-items:center; gap:10px; margin:6px 0 0;}
+  .sync-nudge input[type=range]{flex:1; max-width:220px; accent-color:var(--gem);}
+  .sync-nudge-val{min-width:54px; font-variant-numeric:tabular-nums; color:#fff; font-size:0.8rem;}
+  .sync-nudge-hint{font-size:0.72rem; margin-top:2px;}
   .record-hint{margin:0; color:var(--ink-dim); font-size:0.82rem; max-width:42ch;}
   .record-bt-warn{color:var(--yellow); font-weight:600; max-width:48ch;}
   .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
@@ -659,8 +663,10 @@
   .trk-btn{width:30px; height:30px; border-radius:6px; border:1px solid var(--line-strong); background:var(--bg-panel-2);
     color:var(--ink-muted); font-family:var(--font-display); font-weight:700; font-size:0.78rem; cursor:pointer;}
   .trk-btn:hover{color:#fff;}
-  .trk-mute.on{background:var(--gem); border-color:var(--gem); color:#050508;}
-  .trk-solo.on{background:var(--yellow); border-color:var(--yellow); color:#050508;}
+  .trk-btn.trk-mute.on, .trk-btn.trk-mute[aria-pressed="true"]{background:#FF3B4E; border-color:#fff; color:#fff;
+    box-shadow:0 0 0 2px rgba(255,59,78,0.45), 0 0 12px rgba(255,59,78,0.75); transform:scale(1.06);}
+  .trk-btn.trk-solo.on, .trk-btn.trk-solo[aria-pressed="true"]{background:var(--yellow); border-color:#fff; color:#050508;
+    box-shadow:0 0 0 2px rgba(255,214,10,0.45), 0 0 12px rgba(255,214,10,0.75); transform:scale(1.06);}
   .vocal-track-row.is-muted .vocal-track-name, .vocal-track-row.is-muted input[type=range]{opacity:0.4;}
 
   /* Auto-Tune key & scale */
@@ -1270,8 +1276,78 @@
           <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
+        <div class="sync-nudge" id="sync-nudge-row">
+          <span class="status-label" data-i18n="syncNudgeLabel">Sync nudge</span>
+          <input type="range" id="sync-nudge" min="-150" max="150" step="5" value="0" aria-label="Recording sync nudge" />
+          <span class="sync-nudge-val" id="sync-nudge-val">0 ms</span>
+        </div>
+        <p class="record-hint sync-nudge-hint" data-i18n="syncNudgeHint">Still late? Slide right to pull your next takes earlier, left if they land early.</p>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+      </div>
+
+      <div id="player-block" hidden>
+        <div class="track-row" id="lead-track-row">
+          <span class="track-name" id="track-name"></span>
+          <div class="transport-btns">
+            <button class="icon-btn small" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
+            <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
+            <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
+          </div>
+        </div>
+        <div class="waveform-shell" id="lead-waveform-shell">
+          <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
+          <canvas id="waveform" width="900" height="110"></canvas>
+        </div>
+        <div class="all-vocals-strip" id="all-vocals-strip" hidden>
+          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
+          <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
+            <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
+            <div class="live-row" id="grid-live-row" hidden>
+              <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
+              <canvas id="grid-live-waveform" width="600" height="42"></canvas>
+            </div>
+            <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
+          </div>
+        </div>
+        <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
+          <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
+          <canvas id="beat-waveform" width="900" height="56"></canvas>
+        </div>
+        <div class="timeline-wrap" id="timeline-wrap">
+          <div class="timeline-scroll" id="timeline-scroll">
+            <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
+              <div class="tl-region" id="tl-region" hidden></div>
+              <div class="tl-cursor" id="tl-cursor"></div>
+              <div class="tl-playhead" id="tl-playhead" hidden></div>
+            </div>
+          </div>
+          <div class="timeline-meta">
+            <span class="tl-time" id="tl-time">0:00 / 0:00</span>
+            <div class="tl-zoom" id="tl-zoom">
+              <button class="icon-btn small" id="btn-tl-zoom-out" type="button" data-i18n-aria="tlZoomOutAria" aria-label="Zoom out">−</button>
+              <span class="tl-zoom-level" id="tl-zoom-level">1×</span>
+              <button class="icon-btn small" id="btn-tl-zoom-in" type="button" data-i18n-aria="tlZoomInAria" aria-label="Zoom in">+</button>
+            </div>
+            <div class="transport-btns">
+              <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
+              <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
+            </div>
+          </div>
+          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
+        </div>
+        <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
+        <div class="track-row">
+          <div class="transport-btns">
+            <button class="icon-btn" id="btn-play" type="button" data-i18n="play">▶ Play</button>
+            <button class="icon-btn" id="btn-ab" type="button" data-i18n="ab">A/B: After</button>
+          </div>
+        </div>
+      </div>
+      <div class="spectrum-shell" id="spectrum-shell">
+        <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
+        <span class="spectrum-readout" id="spectrum-readout">-- Hz</span>
+        <canvas id="spectrum-canvas" width="900" height="90"></canvas>
       </div>
 
       <div id="beat-block" hidden>
@@ -1357,72 +1433,9 @@
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
       </div>
 
-      <div id="player-block" hidden>
-        <div class="track-row" id="lead-track-row">
-          <span class="track-name" id="track-name"></span>
-          <div class="transport-btns">
-            <button class="icon-btn small" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
-            <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
-            <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
-          </div>
-        </div>
-        <div class="waveform-shell" id="lead-waveform-shell">
-          <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
-          <canvas id="waveform" width="900" height="110"></canvas>
-        </div>
-        <div class="all-vocals-strip" id="all-vocals-strip" hidden>
-          <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
-          <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
-            <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
-            <div class="live-row" id="grid-live-row" hidden>
-              <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
-              <canvas id="grid-live-waveform" width="600" height="42"></canvas>
-            </div>
-            <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
-          </div>
-        </div>
-        <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
-          <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
-          <canvas id="beat-waveform" width="900" height="56"></canvas>
-        </div>
-        <div class="timeline-wrap" id="timeline-wrap">
-          <div class="timeline-scroll" id="timeline-scroll">
-            <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
-              <div class="tl-region" id="tl-region" hidden></div>
-              <div class="tl-cursor" id="tl-cursor"></div>
-              <div class="tl-playhead" id="tl-playhead" hidden></div>
-            </div>
-          </div>
-          <div class="timeline-meta">
-            <span class="tl-time" id="tl-time">0:00 / 0:00</span>
-            <div class="tl-zoom" id="tl-zoom">
-              <button class="icon-btn small" id="btn-tl-zoom-out" type="button" data-i18n-aria="tlZoomOutAria" aria-label="Zoom out">−</button>
-              <span class="tl-zoom-level" id="tl-zoom-level">1×</span>
-              <button class="icon-btn small" id="btn-tl-zoom-in" type="button" data-i18n-aria="tlZoomInAria" aria-label="Zoom in">+</button>
-            </div>
-            <div class="transport-btns">
-              <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
-              <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
-            </div>
-          </div>
-          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
-        </div>
-        <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
-        <div class="track-row">
-          <div class="transport-btns">
-            <button class="icon-btn" id="btn-play" type="button" data-i18n="play">▶ Play</button>
-            <button class="icon-btn" id="btn-ab" type="button" data-i18n="ab">A/B: After</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
-    <div class="spectrum-shell" id="spectrum-shell">
-      <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
-      <span class="spectrum-readout" id="spectrum-readout">-- Hz</span>
-      <canvas id="spectrum-canvas" width="900" height="90"></canvas>
-    </div>
     <div class="track-edit-row" id="track-edit-row" hidden>
       <span class="status-label" data-i18n="editingLabel">Editing FX for</span>
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
@@ -1693,6 +1706,7 @@
       dzTitle:"Drop your vocals here", dzSub:"MP3 or WAV · drop one or several at once · or tap to browse",
       recordModeUpload:"Drop Vocals", recordModeRecord:"Record Vocal", pickMicBtn:"🎚 Choose microphone",
       recordStart:"● Record", recordStop:"Stop", recordRetry:"Re-record",
+      syncNudgeLabel:"Sync nudge", syncNudgeHint:"Still late? Slide right to pull your next takes earlier, left if they land early.",
       recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
@@ -1897,6 +1911,7 @@
       dzTitle:"Suelta tus voces aquí", dzSub:"MP3 o WAV · una o varias a la vez · o toca para buscar",
       recordModeUpload:"Soltar Voces", recordModeRecord:"Grabar Voz", pickMicBtn:"🎚 Elegir micrófono",
       recordStart:"● Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
+      syncNudgeLabel:"Ajuste de sincronía", syncNudgeHint:"¿Sigue atrasado? Desliza a la derecha para adelantar tus próximas tomas, a la izquierda si caen adelantadas.",
       recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
@@ -4202,7 +4217,9 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
      as an uploaded WAV would, with no extra compression generation baked in
      before the user even starts dialing in the knobs. */
   function encodeWavBlob(samples, sampleRate){
-    var bytesPerSample = 2, blockAlign = bytesPerSample, byteRate = sampleRate * blockAlign;
+    // 24-bit PCM: ~48 dB less quantization hiss than 16-bit, which matters
+    // because the chain below boosts and compresses the take.
+    var bytesPerSample = 3, blockAlign = bytesPerSample, byteRate = sampleRate * blockAlign;
     var dataSize = samples.length * bytesPerSample;
     var buffer = new ArrayBuffer(44 + dataSize);
     var view = new DataView(buffer);
@@ -4210,14 +4227,57 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     writeStr(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); writeStr(8, "WAVE");
     writeStr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
     view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+    view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 24, true);
     writeStr(36, "data"); view.setUint32(40, dataSize, true);
     var offset = 44;
-    for (var i=0;i<samples.length;i++, offset+=2){
-      var s = Math.max(-1, Math.min(1, samples[i]));
-      view.setInt16(offset, s < 0 ? s*0x8000 : s*0x7FFF, true);
+    for (var i=0;i<samples.length;i++, offset+=3){
+      var x = Math.max(-1, Math.min(1, samples[i]));
+      var v = Math.round(x < 0 ? x*0x800000 : x*0x7FFFFF);
+      view.setUint8(offset, v & 0xFF); view.setUint8(offset+1, (v >> 8) & 0xFF); view.setUint8(offset+2, (v >> 16) & 0xFF);
     }
     return new Blob([view], { type: "audio/wav" });
+  }
+
+  /* Automatic take cleanup, applied once when a recording finishes (the
+     Clean knob is untouched). Removes DC/rumble, gently turns down the room
+     hiss between phrases, and soft-limits any overs so a hot mic can't
+     crackle. Conservative on purpose: max 9 dB of reduction, slow release,
+     and the threshold follows the take's own noise floor. */
+  function cleanTake(x, sr){
+    var n = x.length, i, out = new Float32Array(n);
+    // 2nd-order Butterworth high-pass at 75 Hz
+    var w0 = 2*Math.PI*75/sr, cw = Math.cos(w0), al = Math.sin(w0)/Math.SQRT2, a0 = 1+al;
+    var b0=(1+cw)/2/a0, b1=-(1+cw)/a0, b2=b0, a1=-2*cw/a0, a2=(1-al)/a0;
+    var x1=0,x2=0,y1=0,y2=0;
+    for (i=0;i<n;i++){
+      var xi = x[i], y = b0*xi + b1*x1 + b2*x2 - a1*y1 - a2*y2;
+      x2=x1; x1=xi; y2=y1; y1=y; out[i]=y;
+    }
+    // noise floor = 15th percentile of 20 ms block RMS
+    var blk = Math.max(64, Math.round(sr*0.02)), nb = Math.floor(n/blk), rms = [];
+    for (var b=0;b<nb;b++){ var sum=0; for (i=b*blk;i<(b+1)*blk;i++) sum += out[i]*out[i]; rms.push(Math.sqrt(sum/blk)); }
+    if (nb >= 10){
+      var sorted = rms.slice().sort(function(a,b){return a-b;});
+      var floor = sorted[Math.floor(nb*0.15)], peakRms = sorted[nb-1];
+      var thr = Math.min(floor*3.0, peakRms*0.1);          // ~+9.5 dB over the floor, never near the singing
+      if (floor > 1e-5 && thr > floor){
+        var atk = 1-Math.exp(-1/(sr*0.004)), rel = 1-Math.exp(-1/(sr*0.15)), gs = 1, env = 0, ea = 1-Math.exp(-1/(sr*0.01));
+        var minG = Math.pow(10, -9/20);
+        for (i=0;i<n;i++){
+          var a = Math.abs(out[i]);
+          env += (a - env) * (a > env ? 1 : ea);               // fast-attack, ~10 ms release peak follower
+          var target = env >= thr ? 1 : Math.max(minG, Math.pow(env/thr, 0.5));
+          gs += (target - gs) * (target > gs ? atk : rel);     // opens fast, closes slowly
+          out[i] *= gs;
+        }
+      }
+    }
+    // soft ceiling: transparent below 0.9, rounds off overs instead of hard clipping
+    for (i=0;i<n;i++){
+      var v = out[i], av = Math.abs(v);
+      if (av > 0.9){ var q = 0.9 + 0.095*Math.tanh((av-0.9)/0.095); out[i] = v < 0 ? -q : q; }
+    }
+    return out;
   }
 
   /* Input-device picker: wires a <select> (+ optional hint line) to
@@ -4342,6 +4402,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
      shape handleFile() and the extra-vocal-track uploader already expect.
      Used twice below: once for the main vocal dropzone, once for extra
      harmony/ad-lib tracks. */
+  (function(){
+    var el = document.getElementById("sync-nudge"), val = document.getElementById("sync-nudge-val");
+    if (!el) return;
+    try { var sv = localStorage.getItem("gemstarSyncNudge"); if (sv !== null) el.value = sv; } catch(e){}
+    function show(){ if (val) val.textContent = (el.value > 0 ? "+" : "") + el.value + " ms"; }
+    el.addEventListener("input", function(){ show(); try { localStorage.setItem("gemstarSyncNudge", el.value); } catch(e){} });
+    show();
+  })();
   function createVocalRecorder(opts){
     var recordStream = null;
     var recordStartTs = 0;
@@ -4476,6 +4544,39 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       resetContextForCleanPlaybackRouting();
     }
 
+    // Latency compensation. What the singer hears is late by the output
+    // latency, and what the mic delivers is late by the input latency, so a
+    // take sung in time with the beat lands behind it on playback. Work out
+    // where beat-zero sits inside the captured samples and shift the take so
+    // it lines up with the transport. Only runs when a beat/mix was being
+    // monitored; capped so a bad latency report can never wreck a take.
+    var capStartCtx = 0, monitorZeroCtx = null, inputLatencyUsed = 0;
+    function getSyncNudgeMs(){
+      var el = document.getElementById("sync-nudge");
+      return el ? (parseFloat(el.value) || 0) : 0;
+    }
+    function alignTakeToMonitor(merged, sr){
+      if (monitorZeroCtx == null || !ctx) return merged;
+      var inLat = inputLatencyUsed;
+      if (!(inLat > 0)) inLat = 0.02;               // browsers that don't report it
+      var outLat = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
+      if (!(ctx.outputLatency > 0)) outLat += 0.04; // Safari: no outputLatency
+      var lagSec = (monitorZeroCtx - capStartCtx) + outLat + inLat + getSyncNudgeMs()/1000;
+      lagSec = Math.max(-1, Math.min(1, lagSec));
+      var n = Math.round(lagSec * sr);
+      window.gemstarLastTakeLag = { seconds: lagSec, out: outLat, input: inLat };
+      if (n > 0){
+        if (n >= merged.length) return merged;
+        return merged.subarray(n);                  // drop lead-in so beat-zero is sample 0
+      }
+      if (n < 0){
+        var out = new Float32Array(merged.length - n); // pad silence at the start
+        out.set(merged, -n);
+        return out;
+      }
+      return merged;
+    }
+
     // Stop + keep whatever was captured — used by the Stop button and by
     // the plan's max-length auto-cutoff.
     function finishRecording(){
@@ -4492,6 +4593,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       pcmChunks.forEach(function(c){ merged.set(c, off); off += c.length; });
       pcmChunks = [];
       pcmLength = 0;
+      try { merged = cleanTake(merged, sr); } catch(e){ console.warn('Gemstar: take cleanup skipped', e); }
+      merged = alignTakeToMonitor(merged, sr);
       var wavBlob = encodeWavBlob(merged, sr);
       var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
       // Reset before handing off the captured file -- handleFile() /
@@ -4516,6 +4619,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function onStreamAcquired(stream){
       recordStream = stream;
       ensureContext();
+      inputLatencyUsed = 0;
+      try { var t0 = stream.getAudioTracks()[0]; inputLatencyUsed = (t0 && t0.getSettings && t0.getSettings().latency) || 0; } catch(e){}
 
       if (opts.btWarnEl){
         var micTrack = stream.getAudioTracks()[0];
@@ -4557,7 +4662,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         // signal path from the mic capture above (which only ever feeds the
         // silent tap), so nothing about this can bleed into or corrupt the
         // take actually being recorded, even if the monitor itself stutters.
+        capStartCtx = ctx.currentTime;
+        monitorZeroCtx = null;
         startRecordMonitor();
+        if (recordMonitorOwnsPlayback || recordMonitorBeatOnly) monitorZeroCtx = playStartCtxTime - playStartOffset;
 
         // Optional, OFF-by-default monitor-only touch of reverb: a separate
         // live tap off recordSrcNode straight to speakers, same idea as the
@@ -4641,7 +4749,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // better to hand it the truest possible signal to work with.
       var baseConstraints = {
         echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-        channelCount:{ideal:1}, sampleRate:{ideal:48000}
+        channelCount:{ideal:1}, sampleRate:{ideal:48000}, latency:{ideal:0}
       };
       var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
       var audioConstraints = pickedDeviceId
@@ -5883,12 +5991,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // enough to tame rumble/hiss without thinning the tone out. Background
   // vocals get Clean turned down lower (10) since they're meant to sit
   // further back/blended rather than sound as de-noised/forward as the lead.
+  // AI Mix / roles: clean + enhanced, no reverb (space) and no Clean knob -- tone, punch and polish only.
+  var CLEAN_MIX_OFF = ["space","clean","wide","delay","jewels","m5tar"];
   var ROLE_PRESETS = {
-    lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
-    background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
-    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
+    lead:       {level:0.8,  pan:0,    knobs:{clean:0, punch:55, bass:45, voice:62, highs:30, smooth:40, space:0, wide:0, radio:30}},
+    background: {level:0.6,  pan:0,    knobs:{clean:0, punch:40, bass:20, voice:35, highs:40, smooth:50, space:0, wide:0, radio:10}},
+    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:0, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:0, radio:20}},
+    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:0, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:0, radio:20}},
+    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:0, punch:60, bass:30, voice:55, highs:35, smooth:45, space:0, wide:0, radio:35}}
   };
   function applyRole(tr, role){
     tr.role = role || "";
@@ -5992,6 +6102,9 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     function applyRoleRecipe(role, values){
       var preset = ROLE_PRESETS[role] || ROLE_PRESETS.background;
       Object.keys(preset.knobs).forEach(function(k){ values[k] = preset.knobs[k]; });
+      // AI Mix = dry, clean, enhanced: every effect-flavored knob is forced off,
+      // even if an earlier preset or the user left it turned up.
+      CLEAN_MIX_OFF.forEach(function(k){ values[k] = 0; });
       return preset;
     }
     var leadPreset = applyRoleRecipe(leadTrack.role, leadValues);
