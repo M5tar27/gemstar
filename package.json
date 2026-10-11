@@ -1,0 +1,5 @@
+{
+  "name": "gemstar",
+  "private": true,
+  "scripts": { "test": "node --test" }
+}
