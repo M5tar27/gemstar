@@ -215,7 +215,7 @@
   });
 
   $("n-create").addEventListener("click", function () {
-    var f = $("n-file").files[0];
+    var f = $("n-file").files[0] || handoffFile;
     if (!f) { say("n-note", "Choose an audio file first.", "bad"); return; }
     if (f.size > 25 * 1024 * 1024) { say("n-note", "That file is over 25 MB. Export a smaller version.", "bad"); return; }
     var ext = (f.name.split(".").pop() || "").toLowerCase();
@@ -230,6 +230,31 @@
       });
     }).catch(function (e) { $("n-create").disabled = false; say("n-note", e.message || "Something went wrong.", "bad"); });
   });
+
+  // ---- Recording handed over from the main app ("Send to Collab") ----------
+  var handoffFile = null;
+  function takeHandoff(done) {
+    if (!/[?&]from=recording/.test(location.search) || !window.indexedDB) { done(); return; }
+    try {
+      var rq = indexedDB.open("gemstar-handoff", 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore("files"); };
+      rq.onerror = function () { done(); };
+      rq.onsuccess = function () {
+        var db = rq.result, g = db.transaction("files", "readonly").objectStore("files").get("pending");
+        g.onsuccess = function () {
+          var rec = g.result;
+          if (rec && rec.blob && Date.now() - rec.at < 3600000) {
+            handoffFile = new File([rec.blob], "my-recording.wav", { type: "audio/wav" });
+            if (!$("n-title").value) $("n-title").value = "My recording";
+            say("n-note", "Your recording is ready. Tap Create track below.", "ok");
+          }
+          try { db.transaction("files", "readwrite").objectStore("files").delete("pending"); } catch (e) {}
+          done();
+        };
+        g.onerror = function () { done(); };
+      };
+    } catch (e) { done(); }
+  }
 
   // ---- Audio engine --------------------------------------------------------
   // Offset convention (matches join.html): positive = layer starts later than
@@ -522,7 +547,7 @@
     if (!res.ok) throw new Error(res.d.error);
     var id = new URLSearchParams(location.search).get("id");
     if (id) return loadTrack(id);
-    renderList(res.d.tracks); show("v-list");
+    renderList(res.d.tracks); show("v-list"); takeHandoff(function () {});
   }).catch(function () { blocked("Something went wrong", "We couldn't load your tracks. Check your connection and refresh.", "Back to Gemstar", "/"); });
 })();
 </script>
