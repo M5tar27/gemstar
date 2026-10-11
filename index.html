@@ -4878,8 +4878,24 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // The beat's actual output level, after the Mute/Solo Beat buttons and
   // any vocal solo (per-track or the Solo Vocal group button) are factored
   // in -- mirrors trackOutGain()'s logic for the vocal side.
+  // Hot beats (peaks at/near 0 dBFS) used to slam the output limiter once the
+  // +3 dB output gain and the vocals were added, which is audible as
+  // distortion/static. Trim only the beats that peak above -3 dBFS, just
+  // enough to leave the limiter some room. Cached per decoded buffer.
+  function beatTrimFor(buf){
+    if (!buf) return 1;
+    if (buf._gemTrim != null) return buf._gemTrim;
+    var peak = 0, c, i, step;
+    for (c = 0; c < buf.numberOfChannels; c++){
+      var d = buf.getChannelData(c);
+      step = Math.max(1, Math.floor(d.length / 2000000));   // plenty accurate, quick on long files
+      for (i = 0; i < d.length; i += step){ var a = d[i] < 0 ? -d[i] : d[i]; if (a > peak) peak = a; }
+    }
+    buf._gemTrim = peak > 0.708 ? 0.708 / peak : 1;
+    return buf._gemTrim;
+  }
   function beatOutLevel(){
-    var lvl = parseFloat(beatLevelSlider.value)/100 * 1.1;
+    var lvl = parseFloat(beatLevelSlider.value)/100 * 1.1 * beatTrimFor(beatBuffer);
     if (beatMuted) return 0;
     if (vocalGroupSolo && !beatSolo) return 0;
     if (anySolo() && !beatSolo) return 0; // soloing one vocal track ducks the beat too
@@ -6014,7 +6030,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var beatActivity = analyzeTrackActivity(beatBuffer);
       if (beatActivity.activeRms){
         var desiredMult = AI_MIX_REFERENCE_RMS / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies
-        var pct = Math.max(10, Math.min(100, Math.round((desiredMult / 1.1) * 100)));
+        var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(beatBuffer))) * 100)));
         beatLevelSlider.value = String(pct);
       }
     }
@@ -6320,7 +6336,36 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       src.loop = !!loopWhole;
       src._offset = dur > 0 ? (offset % dur) : 0;
     }
+    // De-click: every playback source runs through its own tiny fade node so
+    // starting, stopping, pausing and seeking never cut the waveform mid-cycle
+    // (that abrupt cut is an audible pop/crackle, especially on a loud beat).
+    var fade = ctx.createGain();
+    fade.gain.value = 0;
+    var rawConnect = src.connect.bind(src), rawStart = src.start.bind(src);
+    rawConnect(fade);
+    src._fade = fade;
+    src.connect = function(dest){ return fade.connect(dest); };
+    src.disconnect = function(){ try { fade.disconnect(); } catch(e){} };
+    src.start = function(when, off){
+      var t = (typeof when === "number" && when > 0) ? when : ctx.currentTime;
+      fade.gain.setValueAtTime(0, t);
+      fade.gain.linearRampToValueAtTime(1, t + 0.008);
+      return rawStart(when, off);
+    };
     return src;
+  }
+  // Fade a playback source out over ~10 ms, then stop and disconnect it.
+  function softStop(src, extraNodes){
+    var f = src && src._fade;
+    function cleanup(){
+      try { if (f) f.disconnect(); } catch(e){}
+      (extraNodes || []).forEach(function(n){ try { n.disconnect(); } catch(e){} });
+    }
+    if (!f || !ctx){ try { src.stop(); } catch(e){} cleanup(); return; }
+    var t = ctx.currentTime;
+    try { f.gain.cancelScheduledValues(t); f.gain.setValueAtTime(f.gain.value, t); f.gain.linearRampToValueAtTime(0, t + 0.01); } catch(e){}
+    try { src.stop(t + 0.012); } catch(e){}
+    setTimeout(cleanup, 60);
   }
 
   // Fires when the lead track reaches its natural end during plain
@@ -6476,10 +6521,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // wrongly resets tlCursor to 0 / kills playback right after a pause
       // or seek, stomping on the position stopPlayback() just saved.
       try { n.src.onended = null; } catch(e){}
-      try { n.src.stop(); } catch(e){}
-      try { n.src.disconnect(); } catch(e){}
-      try { n.gain.disconnect(); } catch(e){}
-      if (n.pan) { try { n.pan.disconnect(); } catch(e){} }
+      softStop(n.src, [n.gain, n.pan]);   // fades out, then disconnects
       if (n.ref){ n.ref._liveGain = null; n.ref._livePan = null; }
     });
     vocalSourceNodes = [];
@@ -6487,8 +6529,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function stopBeatSourceOnly(){
     if (beatSourceNode){
       try { beatSourceNode.onended = null; } catch(e){} // see stopSourceOnly()
-      try { beatSourceNode.stop(); } catch(e){}
-      try { beatSourceNode.disconnect(); } catch(e){}
+      softStop(beatSourceNode);
       beatSourceNode = null;
     }
   }
@@ -6538,9 +6579,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // of the generic stopPlayback() so it never touches the mix-wiring
       // ref-count that path didn't take out.
       stopRecordMonitorBeatOnly();
-      var src = ctx.createBufferSource();
-      src.buffer = beatBuffer;
-      src.loop = false;
+      var src = makeTimedSource(beatBuffer, 0, null, false);   // includes the click-free fade
       src.connect(chain.beatGain);
       var startAt = ctx.currentTime + 0.03;
       src.start(startAt, 0);
@@ -6560,8 +6599,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   function stopRecordMonitorBeatOnly(){
     if (recordMonitorBeatOnly){
-      try { recordMonitorBeatOnly.stop(); } catch(e){}
-      try { recordMonitorBeatOnly.disconnect(); } catch(e){}
+      softStop(recordMonitorBeatOnly);
       recordMonitorBeatOnly = null;
       isPlaying = false;
       updatePlayButton();
