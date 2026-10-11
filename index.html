@@ -412,6 +412,10 @@
   .dropzone-compact .dz-icon{display:none;}
   .dropzone-compact h3{font-size:1rem; margin:0 0 4px;}
   .dropzone-compact p{font-size:0.78rem;}
+  .sync-nudge{display:flex; align-items:center; gap:10px; margin:6px 0 0;}
+  .sync-nudge input[type=range]{flex:1; max-width:220px; accent-color:var(--gem);}
+  .sync-nudge-val{min-width:54px; font-variant-numeric:tabular-nums; color:#fff; font-size:0.8rem;}
+  .sync-nudge-hint{font-size:0.72rem; margin-top:2px;}
   .record-hint{margin:0; color:var(--ink-dim); font-size:0.82rem; max-width:42ch;}
   .record-bt-warn{color:var(--yellow); font-weight:600; max-width:48ch;}
   .record-device-row{display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:280px;}
@@ -1272,6 +1276,12 @@
           <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
+        <div class="sync-nudge" id="sync-nudge-row">
+          <span class="status-label" data-i18n="syncNudgeLabel">Sync nudge</span>
+          <input type="range" id="sync-nudge" min="-150" max="150" step="5" value="0" aria-label="Recording sync nudge" />
+          <span class="sync-nudge-val" id="sync-nudge-val">0 ms</span>
+        </div>
+        <p class="record-hint sync-nudge-hint" data-i18n="syncNudgeHint">Still late? Slide right to pull your next takes earlier, left if they land early.</p>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
       </div>
@@ -1696,6 +1706,7 @@
       dzTitle:"Drop your vocals here", dzSub:"MP3 or WAV · drop one or several at once · or tap to browse",
       recordModeUpload:"Drop Vocals", recordModeRecord:"Record Vocal", pickMicBtn:"🎚 Choose microphone",
       recordStart:"● Record", recordStop:"Stop", recordRetry:"Re-record",
+      syncNudgeLabel:"Sync nudge", syncNudgeHint:"Still late? Slide right to pull your next takes earlier, left if they land early.",
       recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
@@ -1900,6 +1911,7 @@
       dzTitle:"Suelta tus voces aquí", dzSub:"MP3 o WAV · una o varias a la vez · o toca para buscar",
       recordModeUpload:"Soltar Voces", recordModeRecord:"Grabar Voz", pickMicBtn:"🎚 Elegir micrófono",
       recordStart:"● Grabar", recordStop:"Detener", recordRetry:"Grabar De Nuevo",
+      syncNudgeLabel:"Ajuste de sincronía", syncNudgeHint:"¿Sigue atrasado? Desliza a la derecha para adelantar tus próximas tomas, a la izquierda si caen adelantadas.",
       recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
@@ -4390,6 +4402,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
      shape handleFile() and the extra-vocal-track uploader already expect.
      Used twice below: once for the main vocal dropzone, once for extra
      harmony/ad-lib tracks. */
+  (function(){
+    var el = document.getElementById("sync-nudge"), val = document.getElementById("sync-nudge-val");
+    if (!el) return;
+    try { var sv = localStorage.getItem("gemstarSyncNudge"); if (sv !== null) el.value = sv; } catch(e){}
+    function show(){ if (val) val.textContent = (el.value > 0 ? "+" : "") + el.value + " ms"; }
+    el.addEventListener("input", function(){ show(); try { localStorage.setItem("gemstarSyncNudge", el.value); } catch(e){} });
+    show();
+  })();
   function createVocalRecorder(opts){
     var recordStream = null;
     var recordStartTs = 0;
@@ -4531,13 +4551,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // it lines up with the transport. Only runs when a beat/mix was being
     // monitored; capped so a bad latency report can never wreck a take.
     var capStartCtx = 0, monitorZeroCtx = null, inputLatencyUsed = 0;
+    function getSyncNudgeMs(){
+      var el = document.getElementById("sync-nudge");
+      return el ? (parseFloat(el.value) || 0) : 0;
+    }
     function alignTakeToMonitor(merged, sr){
       if (monitorZeroCtx == null || !ctx) return merged;
       var inLat = inputLatencyUsed;
       if (!(inLat > 0)) inLat = 0.02;               // browsers that don't report it
       var outLat = (ctx.outputLatency || 0) + (ctx.baseLatency || 0);
       if (!(ctx.outputLatency > 0)) outLat += 0.04; // Safari: no outputLatency
-      var lagSec = (monitorZeroCtx - capStartCtx) + outLat + inLat;
+      var lagSec = (monitorZeroCtx - capStartCtx) + outLat + inLat + getSyncNudgeMs()/1000;
       lagSec = Math.max(-1, Math.min(1, lagSec));
       var n = Math.round(lagSec * sr);
       window.gemstarLastTakeLag = { seconds: lagSec, out: outLat, input: inLat };
@@ -4725,7 +4749,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // better to hand it the truest possible signal to work with.
       var baseConstraints = {
         echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-        channelCount:{ideal:1}, sampleRate:{ideal:48000}
+        channelCount:{ideal:1}, sampleRate:{ideal:48000}, latency:{ideal:0}
       };
       var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
       var audioConstraints = pickedDeviceId
