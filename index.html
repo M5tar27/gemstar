@@ -1840,7 +1840,7 @@
         space:"Space: reverb only — 0% dry, up to a huge hall at 100%.",
         wide:"Wide: chorus / true stereo width (panned hard left/right) — 0% mono, up to a wide doubled choir at 100%.",
         radio:"Radio: fast, dense parallel compression for that polished radio/pop vocal push, plus a lifted top end for airiness — blends under the dry tone instead of squashing it flat.",
-        m5tar:"M5tar: signature blend — dials in a touch of Speed, Punch & Voice together, plus subtle saturation and warmth and its own dense parallel compression for that polished radio/pop push. No delay or chorus in this one.",
+        m5tar:"M5tar: signature sound — subtle saturation and warmth plus its own dense parallel compression for that polished radio/pop push. It only does its own job; Speed, Punch and Voice stay on their own knobs. No delay or chorus in this one.",
         jewels:"Jewels: high-shelf air/sparkle exciter with a true chorus shimmer plus its own dense parallel compression for that polished radio/pop push — sparkles visually past 60%.",
         delay:"Delay: a standalone slapback echo/repeat, kept separate from every other knob — Space is reverb-only, M5tar and Jewels don't add any delay of their own."
       },
@@ -2044,7 +2044,7 @@
         space:"Espacio: solo reverb — 0% seco, hasta un salón enorme al 100%.",
         wide:"Amplio: chorus / anchura estéreo real (izquierda/derecha) — 0% mono, hasta un coro doblado y amplio al 100%.",
         radio:"Radio: compresión paralela rápida y densa para ese empuje de voz pulido tipo radio/pop, más un realce en los agudos para dar aire — se mezcla bajo el tono original en vez de aplastarlo.",
-        m5tar:"M5tar: mezcla de firma — suma un toque de Velocidad, Pegada y Voz juntos, más saturación y calidez sutil y su propia compresión paralela densa para ese empuje pulido tipo radio/pop. Sin delay ni chorus en esta perilla.",
+        m5tar:"M5tar: sonido de firma — saturación y calidez sutiles más su propia compresión paralela densa para ese empuje pulido tipo radio/pop. Solo hace lo suyo; Velocidad, Pegada y Voz siguen en sus propias perillas. Sin delay ni chorus en esta perilla.",
         jewels:"Jewels: exciter de brillo en agudos con un chorus real, más su propia compresión paralela densa para ese empuje pulido tipo radio/pop — brilla visualmente por encima del 60%.",
         delay:"Retardo: un eco/repetición independiente, separado de las demás perillas — Espacio es solo reverb, y M5tar y Jewels no agregan ningún delay propio."
       },
@@ -3920,15 +3920,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var now = ctx.currentTime;
     var m5 = v.m5tar/100;
 
-    // M5TAR macro: M5tar's own signature chain is a light blend into other
-    // stages, on top of wherever the user has those knobs — it never moves
-    // another knob's visual position, only nudges its processed amount.
-    // Tune +20%, Punch +40%, Voice +60% at full M5tar. It deliberately does
-    // NOT reach into Jewels -- M5tar is saturation + warmth only now, with
-    // no path into any delay/chorus-flavored processing.
-    var effTune   = Math.min(100, v.tune   + m5*20);
-    var effPunch  = Math.min(100, v.punch  + m5*40);
-    var effVoice  = Math.min(100, v.voice  + m5*60);
+    // M5TAR macro: saturation + warmth + its own compressor only.
+    // Knobs are independent: M5tar no longer bleeds into Tune / Punch / Voice
+    // (it used to add up to +20 / +40 / +60 to them). Each of those knobs now
+    // does only its own job; M5tar has its own saturation, warmth and compressor.
+    var effTune   = v.tune;
+    var effPunch  = v.punch;
+    var effVoice  = v.voice;
     var effJewels = v.jewels;
 
     chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
