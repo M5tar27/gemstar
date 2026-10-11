@@ -178,7 +178,10 @@
     return fetch("/api/" + path, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(Object.assign({ token: TOKEN, deviceId: DEVICE }, payload || {}))
-    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); });
+    }).then(function (r) {
+      return r.json().catch(function () { return { error: "The server sent back something unexpected (" + r.status + ")." }; })
+        .then(function (d) { return { ok: r.ok, status: r.status, d: d || {} }; });
+    });
   }
   function blocked(title, msg, linkText, href) {
     $("b-title").textContent = title; $("b-msg").textContent = msg;
@@ -523,7 +526,7 @@
     var id = new URLSearchParams(location.search).get("id");
     if (id) return loadTrack(id);
     renderList(res.d.tracks); show("v-list");
-  }).catch(function () { blocked("Something went wrong", "We couldn't load your tracks. Check your connection and refresh.", "Back to Gemstar", "/"); });
+  }).catch(function (e) { blocked("Something went wrong", "We couldn't load your tracks" + (e && e.message ? " (" + String(e.message).slice(0, 120) + ")" : "") + ". Check your connection and refresh.", "Back to Gemstar", "/"); });
 })();
 </script>
 </body>
