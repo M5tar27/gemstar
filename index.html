@@ -1075,13 +1075,13 @@
   }
   .transport > #dropzone{ order:31; }
   .transport > #record-panel{ order:31; }
-  .transport > #beat-block{ order:40; margin-top:4px; }
-  .transport > #beat-block::before{
+  .transport > #vocal-mixer{ order:40; margin-top:4px; }
+  .transport > #vocal-mixer::before{
     content:"STEP 4 · MIX IT IN";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:2px;
   }
-  .transport > #vocal-mixer{ order:50; }
+  .transport > #beat-block{ order:50; }
 </style>
 
 <div class="wrap">
@@ -4510,6 +4510,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // Stop + keep whatever was captured — used by the Stop button and by
     // the plan's max-length auto-cutoff.
     function finishRecording(){
+      // Capture whether this take was sung against a live beat/monitor
+      // BEFORE stopCapture() resets those flags -- only a monitored take
+      // needs the leading-latency trim below; an a cappella take (nothing
+      // playing) has nothing to sync against, so it's left untouched.
+      var wasMonitored = recordMonitorOwnsPlayback || !!recordMonitorBeatOnly;
       stopCapture();
       stopTimer();
       stopMeter();
@@ -4523,6 +4528,25 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       pcmChunks.forEach(function(c){ merged.set(c, off); off += c.length; });
       pcmChunks = [];
       pcmLength = 0;
+
+      // Recording-latency compensation: a take sung against a live beat
+      // is captured a little after the beat actually started -- the
+      // browser's own audio-output latency, plus the small pre-roll used
+      // to start the monitor click-free (see startRecordMonitor). Left
+      // uncorrected, the captured take lands later on the timeline than
+      // what was actually sung, so it plays back behind the beat. Trim
+      // that same amount of leading audio here so the take lines back up.
+      if (wasMonitored){
+        var outLat = 0;
+        try {
+          if (typeof ctx.outputLatency === "number" && ctx.outputLatency > 0) outLat = ctx.outputLatency;
+          else if (typeof ctx.baseLatency === "number" && ctx.baseLatency > 0) outLat = ctx.baseLatency;
+        } catch(e){}
+        var compSeconds = 0.03 + outLat; // matches the monitor's own start pre-roll
+        var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
+        if (trimSamples > 0) merged = merged.subarray(trimSamples);
+      }
+
       var wavBlob = encodeWavBlob(merged, sr);
       var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
       // Reset before handing off the captured file -- handleFile() /
