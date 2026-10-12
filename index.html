@@ -4095,7 +4095,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       leadTrack.originalBuffer = null;
       leadTrack._file = file;
       setLeadName(file.name);
-      applySavedLeadSettings(file.name);
+      applySavedLeadSettings(file.name); if (beatBuffer) autoLevelVocalToBeat();
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
       afterVocalSetChanged();
@@ -4144,7 +4144,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       setLeadName(loaded[0].name);
       mainVocalLevel = 1;
       if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
-      applySavedLeadSettings(loaded[0].name);
+      applySavedLeadSettings(loaded[0].name); if (beatBuffer) autoLevelVocalToBeat();
       loaded.slice(1).forEach(function(item){ pushExtraVocal(item.name, item.buffer)._file = item.file; });
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
@@ -4912,7 +4912,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (btnVocalSolo) { btnVocalSolo.classList.toggle("on", vocalGroupSolo); btnVocalSolo.setAttribute("aria-pressed", String(vocalGroupSolo)); }
   }
 
-  function handleBeatFile(file){
+  function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_REFERENCE_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file){
     if (!file) return;
     ensureContext();
     var reader = new FileReader();
@@ -4920,7 +4920,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       ctx.decodeAudioData(e.target.result.slice(0), function(buf){
         beatBuffer = buf;
         beatNameEl.textContent = file.name;
-        updateBeatVisibility();
+        updateBeatVisibility(); autoLevelBeatForDrop(buf); autoLevelVocalToBeat(); refreshLiveMix();
         applyBeatLevel();
         if (window.gemstarKeyUI) window.gemstarKeyUI.onBeat(buf);
         if (isPlaying) startPlayback(); // restart in sync now that a beat exists
@@ -8795,12 +8795,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   function applySavedLeadSettings(name){
     var st = savedTrack(name);
-    if (!st) return;
-    mergeKnobs(leadValues, st.values);
-    if (typeof st.level === "number") mainVocalLevel = Math.max(0, Math.min(1, st.level));
+if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "lead") values = leadValues; mainVocalLevel = 1; leadTrack.pan = 0; leadTrack.role = ""; }    if (st) mergeKnobs(leadValues, st.values);
+    if (st && typeof st.level === "number") mainVocalLevel = Math.max(0, Math.min(1, st.level));
     if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100));
-    if (typeof st.pan === "number") leadTrack.pan = Math.max(-1, Math.min(1, st.pan));
-    leadTrack.role = st.role || "";
+    if (st && typeof st.pan === "number") leadTrack.pan = Math.max(-1, Math.min(1, st.pan));
+    if (st) leadTrack.role = st.role || "";
     if (chain) applyParamsTo(chain, leadValues);
     if (values === leadValues) renderAllKnobs();
   }
