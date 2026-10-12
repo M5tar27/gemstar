@@ -1416,6 +1416,10 @@
           <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
           <canvas id="beat-waveform" width="900" height="56"></canvas>
         </div>
+        <div class="key-detect" id="key-detect" hidden>
+          <span class="kd-text" id="key-detect-text" role="status" aria-live="polite"></span>
+          <button type="button" class="pill-btn pill-cyan kd-btn" id="key-detect-use" hidden></button>
+        </div>
         <div class="timeline-wrap" id="timeline-wrap">
           <div class="timeline-scroll" id="timeline-scroll">
             <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
@@ -1475,10 +1479,6 @@
         <option value="minor" id="tune-scale-minor">Minor</option>
       </select>
       <p class="tune-key-hint" data-i18n="tuneKeyHint">Set your song's key so Tune only snaps to notes that fit it.</p>
-      <div class="key-detect" id="key-detect" hidden>
-        <span class="kd-text" id="key-detect-text" role="status" aria-live="polite"></span>
-        <button type="button" class="pill-btn pill-cyan kd-btn" id="key-detect-use" hidden></button>
-      </div>
     </div>
     <p class="signature-note" data-i18n="signatureNote">M5tar &amp; Jewels: each engineer's own signature touch, dialed in.</p>
 
