@@ -1051,6 +1051,37 @@
   .gate-status.ok{color:var(--ok);}
   .gate-card .gate-sub-link{display:inline-block; margin-top:4px; margin-inline:6px; font-size:0.78rem; color:var(--cyan); text-decoration:none;}
   .gate-card input#gate-code{letter-spacing:0.3em; text-align:center; font-size:1.1rem; font-family:var(--font-display);}
+/* ---- Guided Steps: recording-flow reorder (visual order only, DOM unchanged) ---- */
+  .transport > #beat-drop{ order:10; }
+  .transport > #beat-drop::before{
+    content:"STEP 1 · DROP YOUR BEAT";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:10px; text-align:left;
+  }
+  .transport > #player-block{
+    order:20; border:1px solid var(--line); border-radius:12px; padding:14px 16px 16px;
+    background:var(--bg-panel-2);
+  }
+  .transport > #player-block::before{
+    content:"STEP 2 · CHECK THE VIBE";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:10px;
+  }
+  .transport > #input-mode-row{ order:30; margin-top:4px; }
+  .transport > #input-mode-row::before{
+    content:"STEP 3 · HIT RECORD";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:10px;
+  }
+  .transport > #dropzone{ order:31; }
+  .transport > #record-panel{ order:31; }
+  .transport > #beat-block{ order:40; margin-top:4px; }
+  .transport > #beat-block::before{
+    content:"STEP 4 · MIX IT IN";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:2px;
+  }
+  .transport > #vocal-mixer{ order:50; }
 </style>
 
 <div class="wrap">
