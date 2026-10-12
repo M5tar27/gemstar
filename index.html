@@ -5919,23 +5919,26 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
 
   /* ---- one-tap vocal roles ---- */
-  // Tone/space/width/level/pan starting points for common vocal jobs. Tune,
-  // Humanize and the signature knobs are left alone on purpose -- those are
-  // taste calls the role shouldn't overwrite.
-  // Lead/background levels deliberately stop short of unity gain (100) --
-  // leaving headroom under the Radio knob's own parallel compression means
-  // that push does the loudness work instead of just raising the fader,
-  // which is what actually sounds like a polished radio/pop mix instead of
-  // a clipped one. Clean is set to 25 (its sweet spot) across most roles:
-  // enough to tame rumble/hiss without thinning the tone out. Background
-  // vocals get Clean turned down lower (10) since they're meant to sit
-  // further back/blended rather than sound as de-noised/forward as the lead.
-  var ROLE_PRESETS = {
-    lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
-    background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
-    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
+  // Tone/width/level/pan starting points for common vocal jobs. Tune,
+    // Humanize and the signature knobs are left alone on purpose -- those are
+    // taste calls the role shouldn't overwrite. Space (reverb) and Delay are
+    // deliberately held at 0 here too -- AI Mix/one-tap roles are a tone +
+    // balance pass only; ambience/echo stay a manual, taste-driven choice the
+    // automation never adds on its own.
+    // Lead/background levels deliberately stop short of unity gain (100) --
+    // leaving headroom under the Radio knob's own parallel compression means
+    // that push does the loudness work instead of just raising the fader,
+    // which is what actually sounds like a polished radio/pop mix instead of
+    // a clipped one. Clean is set to 25 (its sweet spot) across most roles:
+    // enough to tame rumble/hiss without thinning the tone out. Background
+    // vocals get Clean turned down lower (10) since they're meant to sit
+    // further back/blended rather than sound as de-noised/forward as the lead.
+    var ROLE_PRESETS = {
+      lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:0, wide:10, radio:30, delay:0}},
+      background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:0, wide:60, radio:10, delay:0}},
+      doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:15, radio:20, delay:0}},
+      doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:15, radio:20, delay:0}},
+      adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:0, wide:30, radio:35, delay:0}}
   };
   function applyRole(tr, role){
     tr.role = role || "";
