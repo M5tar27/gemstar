@@ -1291,10 +1291,10 @@
         </div>
         <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
         <label class="record-fx-monitor-row">
-          <input type="checkbox" id="record-fx-monitor" />
+          <input type="checkbox" id="record-fx-monitor" checked />
           <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
         </label>
-        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
+        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
         <div class="record-controls">
           <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
           <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1371,10 +1371,10 @@
             <p class="record-device-hint" id="extra-record-device-hint"></p>
           </div>
           <label class="record-fx-monitor-row">
-            <input type="checkbox" id="extra-record-fx-monitor" />
+            <input type="checkbox" id="extra-record-fx-monitor" checked />
             <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
           </label>
-          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
           <div class="record-controls">
             <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
             <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1729,7 +1729,7 @@
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
       recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
       recordFxMonitorLabel:"🎧 Hear a touch of reverb while tracking",
-      recordFxMonitorHint:"Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.",
+      recordFxMonitorHint:"On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -1933,7 +1933,7 @@
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
       recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
       recordFxMonitorLabel:"🎧 Escuchar un toque de reverb mientras grabas",
-      recordFxMonitorHint:"Solo afecta lo que escuchas — nunca lo que se graba. Solo con audífonos: déjalo apagado si usas bocinas, o tendrás retroalimentación (feedback).",
+      recordFxMonitorHint:"Activado de forma predeterminada para que te escuches mientras grabas. Solo con audífonos — apágalo si usas bocinas, o tendrás retroalimentación (feedback).",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -4387,6 +4387,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var pcmLength = 0;
     var recording = false;
     var capSeconds = 600;
+    var detectedBluetooth = false;
 
     function stopTimer(){
       if (recordTimerInterval){ clearInterval(recordTimerInterval); recordTimerInterval = null; }
@@ -4542,7 +4543,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           if (typeof ctx.outputLatency === "number" && ctx.outputLatency > 0) outLat = ctx.outputLatency;
           else if (typeof ctx.baseLatency === "number" && ctx.baseLatency > 0) outLat = ctx.baseLatency;
         } catch(e){}
-        var compSeconds = 0.03 + outLat; // matches the monitor's own start pre-roll
+        // Bluetooth's own round-trip delay (commonly 100-300ms) happens
+        // below the Web Audio API, so ctx.outputLatency rarely reflects
+        // it -- add a fixed extra trim on top of the measured latency
+        // whenever this take's input or output was detected as Bluetooth.
+        var btComp = detectedBluetooth ? 0.18 : 0;
+        var compSeconds = 0.03 + outLat + btComp; // matches the monitor's own start pre-roll
         var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
         if (trimSamples > 0) merged = merged.subarray(trimSamples);
       }
@@ -4572,15 +4578,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       recordStream = stream;
       ensureContext();
 
-      if (opts.btWarnEl){
-        var micTrack = stream.getAudioTracks()[0];
-        var inputIsBt = looksLikeBluetoothLabel(micTrack && micTrack.label);
-        opts.btWarnEl.hidden = !inputIsBt;
-        if (!inputIsBt){
-          checkOutputBluetooth(function(outIsBt){
-            if (outIsBt) opts.btWarnEl.hidden = false;
-          });
-        }
+      // Bluetooth detection -- kept independent of the warning banner so
+      // finishRecording() can use it for latency compensation even when
+      // this recorder instance has no opts.btWarnEl.
+      var micTrack = stream.getAudioTracks()[0];
+      detectedBluetooth = looksLikeBluetoothLabel(micTrack && micTrack.label);
+      if (opts.btWarnEl) opts.btWarnEl.hidden = !detectedBluetooth;
+      if (!detectedBluetooth){
+        checkOutputBluetooth(function(outIsBt){
+          if (outIsBt){
+            detectedBluetooth = true;
+            if (opts.btWarnEl) opts.btWarnEl.hidden = false;
+          }
+        });
       }
 
       recordSrcNode = ctx.createMediaStreamSource(stream);
