@@ -1295,6 +1295,10 @@
           <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
         </label>
         <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+        <button type="button" class="icon-btn small" id="btn-calibrate-sync" data-i18n="calibrateSyncBtn">🎯 Calibrate your timing</button>
+        <p class="record-hint" data-i18n="calibrateSyncHint">Taps along with a few clicks to measure your exact audio delay — used for every vocal track you record from now on.</p>
+        <button type="button" class="pill-btn pill-cyan rec-big" id="btn-calibrate-tap" hidden data-i18n="calibrateSyncTapBtn">TAP</button>
+        <p class="record-hint" id="calibrate-sync-result"></p>
         <div class="record-controls">
           <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
           <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1346,13 +1350,6 @@
         </div>
         <p class="vocal-cap-note lead-pick-hint" id="lead-pick-hint" hidden data-i18n="leadPickHint">Tap ☆ Make Lead on any track to choose your lead vocal.</p>
         <div id="extra-vocals-list"></div>
-        <div class="extra-vocal-add-row">
-          <button type="button" class="icon-btn small" id="btn-add-vocal" data-i18n="addVocalBtn">+ Add Vocal Track</button>
-          <button type="button" class="icon-btn small" id="btn-record-add-vocal" data-i18n="recordAddVocalBtn">🎙 Record Vocal Track</button>
-          <button type="button" class="icon-btn small" id="btn-undo-last-vocal" hidden data-i18n="undoLastVocalBtn" data-i18n-aria="undoLastVocalAria" aria-label="Remove the most recently added vocal track">↺ Undo Last Track</button>
-          <button type="button" class="icon-btn small" id="btn-clean-silence" data-i18n="cleanBtn" title="">✂ Clean Silence</button>
-          <button type="button" class="icon-btn small" id="btn-undo-clean" hidden data-i18n="cleanUndoBtn">↺ Undo Clean</button>
-        </div>
         <p class="vocal-cap-note clean-status" id="clean-status" role="status" aria-live="polite"></p>
         <input type="file" id="extra-vocal-input" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.aif,.aiff,.caf,.ogg,.mp4,.m4b,video/mp4,public.audio" multiple hidden />
 
@@ -1396,6 +1393,13 @@
             <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
             <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
           </div>
+        </div>
+        <div class="extra-vocal-add-row" id="extra-vocal-add-row" hidden>
+          <button type="button" class="icon-btn small" id="btn-add-vocal" data-i18n="addVocalBtn">+ Add Vocal Track</button>
+          <button type="button" class="icon-btn small" id="btn-record-add-vocal" data-i18n="recordAddVocalBtn">🎙 Record Vocal Track</button>
+          <button type="button" class="icon-btn small" id="btn-undo-last-vocal" hidden data-i18n="undoLastVocalBtn" data-i18n-aria="undoLastVocalAria" aria-label="Remove the most recently added vocal track">↺ Undo Last Track</button>
+          <button type="button" class="icon-btn small" id="btn-clean-silence" data-i18n="cleanBtn" title="">✂ Clean Silence</button>
+          <button type="button" class="icon-btn small" id="btn-undo-clean" hidden data-i18n="cleanUndoBtn">↺ Undo Clean</button>
         </div>
         <div class="waveform-shell" id="lead-waveform-shell">
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
@@ -1730,6 +1734,12 @@
       recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
       recordFxMonitorLabel:"🎧 Hear a touch of reverb while tracking",
       recordFxMonitorHint:"On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.",
+      calibrateSyncBtn:"🎯 Calibrate your timing",
+      calibrateSyncHint:"Taps along with a few clicks to measure your exact audio delay — used for every vocal track you record from now on.",
+      calibrateSyncRunning:"Tap TAP in time with each click…",
+      calibrateSyncDone:"Calibrated — compensating {ms}ms from now on.",
+      calibrateSyncFailed:"Didn't catch enough taps — tap TAP right when you hear each click, then try again.",
+      calibrateSyncTapBtn:"TAP",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -1934,6 +1944,12 @@
       recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
       recordFxMonitorLabel:"🎧 Escuchar un toque de reverb mientras grabas",
       recordFxMonitorHint:"Activado de forma predeterminada para que te escuches mientras grabas. Solo con audífonos — apágalo si usas bocinas, o tendrás retroalimentación (feedback).",
+      calibrateSyncBtn:"🎯 Calibra tu sincronización",
+      calibrateSyncHint:"Toca junto con unos clics para medir tu retraso exacto de audio — se usará en cada pista vocal que grabes de ahora en adelante.",
+      calibrateSyncRunning:"Toca TOCAR al mismo tiempo que cada clic…",
+      calibrateSyncDone:"Calibrado — compensando {ms}ms de ahora en adelante.",
+      calibrateSyncFailed:"No se detectaron suficientes toques — toca TOCAR justo cuando escuches cada clic, luego intenta de nuevo.",
+      calibrateSyncTapBtn:"TOCAR",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -4367,6 +4383,114 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }).catch(function(){ cb(false); });
   }
 
+  // ---- sync calibration: measures THIS device's real click-to-tap delay
+  // (hardware output latency plus the user's own reaction time, combined)
+  // by playing a few clicks and timing when the user actually taps back,
+  // then stores that one number and uses it directly in finishRecording()
+  // instead of guessing from ctx.outputLatency, which browsers often report
+  // inaccurately (sometimes ~0), especially over Bluetooth. Needs no
+  // microphone and no acoustic pickup, so it works the same on headphones,
+  // speakers, or Bluetooth.
+  var SYNC_CAL_KEY = "gemstarSyncCalSeconds";
+  function getStoredSyncCal(){
+    try {
+      var v = parseFloat(localStorage.getItem(SYNC_CAL_KEY));
+      if (isFinite(v) && v >= 0 && v < 1) return v;
+    } catch(e){}
+    return null;
+  }
+  function setStoredSyncCal(seconds){
+    try { localStorage.setItem(SYNC_CAL_KEY, String(seconds)); } catch(e){}
+  }
+  // Matches each scheduled click to the next tap that followed it within a
+  // plausible reaction window, then returns the median offset -- kept as
+  // its own pure function so the matching/averaging logic can be exercised
+  // with synthetic click/tap data independent of real audio or DOM events.
+  function computeSyncCalibration(clickTimes, tapTimes, leadSkip){
+    var offsets = [];
+    clickTimes.forEach(function(ct, idx){
+      if (idx < leadSkip) return;
+      var best = null, bestDelta = Infinity;
+      tapTimes.forEach(function(tt){
+        var delta = tt - ct;
+        if (delta >= -0.15 && delta <= 0.6 && delta < bestDelta){
+          bestDelta = delta; best = delta;
+        }
+      });
+      if (best !== null) offsets.push(best);
+    });
+    if (offsets.length < 2) return null;
+    offsets.sort(function(a,b){ return a - b; });
+    var mid = Math.floor(offsets.length / 2);
+    var median = offsets.length % 2 ? offsets[mid] : (offsets[mid-1] + offsets[mid]) / 2;
+    return Math.max(0, Math.min(0.5, median));
+  }
+  function runSyncCalibration(){
+    var btn = document.getElementById("btn-calibrate-sync");
+    var tapBtn = document.getElementById("btn-calibrate-tap");
+    var resultEl = document.getElementById("calibrate-sync-result");
+    if (!btn || !tapBtn || !resultEl) return;
+
+    btn.disabled = true;
+    resultEl.textContent = STR[lang].calibrateSyncRunning;
+
+    withRunningContext(function(){
+      var CLICK_COUNT = 6;
+      var INTERVAL = 0.8;
+      var LEAD_SKIP = 1;
+      var LEAD_IN = 0.5;
+
+      tapBtn.hidden = false;
+
+      var anchorPerf = performance.now();
+      var anchorCtx = ctx.currentTime;
+      var startAt = ctx.currentTime + LEAD_IN;
+      var clickTimes = [];
+      for (var i = 0; i < CLICK_COUNT; i++){
+        var t = startAt + i * INTERVAL;
+        clickTimes.push(t);
+        var osc = ctx.createOscillator();
+        var g = ctx.createGain();
+        osc.frequency.value = 1000;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.5, t + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.08);
+      }
+
+      var taps = [];
+      function onTap(e){
+        if (e.cancelable) e.preventDefault();
+        var perfNow = performance.now();
+        taps.push(anchorCtx + (perfNow - anchorPerf) / 1000);
+      }
+      function onKey(e){ if (e.code === "Space") onTap(e); }
+      tapBtn.addEventListener("pointerdown", onTap);
+      window.addEventListener("keydown", onKey);
+
+      var totalMs = (LEAD_IN + (CLICK_COUNT - 1) * INTERVAL + 1.0) * 1000;
+      setTimeout(function(){
+        tapBtn.removeEventListener("pointerdown", onTap);
+        window.removeEventListener("keydown", onKey);
+        tapBtn.hidden = true;
+        btn.disabled = false;
+
+        var median = computeSyncCalibration(clickTimes, taps, LEAD_SKIP);
+        if (median === null){
+          resultEl.textContent = STR[lang].calibrateSyncFailed;
+          return;
+        }
+        setStoredSyncCal(median);
+        resultEl.textContent = STR[lang].calibrateSyncDone.replace("{ms}", Math.round(median * 1000));
+      }, totalMs);
+    });
+  }
+  (function(){
+    var btn = document.getElementById("btn-calibrate-sync");
+    if (btn) btn.addEventListener("click", runSyncCalibration);
+  })();
+
   /* Reusable mic-recorder: wires one set of controls (start/stop/retry/dot/
      timer/meter/hint) to getUserMedia + a raw PCM capture node, and hands
      the finished take to onCaptured(file) as a real File — same object
@@ -4538,17 +4662,27 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // what was actually sung, so it plays back behind the beat. Trim
       // that same amount of leading audio here so the take lines back up.
       if (wasMonitored){
-        var outLat = 0;
-        try {
-          if (typeof ctx.outputLatency === "number" && ctx.outputLatency > 0) outLat = ctx.outputLatency;
-          else if (typeof ctx.baseLatency === "number" && ctx.baseLatency > 0) outLat = ctx.baseLatency;
-        } catch(e){}
-        // Bluetooth's own round-trip delay (commonly 100-300ms) happens
-        // below the Web Audio API, so ctx.outputLatency rarely reflects
-        // it -- add a fixed extra trim on top of the measured latency
-        // whenever this take's input or output was detected as Bluetooth.
-        var btComp = detectedBluetooth ? 0.18 : 0;
-        var compSeconds = 0.03 + outLat + btComp; // matches the monitor's own start pre-roll
+        var calibratedSync = getStoredSyncCal();
+        var compSeconds;
+        if (calibratedSync !== null){
+          // Measured directly from this device via "Calibrate your timing"
+          // (see runSyncCalibration) -- the real click-to-tap delay, which
+          // already captures hardware output latency AND the user's own
+          // reaction time, so it's used as-is instead of estimating.
+          compSeconds = calibratedSync;
+        } else {
+          var outLat = 0;
+          try {
+            if (typeof ctx.outputLatency === "number" && ctx.outputLatency > 0) outLat = ctx.outputLatency;
+            else if (typeof ctx.baseLatency === "number" && ctx.baseLatency > 0) outLat = ctx.baseLatency;
+          } catch(e){}
+          // Bluetooth's own round-trip delay (commonly 100-300ms) happens
+          // below the Web Audio API, so ctx.outputLatency rarely reflects
+          // it -- add a fixed extra trim on top of the measured latency
+          // whenever this take's input or output was detected as Bluetooth.
+          var btComp = detectedBluetooth ? 0.18 : 0;
+          compSeconds = 0.03 + outLat + btComp; // matches the monitor's own start pre-roll
+        }
         var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
         if (trimSamples > 0) merged = merged.subarray(trimSamples);
       }
@@ -5088,6 +5222,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // track once a vocal is loaded -- that's where you add tracks, balance
     // them, and pick which one is the lead.
     vocalMixerEl.hidden = !(mode === "full" || (maxVocalTracks() > 1 && audioBuffer) || extraVocals.length > 0);
+    // Lives next to the Re-record/Remove/Change File row now (not inside
+    // #vocal-mixer's own DOM subtree anymore), so it needs this mirrored
+    // by hand to keep exactly the same show/hide behavior as before.
+    var addVocalRowEl = document.getElementById("extra-vocal-add-row");
+    if (addVocalRowEl) addVocalRowEl.hidden = vocalMixerEl.hidden;
     var leadHint = document.getElementById("lead-pick-hint");
     if (leadHint) leadHint.hidden = extraVocals.length === 0;
     var count = totalVocalTrackCount();
