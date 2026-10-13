@@ -2496,7 +2496,23 @@
   var extraVocalIdSeq = 1;
   // Mix settings for the lead vocal (its level is mainVocalLevel). Extra
   // tracks carry the same pan/muted/solo/role fields on their own objects.
-  var leadTrack = {id:"lead", pan:0, muted:false, solo:false, role:"", _file:null};
+  var leadTrack = {id:"lead", pan:0, muted:false, solo:false, role:"", _file:null, nudgeSec:0};
+
+  // Per-track timing nudge: how many seconds earlier (negative) or later
+  // (positive) a specific vocal track's audio should actually start,
+  // relative to the beat and every other track -- set by dragging that
+  // track's mini waveform left/right in the "everything at once" grid (see
+  // renderAllVocalsStrip()). Lets a take that's still a touch early/late
+  // after sync calibration (see runSyncCalibration()) get hand-aligned
+  // precisely, without re-recording it. Clamped well inside the extra
+  // lead-in startPlayback() and the export/auto-master render schedule
+  // sources with, so a nudge can never require starting a source in the past.
+  var TRACK_NUDGE_MAX = 0.25; // seconds (250ms either way)
+  function clampNudge(v){
+    v = (typeof v === "number" && isFinite(v)) ? v : 0;
+    return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
+  }
+  function trackNudgeSec(tr){ return tr ? clampNudge(tr.nudgeSec || 0) : 0; }
 
   /* Silent, automatic input gain-staging — no user-facing knob. Every recorded
      or uploaded vocal comes in at wildly different levels (quiet phone mic
@@ -5264,7 +5280,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function pushExtraVocal(name, buffer){
     var t = {id: extraVocalIdSeq++, name: name, buffer: buffer, level: 1, _liveGain: null,
              values: Object.assign({}, DEFAULT_VALUES), chain: null,
-             pan: 0, muted: false, solo: false, role: ""};
+             pan: 0, muted: false, solo: false, role: "", nudgeSec: 0};
     applySavedTrackSettings(t, name);
     extraVocals.push(t);
     syncTrackChains();
@@ -5900,8 +5916,67 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       row.appendChild(controls);
       if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
       allVocalsRowsEl.appendChild(row);
-      drawBufferWaveform(canvas, canvas.getContext("2d"), buffer,
-        (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)", total);
+      var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)";
+      drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0);
+
+      // Drag this track's mini waveform left/right to hand-align its timing
+      // against the beat and every other track -- see trackNudgeSec() and
+      // the extra TRACK_NUDGE_MAX lead-in startPlayback()/exportMix()
+      // schedule every source with. Purely visual while dragging (cheap,
+      // instant); only restarts live audio (if something's playing) once you
+      // let go, so a drag-in-progress never stutters playback.
+      if (opts.track){
+        (function(nudgeTrack, nudgeCanvas, nudgeBuffer){
+          var dragging = false, dragMoved = false, dragStartX = 0, dragStartNudge = 0;
+          var DRAG_TOLERANCE = 4;
+          function redraw(){
+            drawBufferWaveform(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, total, trackNudgeSec(nudgeTrack));
+          }
+          function updateTitle(){
+            var ms = Math.round(trackNudgeSec(nudgeTrack) * 1000);
+            nudgeCanvas.title = ms === 0 ? "Drag to nudge this vocal's timing vs. the beat"
+              : ((ms > 0 ? ("+" + ms) : String(ms)) + "ms — double-click to reset");
+          }
+          updateTitle();
+          nudgeCanvas.addEventListener("pointerdown", function(e){
+            dragging = true; dragMoved = false;
+            dragStartX = e.clientX;
+            dragStartNudge = trackNudgeSec(nudgeTrack);
+            try { nudgeCanvas.setPointerCapture(e.pointerId); } catch(err){}
+            e.preventDefault();
+          });
+          nudgeCanvas.addEventListener("pointermove", function(e){
+            if (!dragging) return;
+            var dx = e.clientX - dragStartX;
+            if (Math.abs(dx) > DRAG_TOLERANCE) dragMoved = true;
+            if (!dragMoved) return;
+            var rectW = nudgeCanvas.getBoundingClientRect().width;
+            if (rectW <= 0 || total <= 0) return;
+            nudgeTrack.nudgeSec = clampNudge(dragStartNudge + (dx / rectW) * total);
+            redraw();
+            updateTitle();
+          });
+          function endDrag(e){
+            if (!dragging) return;
+            dragging = false;
+            try { nudgeCanvas.releasePointerCapture(e.pointerId); } catch(err){}
+            if (dragMoved){
+              if (isPlaying) restartPlaybackFromCursor();
+              scheduleSave();
+            }
+          }
+          nudgeCanvas.addEventListener("pointerup", endDrag);
+          nudgeCanvas.addEventListener("pointercancel", endDrag);
+          nudgeCanvas.addEventListener("dblclick", function(e){
+            e.stopPropagation();
+            nudgeTrack.nudgeSec = 0;
+            redraw();
+            updateTitle();
+            if (isPlaying) restartPlaybackFromCursor();
+            scheduleSave();
+          });
+        })(opts.track, canvas, buffer);
+      }
     }
 
     if (showBeatRow) addRow(STR[lang].wfLabelBeat || "Beat", beatBuffer, "beat", {beat:true});
@@ -6682,9 +6757,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         thisPrimarySrc.onended = function(){ onLeadSourceEnded(thisPrimarySrc); };
       }
 
-      // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
-      var startAt = ctx.currentTime + 0.03;
-      vocalSourceNodes.forEach(function(n){ n.src.start(startAt, n.src._offset); });
+      // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync.
+      // Extra head-room beyond the old flat 0.03s lead-in: a per-track timing
+      // nudge (trackNudgeSec(), set by dragging a track's mini waveform in
+      // renderAllVocalsStrip()) shifts that track's actual start time earlier
+      // or later than the others, and a source can never be scheduled into
+      // the past -- so every source gets pushed out by TRACK_NUDGE_MAX up
+      // front, leaving room for any track's nudge to pull it back toward (but
+      // never before) right now. The beat itself is never nudged -- it's what
+      // every vocal's timing is being hand-aligned against.
+      var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       playStartCtxTime = startAt;
       playStartOffset = offset;
@@ -7232,12 +7315,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     return d;
   }
 
-  function drawBufferWaveform(cv, cx, buffer, color, totalDuration){
+  function drawBufferWaveform(cv, cx, buffer, color, totalDuration, startSec){
     var w = cv.width, h = cv.height;
     cx.clearRect(0,0,w,h);
     if (!buffer) return;
     var scale = totalDuration > 0 ? Math.min(1, buffer.duration / totalDuration) : 1;
     var drawW = Math.max(1, Math.round(w * scale));
+    // A manual timing nudge (see trackNudgeSec()) shifts this track's whole
+    // waveform left/right so what you SEE lines up with what you'll HEAR
+    // relative to the beat and every other track -- same px-per-second
+    // mapping the drag handler in renderAllVocalsStrip() uses.
+    var pxOffset = (startSec && totalDuration > 0) ? Math.round(startSec * (w / totalDuration)) : 0;
     var data = buffer.getChannelData(0);
     cx.strokeStyle = color;
     cx.lineWidth = 1;
@@ -7252,7 +7340,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (v<min) min=v; if (v>max) max=v;
       }
       var y1 = (1+min)*h/2, y2 = (1+max)*h/2;
-      cx.moveTo(x, y1); cx.lineTo(x, y2);
+      cx.moveTo(x + pxOffset, y1); cx.lineTo(x + pxOffset, y2);
     }
     cx.stroke();
   }
@@ -7402,19 +7490,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       var vocalNodes = [];
       // Export / Auto-Master renders exactly what you hear: same levels,
-      // pans, mutes and solos as the live mixer.
+      // pans, mutes, solos, AND per-track timing nudges as the live mixer.
       var leadSrc = ctx.createBufferSource();
       leadSrc.buffer = audioBuffer;
       leadSrc.loop = false;
       wireTrackSource(leadSrc, leadTrack, chain.input);
-      vocalNodes.push(leadSrc);
+      vocalNodes.push({src:leadSrc, ref:leadTrack});
 
       extraVocals.forEach(function(t){
         var src = ctx.createBufferSource();
         src.buffer = t.buffer;
         src.loop = false;
         wireTrackSource(src, t, vocalTrackInput(t));
-        vocalNodes.push(src);
+        vocalNodes.push({src:src, ref:t});
       });
 
       var beatSrc = null;
@@ -7425,8 +7513,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         beatSrc.connect(chain.beatGain);
       }
 
-      var startAt = ctx.currentTime + 0.05;
-      vocalNodes.forEach(function(n){ n.start(startAt); });
+      // Same per-track timing nudge as live playback (see startPlayback())
+      // so an exported/auto-mastered file lines up exactly like Play does.
+      var startAt = ctx.currentTime + 0.05 + TRACK_NUDGE_MAX;
+      vocalNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref)); });
       if (beatSrc) beatSrc.start(startAt);
 
       // Beat level stays constant here too, matching live playback (see
@@ -7442,8 +7532,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (isWorklet){ try { tapNode.port.onmessage = null; } catch(err){} }
         else { tapNode.onaudioprocess = null; }
         vocalNodes.forEach(function(n){
-          try { n.stop(); } catch(err){}
-          try { n.disconnect(); } catch(err){}
+          try { n.src.stop(); } catch(err){}
+          try { n.src.disconnect(); } catch(err){}
         });
         if (beatSrc){
           try { beatSrc.stop(); } catch(err){}
@@ -7462,7 +7552,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           off += chunksL[i].length;
         }
         resolve([outL, outR]);
-      }, Math.ceil(durationSec*1000) + 250);
+      }, Math.ceil(durationSec*1000) + 250 + Math.round(TRACK_NUDGE_MAX*1000));
       } // end beginWithTap
 
       loadAnalysisWorklet(ctx).then(function(workletNode){
@@ -8632,7 +8722,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var now = Date.now();
       function rec(name, vals, level, tr){
         if (!name) return;
-        tracks[name] = {values: pickKnobs(vals), level: level, pan: tr.pan || 0, role: tr.role || "", at: now};
+        tracks[name] = {values: pickKnobs(vals), level: level, pan: tr.pan || 0, role: tr.role || "", nudgeSec: tr.nudgeSec || 0, at: now};
       }
       if (audioBuffer) rec(trackNameEl.textContent, leadValues, mainVocalLevel, leadTrack);
       extraVocals.forEach(function(t){ rec(t.name, t.values, t.level, t); });
@@ -9004,14 +9094,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     mergeKnobs(t.values, st.values);
     if (typeof st.level === "number") t.level = Math.max(0, Math.min(1, st.level));
     if (typeof st.pan === "number") t.pan = Math.max(-1, Math.min(1, st.pan));
+    if (typeof st.nudgeSec === "number") t.nudgeSec = clampNudge(st.nudgeSec);
     t.role = st.role || "";
   }
   function applySavedLeadSettings(name){
     var st = savedTrack(name);
-if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "lead") values = leadValues; mainVocalLevel = 1; leadTrack.pan = 0; leadTrack.role = ""; }    if (st) mergeKnobs(leadValues, st.values);
+if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "lead") values = leadValues; mainVocalLevel = 1; leadTrack.pan = 0; leadTrack.role = ""; leadTrack.nudgeSec = 0; }    if (st) mergeKnobs(leadValues, st.values);
     if (st && typeof st.level === "number") mainVocalLevel = Math.max(0, Math.min(1, st.level));
     if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100));
     if (st && typeof st.pan === "number") leadTrack.pan = Math.max(-1, Math.min(1, st.pan));
+    if (st && typeof st.nudgeSec === "number") leadTrack.nudgeSec = clampNudge(st.nudgeSec);
     if (st) leadTrack.role = st.role || "";
     if (chain) applyParamsTo(chain, leadValues);
     if (values === leadValues) renderAllKnobs();
