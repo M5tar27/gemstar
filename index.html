@@ -507,6 +507,12 @@
      so it reads as a one-way action without needing extra copy. */
   .icon-btn.btn-danger{border-color:rgba(255,92,122,0.4); color:var(--danger);}
   .icon-btn.btn-danger:hover{border-color:var(--danger); background:rgba(255,92,122,0.1);}
+  /* "Keep stacking vocals" CTAs (Add Vocal Track / Record Vocal Track) --
+     given the same signature magenta as the record-dot elsewhere, so the
+     next obvious action after dropping or recording a take visibly pops
+     instead of blending in with every other small outline button. */
+  #btn-add-vocal, #btn-record-add-vocal{border-color:var(--gem); color:var(--gem); background:rgba(255,46,136,0.12);}
+  #btn-add-vocal:hover, #btn-record-add-vocal:hover{background:rgba(255,46,136,0.22);}
   /* Live-recording row: sits right under the beat row while the mic is
      capturing, drawn by the active recorder's meter loop -- same pulse
      animation/color language as the record-dot elsewhere in Gemstar (its
