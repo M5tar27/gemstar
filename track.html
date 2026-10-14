@@ -446,8 +446,14 @@
       var pv = el("button", "btn", "▶ Hear with track"); pv.type = "button";
       pv.addEventListener("click", function () { say("t-note", ""); playFrom([l], 0); });
       acts.appendChild(pv);
-      if (l.status !== "accepted") { var ac = el("button", "btn ok", "Accept"); ac.type = "button"; ac.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer accepted."); }); acts.appendChild(ac); }
-      if (l.status === "accepted") { var mu = el("button", "btn", "Mute"); mu.type = "button"; mu.addEventListener("click", function () { patchLayer(l, { status: "muted" }); }); acts.appendChild(mu); }
+      // Mute/Unmute is a real toggle now -- muting a layer used to make its
+      // only action button vanish (replaced by "Accept", with no "Unmute"
+      // anywhere), which read as the track breaking/disappearing rather than
+      // a deliberate, reversible mute. Each status now always shows exactly
+      // one clearly-labeled action button, scoped to this one layer only.
+      if (l.status === "pending") { var ac = el("button", "btn ok", "Accept"); ac.type = "button"; ac.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer accepted."); }); acts.appendChild(ac); }
+      if (l.status === "accepted") { var mu = el("button", "btn", "Mute"); mu.type = "button"; mu.addEventListener("click", function () { patchLayer(l, { status: "muted" }, "Layer muted."); }); acts.appendChild(mu); }
+      if (l.status === "muted") { var um = el("button", "btn ok", "Unmute"); um.type = "button"; um.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer unmuted."); }); acts.appendChild(um); }
       var rm = el("button", "btn bad", "Remove"); rm.type = "button";
       rm.addEventListener("click", function () { if (confirm("Remove this layer? This deletes the recording.")) patchLayer(l, { status: "removed" }, "Layer removed."); });
       acts.appendChild(rm);
