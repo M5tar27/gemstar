@@ -4,7 +4,7 @@
 // layer limit, records the layer as 'pending' for the owner to accept, and
 // returns a short-lived signed URL the browser uploads the recording to.
 //
-// POST { invite, guestToken, ext?, offsetMs? }
+// POST { invite, guestToken, ext?, offsetMs?, label? }
 // -> { layerId, uploadUrl }
 
 const crypto = require("crypto");
@@ -35,6 +35,12 @@ module.exports = async (req, res) => {
   let offsetMs = parseInt(body.offsetMs, 10);
   if (!Number.isFinite(offsetMs)) offsetMs = 0;
   offsetMs = Math.min(Math.max(offsetMs, -2000), 2000);
+
+  // Free-text label ( "lead", "ad lib"... ) the guest can give their own
+  // take right when they record it, so it isn't just an anonymous "Guest
+  // N" in the owner's review list. Optional -- /api/get-track falls back
+  // to the anonymous label when this is blank.
+  const label = String(body.label || "").trim().slice(0, 40) || null;
 
   const memberKey = `guest:${guest.guestId}`;
 
@@ -98,7 +104,7 @@ module.exports = async (req, res) => {
       headers: Object.assign({}, cfg.headers, { Prefer: "return=minimal" }),
       body: JSON.stringify({
         id: layerId, track_id: trackId, author_key: memberKey,
-        audio_path: audioPath, offset_ms: offsetMs, status: "pending",
+        audio_path: audioPath, offset_ms: offsetMs, status: "pending", label: label,
       }),
     });
 
