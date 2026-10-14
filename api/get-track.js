@@ -5,7 +5,7 @@
 // Mix + Unlimited tiers only, and only for the track's owner.
 //
 // POST { token, deviceId, trackId }
-// -> { track, baseUrl, layers: [{ id, label, status, offsetMs, volume, createdAt, url }], spotsLeft }
+// -> { track, baseUrl, layers: [{ id, label, status, offsetMs, volume, trimStartMs, trimEndMs, createdAt, url }], spotsLeft }
 
 const C = require("./_lib/common");
 
@@ -29,31 +29,35 @@ module.exports = async (req, res) => {
     if (!track) return res.status(404).json({ error: "Track not found" });
 
     const rows = await C.sbRest(cfg,
-      `gemstar_track_layers?track_id=eq.${trackId}&status=neq.removed&select=id,author_key,audio_path,offset_ms,volume,status,created_at&order=created_at.asc`);
+      `gemstar_track_layers?track_id=eq.${trackId}&status=neq.removed&select=id,author_key,audio_path,offset_ms,volume,status,label,trim_start_ms,trim_end_ms,created_at&order=created_at.asc`);
     const layers = Array.isArray(rows) ? rows : [];
 
     const members = await C.sbRest(cfg,
       `gemstar_track_members?track_id=eq.${trackId}&role=eq.collaborator&select=member_key`);
     const spotsLeft = Math.max(0, track.max_collaborators - (Array.isArray(members) ? members.length : 0));
 
-    // Stable anonymous labels in order of first appearance. Layers already
-    // arrive sorted oldest-first (see the query above), so when one guest
-    // has recorded more than one layer, each of theirs gets a "(take N)"
-    // suffix in that same order -- otherwise every layer from the same
-    // guest showed the identical "Guest N" label, with no way to tell
-    // which one they recorded first, second, third...
-    const labels = {};
+    // Anonymous fallback labels in order of first appearance, used only for
+    // a layer that has no custom label set. Layers already arrive sorted
+    // oldest-first (see the query above), so when one guest has recorded
+    // more than one un-labeled layer, each gets a "(take N)" suffix in that
+    // same order -- otherwise every layer from the same guest showed the
+    // identical "Guest N" label, with no way to tell which one came first,
+    // second, third... A guest or the owner can replace this with a real
+    // label ("lead", "ad lib") via /api/submit-layer or /api/update-layer,
+    // which always wins over the computed fallback below.
+    const fallbackBase = {};
     let n = 0;
-    layers.forEach((l) => { if (!labels[l.author_key]) labels[l.author_key] = `Guest ${++n}`; });
+    layers.forEach((l) => { if (!fallbackBase[l.author_key]) fallbackBase[l.author_key] = `Guest ${++n}`; });
 
-    const totalByAuthor = {};
-    layers.forEach((l) => { totalByAuthor[l.author_key] = (totalByAuthor[l.author_key] || 0) + 1; });
+    const totalUnlabeledByAuthor = {};
+    layers.forEach((l) => { if (!l.label) totalUnlabeledByAuthor[l.author_key] = (totalUnlabeledByAuthor[l.author_key] || 0) + 1; });
 
     const seen = {};
     const layerLabels = layers.map((l) => {
+      if (l.label) return l.label;
       seen[l.author_key] = (seen[l.author_key] || 0) + 1;
-      const base = labels[l.author_key];
-      return totalByAuthor[l.author_key] > 1 ? `${base} (take ${seen[l.author_key]})` : base;
+      const base = fallbackBase[l.author_key];
+      return totalUnlabeledByAuthor[l.author_key] > 1 ? `${base} (take ${seen[l.author_key]})` : base;
     });
 
     const [baseUrl, urls] = await Promise.all([
@@ -67,7 +71,9 @@ module.exports = async (req, res) => {
       spotsLeft,
       layers: layers.map((l, i) => ({
         id: l.id, label: layerLabels[i], status: l.status,
-        offsetMs: l.offset_ms, volume: Number(l.volume), createdAt: l.created_at, url: urls[i],
+        offsetMs: l.offset_ms, volume: Number(l.volume),
+        trimStartMs: l.trim_start_ms || 0, trimEndMs: (l.trim_end_ms === null || l.trim_end_ms === undefined) ? null : l.trim_end_ms,
+        createdAt: l.created_at, url: urls[i],
       })),
     });
   } catch (err) {
