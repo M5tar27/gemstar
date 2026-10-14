@@ -1190,6 +1190,10 @@
       <p class="projects-sub" data-i18n="projectsSub">Named saves you can come back to and reopen, separate from the automatic "current session" backup.</p>
       <div id="projects-list" class="projects-list"></div>
       <p class="projects-empty" id="projects-empty" data-i18n="projectsEmpty">No saved projects yet — load a vocal, dial it in, then tap "Save As Project…" to save it under a name.</p>
+      <h3 data-i18n="cloudSectionTitle">☁ Cloud (synced to your account)</h3>
+      <p class="projects-sub" id="cloud-signin-hint" data-i18n="cloudSignInHint" hidden>Verify your email above to sync your projects to your account — open them from any device.</p>
+      <div id="cloud-projects-list" class="projects-list"></div>
+      <p class="projects-empty" id="cloud-projects-empty" data-i18n="cloudEmpty" hidden>No cloud projects yet. Save a project while verified and it'll show up here.</p>
     </div>
   </div>
 
@@ -1463,6 +1467,12 @@
       </div>
     </div>
 
+    <div class="export-row" id="project-save-row">
+      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">💾 Save Project</button>
+      <button class="icon-btn" id="btn-save-as-project" type="button" data-i18n="saveAsProjectBtn">💾 Save Project As…</button>
+      <button class="icon-btn" id="btn-open-projects" type="button" data-i18n="openProjectsBtn">📁 My Projects</button>
+    </div>
+
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
     <div class="spectrum-shell" id="spectrum-shell">
       <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
@@ -1543,9 +1553,6 @@
       </select>
       <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
       <button class="icon-btn" id="btn-export-stems" type="button" data-i18n="stemsBtn">⬇ Export Stems</button>
-      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">💾 Save Project</button>
-      <button class="icon-btn" id="btn-save-as-project" type="button" data-i18n="saveAsProjectBtn">💾 Save Project As…</button>
-      <button class="icon-btn" id="btn-open-projects" type="button" data-i18n="openProjectsBtn">📁 My Projects</button>
     </div>
     <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-note" data-i18n="stemsNote">Unlimited: Export Stems downloads every processed vocal as its own 24-bit WAV (in one .zip), lined up from the start of the song, so you can finish the mix in any DAW.</p>
@@ -1797,6 +1804,11 @@
       projectsEmpty:"No saved projects yet — load a vocal, dial it in, then tap \"Save As Project…\" to save it under a name.",
       projectOpenBtn:"Open", projectDeleteBtn:"Delete", projectDeleteConfirm:"Delete \"{name}\"? This can't be undone.",
       projectTrackCount:"{count} track(s)", projectOpening:"Opening…", projectOpenErr:"Couldn't open this project.",
+      cloudSectionTitle:"☁ Cloud (synced to your account)",
+      cloudSignInHint:"Verify your email above to sync your projects to your account — open them from any device.",
+      cloudEmpty:"No cloud projects yet. Save a project while verified and it'll show up here.",
+      cloudShareBtn:"Share", cloudSharePrompt:"Share this project with (email):",
+      cloudShareOk:"Shared with {email}.", cloudShareErr:"Couldn't share this project.",
       pricingEyebrow:"Plans", pricingTitle:"Pick your monthly chain",
       pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
       starterName:"Starter", starterSub:"For the bedroom studio — dial in your vocal chain (up to 3 vocal tracks, no Full Song Mix yet).", starter1:"Full vocal chain — 11 core knobs", starter2:"Pitch correction with key & scale lock — auto-detects your beat's key", starter3:"Recordings up to 3 minutes, 3 vocal tracks", starter4:"Standard MP3/WAV export",
@@ -2007,6 +2019,11 @@
       projectsEmpty:"Aún no hay proyectos guardados — carga una voz, ajústala, y toca \"Guardar Como Proyecto…\" para guardarla con un nombre.",
       projectOpenBtn:"Abrir", projectDeleteBtn:"Eliminar", projectDeleteConfirm:"¿Eliminar \"{name}\"? Esto no se puede deshacer.",
       projectTrackCount:"{count} pista(s)", projectOpening:"Abriendo…", projectOpenErr:"No se pudo abrir este proyecto.",
+      cloudSectionTitle:"☁ Nube (sincronizado con tu cuenta)",
+      cloudSignInHint:"Verifica tu correo arriba para sincronizar tus proyectos con tu cuenta — ábrelos desde cualquier dispositivo.",
+      cloudEmpty:"Aún no hay proyectos en la nube. Guarda un proyecto estando verificado y aparecerá aquí.",
+      cloudShareBtn:"Compartir", cloudSharePrompt:"Comparte este proyecto con (correo):",
+      cloudShareOk:"Compartido con {email}.", cloudShareErr:"No se pudo compartir este proyecto.",
       pricingEyebrow:"Planes", pricingTitle:"Elige tu cadena mensual",
       pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
       starterName:"Inicial", starterSub:"Para el estudio casero — ajusta tu cadena vocal (hasta 3 pistas vocales, sin Mezcla De Canción Completa todavía).", starter1:"Cadena vocal completa — 11 perillas base", starter2:"Corrección de tono con bloqueo de tonalidad y escala — detecta automáticamente el tono de tu beat", starter3:"Grabaciones de hasta 3 minutos, 3 pistas vocales", starter4:"Exportación estándar en MP3/WAV",
@@ -8971,10 +8988,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var id = "np_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
     exportStatus.textContent = STR[lang].savingProject;
     exportStatus.className = "export-status";
-    npPut(captureNamedProjectRecord(id, name)).then(function(){
+    var namedRec = captureNamedProjectRecord(id, name);
+    npPut(namedRec).then(function(){
       exportStatus.textContent = STR[lang].savedAsProjectOk.replace("{name}", name);
       exportStatus.className = "export-status ok";
       renderProjectsList();
+      saveProjectToCloud(namedRec);
     }, function(){
       exportStatus.textContent = STR[lang].savedAsProjectErr;
       exportStatus.className = "export-status err";
@@ -9057,12 +9076,178 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!projectsOverlay) return;
     projectsOverlay.hidden = false;
     renderProjectsList();
+    renderCloudProjectsList();
   });
   var projectsCloseBtn = document.getElementById("projects-close");
   if (projectsCloseBtn) projectsCloseBtn.addEventListener("click", function(){ projectsOverlay.hidden = true; });
   if (projectsOverlay) projectsOverlay.addEventListener("click", function(e){
     if (e.target === projectsOverlay) projectsOverlay.hidden = true;
   });
+
+  // ---------- Cloud projects (account-tied, cross-device) ----------
+  // A second, independent project list alongside the local one above:
+  // explicit "Save Project As..." also uploads to Gemstar's backend under
+  // the caller's verified email (the same email/device token already used
+  // to unlock export), so "My Projects" can be found from any device or
+  // browser, not just the one that saved it -- and an owner can share a
+  // project with another Gemstar user by email. Local saves above are
+  // untouched and still work instantly/offline even without verifying.
+  function hasCloudToken(){
+    try { return !!localStorage.getItem(STORE_KEY); } catch(e){ return false; }
+  }
+  function cloudApi(path, payload){
+    var tok = "", dev = "";
+    try { tok = localStorage.getItem(STORE_KEY) || ""; dev = localStorage.getItem(DEVICE_KEY) || ""; } catch(e){}
+    return fetch("/api/" + path, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(Object.assign({token: tok, deviceId: dev}, payload || {}))
+    }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, d: d}; }); });
+  }
+  var CLOUD_MIME_BY_EXT = {wav:"audio/wav", mp3:"audio/mpeg", m4a:"audio/mp4", webm:"audio/webm", ogg:"audio/ogg"};
+  var CLOUD_EXT_BY_TYPE = {"audio/wav":"wav", "audio/x-wav":"wav", "audio/mpeg":"mp3", "audio/mp4":"m4a", "audio/webm":"webm", "audio/ogg":"ogg"};
+  function cloudExtOf(file){
+    var m = /\.([a-zA-Z0-9]+)$/.exec((file && file.name) || "");
+    if (m && CLOUD_MIME_BY_EXT[m[1].toLowerCase()]) return m[1].toLowerCase();
+    return (file && CLOUD_EXT_BY_TYPE[file.type]) || "wav";
+  }
+  function cloudPutFile(uploadUrl, file){
+    var ext = cloudExtOf(file);
+    var fd = new FormData();
+    fd.append("cacheControl", "3600");
+    fd.append("", new Blob([file], {type: CLOUD_MIME_BY_EXT[ext] || file.type || "audio/wav"}));
+    return fetch(uploadUrl, {method: "PUT", body: fd});
+  }
+  function saveProjectToCloud(rec){
+    if (!hasCloudToken()) return Promise.resolve();
+    var leadFile = rec.lead ? rec.lead.blob : null;
+    var extraFiles = (rec.extras || []).map(function(e){ return e.blob; });
+    return cloudApi("save-project", {
+      name: rec.name,
+      settings: rec.settings,
+      lead: leadFile ? {name: leadFile.name, ext: cloudExtOf(leadFile)} : null,
+      extras: extraFiles.map(function(f){ return {name: f.name, ext: cloudExtOf(f)}; }),
+    }).then(function(res){
+      if (!res.ok || !res.d || !res.d.projectId) return;
+      var uploads = [];
+      if (leadFile && res.d.leadUploadUrl) uploads.push(cloudPutFile(res.d.leadUploadUrl, leadFile));
+      (res.d.extraUploadUrls || []).forEach(function(u, i){
+        if (u && extraFiles[i]) uploads.push(cloudPutFile(u, extraFiles[i]));
+      });
+      return Promise.all(uploads);
+    }).then(function(){
+      renderCloudProjectsList();
+    }).catch(function(){ /* best-effort -- the local save already succeeded */ });
+  }
+
+  var cloudProjectsListEl = document.getElementById("cloud-projects-list");
+  var cloudProjectsEmptyEl = document.getElementById("cloud-projects-empty");
+  var cloudSignInHintEl = document.getElementById("cloud-signin-hint");
+  function renderCloudProjectsList(){
+    if (!cloudProjectsListEl) return;
+    if (!hasCloudToken()){
+      cloudProjectsListEl.innerHTML = "";
+      if (cloudProjectsEmptyEl) cloudProjectsEmptyEl.hidden = true;
+      if (cloudSignInHintEl) cloudSignInHintEl.hidden = false;
+      return;
+    }
+    if (cloudSignInHintEl) cloudSignInHintEl.hidden = true;
+    cloudApi("list-projects", {}).then(function(res){
+      var list = (res.ok && res.d && res.d.projects) || [];
+      cloudProjectsListEl.innerHTML = "";
+      if (cloudProjectsEmptyEl) cloudProjectsEmptyEl.hidden = list.length > 0;
+      list.forEach(function(p){
+        var row = document.createElement("div");
+        row.className = "project-row";
+        var info = document.createElement("div");
+        info.className = "project-row-info";
+        var nameEl = document.createElement("span");
+        nameEl.className = "project-row-name";
+        nameEl.textContent = p.name + (p.isOwner ? "" : "  ·  shared by " + p.ownerEmail);
+        var metaEl = document.createElement("span");
+        metaEl.className = "project-row-meta";
+        var metaBits = [fmtProjectDate(p.updatedAt)];
+        if (p.isOwner && p.sharedWith && p.sharedWith.length) metaBits.push("shared with " + p.sharedWith.join(", "));
+        metaEl.textContent = metaBits.join(" · ");
+        info.appendChild(nameEl); info.appendChild(metaEl);
+
+        var openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "project-row-open";
+        openBtn.textContent = STR[lang].projectOpenBtn;
+        openBtn.addEventListener("click", function(){ openCloudProject(p); });
+
+        row.appendChild(info); row.appendChild(openBtn);
+
+        if (p.isOwner){
+          var shareBtn = document.createElement("button");
+          shareBtn.type = "button";
+          shareBtn.className = "project-row-open";
+          shareBtn.textContent = STR[lang].cloudShareBtn;
+          shareBtn.addEventListener("click", function(){
+            var email = window.prompt(STR[lang].cloudSharePrompt, "");
+            if (!email) return;
+            cloudApi("share-project", {projectId: p.id, email: email.trim()}).then(function(res2){
+              if (!res2.ok){
+                exportStatus.textContent = (res2.d && res2.d.error) || STR[lang].cloudShareErr;
+                exportStatus.className = "export-status err";
+                return;
+              }
+              exportStatus.textContent = STR[lang].cloudShareOk.replace("{email}", email.trim());
+              exportStatus.className = "export-status ok";
+              renderCloudProjectsList();
+            });
+          });
+          row.appendChild(shareBtn);
+
+          var delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "project-row-delete";
+          delBtn.textContent = STR[lang].projectDeleteBtn;
+          delBtn.addEventListener("click", function(){
+            if (!window.confirm(STR[lang].projectDeleteConfirm.replace("{name}", p.name))) return;
+            cloudApi("delete-project", {projectId: p.id}).then(function(){ renderCloudProjectsList(); });
+          });
+          row.appendChild(delBtn);
+        }
+
+        cloudProjectsListEl.appendChild(row);
+      });
+    }).catch(function(){});
+  }
+  function openCloudProject(p){
+    if (projectsOverlay) projectsOverlay.hidden = true;
+    exportStatus.textContent = STR[lang].projectOpening;
+    exportStatus.className = "export-status";
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    clearExtraVocals();
+    cloudApi("get-project", {projectId: p.id}).then(function(res){
+      if (!res.ok || !res.d) throw new Error((res.d && res.d.error) || "Couldn't open this project.");
+      var data = res.d;
+      var leadPromise = (data.lead && data.lead.url)
+        ? fetch(data.lead.url).then(function(r){ return r.blob(); }).then(function(blob){
+            return handleFile(new File([blob], data.lead.name || "lead", {type: blob.type}));
+          })
+        : Promise.resolve();
+      return leadPromise.then(function(){
+        var extras = data.extras || [];
+        return Promise.all(extras.map(function(e){
+          if (!e.url) return Promise.resolve();
+          return fetch(e.url).then(function(r){ return r.blob(); }).then(function(blob){
+            return addExtraVocalFromFile(new File([blob], e.name || "vocal", {type: blob.type}));
+          });
+        })).then(function(){
+          applyNamedProjectSettings(data.settings);
+        });
+      });
+    }).then(function(){
+      exportStatus.textContent = STR[lang].savedProjectOk;
+      exportStatus.className = "export-status ok";
+    }).catch(function(){
+      exportStatus.textContent = STR[lang].projectOpenErr;
+      exportStatus.className = "export-status err";
+    });
+  }
 
   // Offered once on load, before the welcome screen, so a returning user
   // sees it first. "Resume" rebuilds the saved file(s) as real Files and
