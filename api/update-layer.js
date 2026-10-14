@@ -4,8 +4,9 @@
 // report row for Gemstar to review). Removing deletes the stored audio.
 // Mix + Unlimited tiers only, and only for the layer's track owner.
 //
-// POST { token, deviceId, layerId, status?, volume?, offsetMs?, report?, reason? }
-// -> { ok: true, layer: { id, status, volume, offsetMs } }
+// POST { token, deviceId, layerId, status?, volume?, offsetMs?, label?, trimStartMs?,
+//        trimEndMs?, report?, reason? }
+// -> { ok: true, layer: { id, status, volume, offsetMs, label, trimStartMs, trimEndMs } }
 
 const C = require("./_lib/common");
 
@@ -38,6 +39,32 @@ module.exports = async (req, res) => {
     const o = parseInt(body.offsetMs, 10);
     if (!Number.isFinite(o)) return res.status(400).json({ error: "Invalid offset" });
     patch.offset_ms = Math.min(Math.max(o, -2000), 2000);
+  }
+  // Free-text label: the owner can set or clear it here at any time (a
+  // guest sets the initial one in /api/submit-layer, when they record).
+  if (body.label !== undefined) {
+    const raw = body.label === null ? "" : String(body.label);
+    patch.label = raw.trim().slice(0, 40) || null;
+  }
+  // Start/end trim ("cuts"): both in ms from the start of the recording.
+  // trimEndMs may be explicitly cleared back to null ("play to the end").
+  if (body.trimStartMs !== undefined) {
+    const ts = parseInt(body.trimStartMs, 10);
+    if (!Number.isFinite(ts) || ts < 0) return res.status(400).json({ error: "Invalid trim start" });
+    patch.trim_start_ms = ts;
+  }
+  if (body.trimEndMs !== undefined) {
+    if (body.trimEndMs === null) {
+      patch.trim_end_ms = null;
+    } else {
+      const te = parseInt(body.trimEndMs, 10);
+      if (!Number.isFinite(te) || te < 0) return res.status(400).json({ error: "Invalid trim end" });
+      patch.trim_end_ms = te;
+    }
+  }
+  if (patch.trim_start_ms !== undefined && patch.trim_end_ms !== undefined &&
+      patch.trim_end_ms !== null && patch.trim_end_ms <= patch.trim_start_ms) {
+    return res.status(400).json({ error: "Trim end must be after trim start" });
   }
   const isReport = body.report === true;
   if (isReport) patch.status = "removed";
@@ -79,7 +106,10 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      layer: { id: row.id, status: row.status, volume: Number(row.volume), offsetMs: row.offset_ms },
+      layer: {
+        id: row.id, status: row.status, volume: Number(row.volume), offsetMs: row.offset_ms,
+        label: row.label, trimStartMs: row.trim_start_ms, trimEndMs: row.trim_end_ms,
+      },
     });
   } catch (err) {
     return res.status(500).json({ error: "Could not update this layer" });
