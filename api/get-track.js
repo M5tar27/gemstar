@@ -36,10 +36,25 @@ module.exports = async (req, res) => {
       `gemstar_track_members?track_id=eq.${trackId}&role=eq.collaborator&select=member_key`);
     const spotsLeft = Math.max(0, track.max_collaborators - (Array.isArray(members) ? members.length : 0));
 
-    // Stable anonymous labels in order of first appearance.
+    // Stable anonymous labels in order of first appearance. Layers already
+    // arrive sorted oldest-first (see the query above), so when one guest
+    // has recorded more than one layer, each of theirs gets a "(take N)"
+    // suffix in that same order -- otherwise every layer from the same
+    // guest showed the identical "Guest N" label, with no way to tell
+    // which one they recorded first, second, third...
     const labels = {};
     let n = 0;
     layers.forEach((l) => { if (!labels[l.author_key]) labels[l.author_key] = `Guest ${++n}`; });
+
+    const totalByAuthor = {};
+    layers.forEach((l) => { totalByAuthor[l.author_key] = (totalByAuthor[l.author_key] || 0) + 1; });
+
+    const seen = {};
+    const layerLabels = layers.map((l) => {
+      seen[l.author_key] = (seen[l.author_key] || 0) + 1;
+      const base = labels[l.author_key];
+      return totalByAuthor[l.author_key] > 1 ? `${base} (take ${seen[l.author_key]})` : base;
+    });
 
     const [baseUrl, urls] = await Promise.all([
       track.base_audio_path ? C.signedDownloadUrl(cfg, track.base_audio_path, 3600) : null,
@@ -51,7 +66,7 @@ module.exports = async (req, res) => {
       baseUrl,
       spotsLeft,
       layers: layers.map((l, i) => ({
-        id: l.id, label: labels[l.author_key], status: l.status,
+        id: l.id, label: layerLabels[i], status: l.status,
         offsetMs: l.offset_ms, volume: Number(l.volume), createdAt: l.created_at, url: urls[i],
       })),
     });
