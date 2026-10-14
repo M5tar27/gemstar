@@ -9143,6 +9143,19 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
       if (chain){ applyAllParams(); applyOutputGain(); broadcastScale(); }
     }
     sessionReady = true;
+
+    // Safety-net autosave: every action above already schedules its own
+    // save (a knob move, adding/removing a track, a drag-release...), but
+    // this is a plain timer on top of that -- every 60s, if a project is
+    // loaded, save it and its settings regardless of whether anything
+    // just triggered a save. Keeps you never more than a minute from a
+    // saved copy, even through a long stretch with no single triggering
+    // action (e.g. sitting in a live recording).
+    setInterval(function(){
+      if (!sessionReady || !audioBuffer) return;
+      saveSessionNow();
+      saveProjectNow();
+    }, 60000);
   }
   // Signature knobs are locked (forced to 0) until the plan verifies, which
   // happens after page load -- put the saved M5tar/Jewels amounts back once
