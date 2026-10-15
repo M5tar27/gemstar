@@ -575,7 +575,7 @@
 
   // ---- Layers --------------------------------------------------------------
   function patchLayer(l, payload, okMsg) {
-    return api("update-layer", Object.assign({ layerId: l.id }, payload)).then(function (res) {
+    return api("layer", Object.assign({ action: "update", layerId: l.id }, payload)).then(function (res) {
       if (!res.ok) throw new Error(res.d.error || "Could not update the layer.");
       var u = res.d.layer; l.status = u.status; l.volume = u.volume; l.offsetMs = u.offsetMs;
       if (u.label !== undefined) l.label = u.label;
