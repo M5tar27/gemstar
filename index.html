@@ -3289,11 +3289,36 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   // own cached promise since AudioWorklet modules are per-context.
   var CAPTURE_WORKLET_SOURCE = `
 class GemstarCaptureProcessor extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    // Posting one message per 128-sample render quantum (the default) means
+    // ~375 postMessage calls/sec at 48kHz -- each one a structured-clone
+    // transfer that costs real time on top of the actual audio rendering.
+    // On a machine already working harder to service a USB interface's own
+    // driver, that extra per-quantum overhead is exactly the kind of thing
+    // that tips a render callback over its deadline and comes out as
+    // crackle/static, even though the DSP itself isn't doing anything new.
+    // Batching several quanta together before posting cuts that message
+    // count ~8x; the main thread already just concatenates whatever-sized
+    // chunks arrive (see pcmChunks/pcmLength in createVocalRecorder), so
+    // nothing downstream needs to change for a bigger chunk to work.
+    this._buf = [];
+    this._bufLen = 0;
+    this._batchSize = 1024;
+  }
   process(inputs) {
     var input = inputs[0];
     if (input && input[0] && input[0].length) {
-      var chunk = new Float32Array(input[0]);
-      this.port.postMessage(chunk, [chunk.buffer]);
+      this._buf.push(input[0].slice());
+      this._bufLen += input[0].length;
+      if (this._bufLen >= this._batchSize){
+        var merged = new Float32Array(this._bufLen);
+        var off = 0;
+        for (var i=0;i<this._buf.length;i++){ merged.set(this._buf[i], off); off += this._buf[i].length; }
+        this.port.postMessage(merged, [merged.buffer]);
+        this._buf = [];
+        this._bufLen = 0;
+      }
     }
     return true;
   }
