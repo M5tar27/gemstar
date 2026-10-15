@@ -1893,7 +1893,7 @@
       knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Delay"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
-        clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
+        clean:"Clean: an all-in-one noise pass \u2014 suppresses quiet background noise between phrases, rolls off muddy sub-bass rumble and mic thump, lifts the mid-highs for crisp, easy-to-understand speech, and tames harsh S/T sibilance, all before anything else touches the vocal.",
         punch:"Punch: compresses the vocal for punch and consistency, evening out loud and quiet moments.",
         bass:"Bass: shapes low-end body and warmth in the vocal.",
         voice:"Voice: boosts midrange presence and clarity so the vocal cuts through the mix.",
@@ -2109,7 +2109,7 @@
       knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Retardo"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
-        clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
+        clean:"Limpio: un pase de limpieza todo en uno \u2014 reduce el ruido de fondo entre frases, corta el retumbo de graves/golpes del micro, realza los medios-agudos para una voz n\u00edtida y f\u00e1cil de entender, y suaviza las eses \u00e1speras, todo antes de que cualquier otro efecto toque la voz.",
         punch:"Pegada: comprime la voz para dar pegada y consistencia, nivelando los momentos fuertes y suaves.",
         bass:"Bajo: da forma al cuerpo y la calidez de graves en la voz.",
         voice:"Voz: realza la presencia y claridad en los medios para que la voz destaque en la mezcla.",
@@ -3408,7 +3408,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     g.input = ctx.createGain();
 
-    // ---- Clean: rumble high-pass + noise-gate style waveshaper + hiss highshelf ----
+    // ---- Clean: rumble high-pass + noise-gate style waveshaper + presence
+    // lift + light de-ess + hiss highshelf ----
+    // Everything below is driven by the single Clean knob and behaves like
+    // an "auto-clean" pass on its own: suppress quiet background noise, cut
+    // the mud, lift intelligibility, and tame harsh S/T's -- the things a
+    // quick voice-isolation pass is expected to do.
     // A high-pass filter removes sub-bass rumble, mic-handling thump and room
     // noise below where the voice actually lives — standard first move in any
     // real vocal chain, and it's what was missing before. Tied to the Clean
@@ -3420,6 +3425,29 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.rumbleHPF.Q.value = 0.707;
 
     g.gateShaper = ctx.createWaveShaper();
+
+    // Presence: a modest mid-high lift (~3.5kHz) so speech reads as crisp
+    // and easier to understand, the other half of what "Clean" promises
+    // alongside noise/rumble removal. Kept gentle on purpose -- Voice and
+    // Highs are still the knobs for a bigger tonal push; this is just
+    // enough intelligibility lift to sound "clear and professional" on
+    // its own with Clean alone turned up.
+    g.cleanPresence = ctx.createBiquadFilter();
+    g.cleanPresence.type = "peaking";
+    g.cleanPresence.frequency.value = 3500;
+    g.cleanPresence.Q.value = 1;
+
+    // Clean's own light de-essing: same dry + inverted-sibilant-band trick
+    // as the Smooth knob below, just a separate, gentler instance so Clean
+    // alone already tames harsh S/T sounds -- Smooth is still there for
+    // whoever wants more on top.
+    g.cleanDeEssBand = ctx.createBiquadFilter();
+    g.cleanDeEssBand.type = "bandpass";
+    g.cleanDeEssBand.frequency.value = 6500;
+    g.cleanDeEssBand.Q.value = 1.4;
+    g.cleanDeEssGain = ctx.createGain();
+    g.cleanDeEssSum = ctx.createGain();
+
     g.hissFilter = ctx.createBiquadFilter();
     g.hissFilter.type = "highshelf";
     g.hissFilter.frequency.value = 8500;
@@ -3615,7 +3643,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     g.input.connect(g.rumbleHPF);
     g.rumbleHPF.connect(g.gateShaper);
-    g.gateShaper.connect(g.hissFilter);
+    g.gateShaper.connect(g.cleanPresence);
+
+    // Clean's own de-esser: dry + inverted sibilant band, same technique as
+    // Smooth's below, feeding into the chain before the hiss shelf.
+    g.cleanPresence.connect(g.cleanDeEssSum);
+    g.cleanPresence.connect(g.cleanDeEssBand);
+    g.cleanDeEssBand.connect(g.cleanDeEssGain);
+    g.cleanDeEssGain.connect(g.cleanDeEssSum);
+
+    g.cleanDeEssSum.connect(g.hissFilter);
     g.hissFilter.connect(g.punchComp);
     g.punchComp.connect(g.punchMakeup);
     g.punchMakeup.connect(g.bassFilter);
@@ -4049,6 +4086,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
     var newGateCurve = getGateShaperCurve(v.clean/100);
     if (chain.gateShaper.curve !== newGateCurve) chain.gateShaper.curve = newGateCurve;
+    chain.cleanPresence.gain.setTargetAtTime(lerp(v.clean,0,100,0,3), now, 0.02);
+    chain.cleanDeEssGain.gain.setTargetAtTime(-(v.clean/100)*0.5, now, 0.02);
     chain.hissFilter.gain.setTargetAtTime(lerp(v.clean,0,100,0,-6), now, 0.02);
 
     // At Punch = 0 this is a true pass-through (0dB threshold, 1:1 ratio) --
