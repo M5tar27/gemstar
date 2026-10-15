@@ -4647,6 +4647,55 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         recordStream = null;
       }
     }
+
+    // ---- mic test preview: lights up the level meter the moment a mic is
+    // picked, before Start is ever pressed, so it's obvious the mic is
+    // actually live instead of silently waiting until a take begins. Its
+    // own isolated stream/analyser -- never connected to ctx.destination,
+    // never touches pcmChunks/captureNode -- so it can't affect what gets
+    // recorded or played back, and is always safe to tear down.
+    var previewStream = null;
+    var previewAnalyser = null;
+    var previewSrcNode = null;
+    var previewRAF = null;
+    var previewData = null;
+    function stopMicPreview(){
+      if (previewRAF){ cancelAnimationFrame(previewRAF); previewRAF = null; }
+      if (previewSrcNode){ try{ previewSrcNode.disconnect(); }catch(e){} previewSrcNode = null; }
+      previewAnalyser = null;
+      if (previewStream){ previewStream.getTracks().forEach(function(t){ t.stop(); }); previewStream = null; }
+      if (!recording && opts.meterBar) opts.meterBar.style.width = "0%";
+    }
+    function micPreviewLoop(){
+      if (!previewAnalyser) return;
+      if (!previewData || previewData.length !== previewAnalyser.fftSize) previewData = new Uint8Array(previewAnalyser.fftSize);
+      previewAnalyser.getByteTimeDomainData(previewData);
+      var peak = 0;
+      for (var i=0;i<previewData.length;i++){
+        var v = Math.abs(previewData[i]-128)/128;
+        if (v>peak) peak = v;
+      }
+      if (opts.meterBar) opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
+      previewRAF = requestAnimationFrame(micPreviewLoop);
+    }
+    function startMicPreview(){
+      if (recording) return; // the real recording's own meter already covers this
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      stopMicPreview(); // only ever one preview stream open at a time
+      var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
+      var constraints = { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:{ideal:1} };
+      if (pickedDeviceId) constraints.deviceId = { exact: pickedDeviceId };
+      navigator.mediaDevices.getUserMedia({ audio: constraints }).then(function(stream){
+        if (recording){ stream.getTracks().forEach(function(t){ t.stop(); }); return; } // Start got hit while this was loading
+        ensureContext();
+        previewStream = stream;
+        previewSrcNode = ctx.createMediaStreamSource(stream);
+        previewAnalyser = ctx.createAnalyser();
+        previewAnalyser.fftSize = 1024;
+        previewSrcNode.connect(previewAnalyser);
+        micPreviewLoop();
+      }).catch(function(){ /* ignore here -- hitting Start surfaces the real mic error */ });
+    }
     function stopCapture(){
       recording = false;
       isMicRecording = false;
@@ -4730,6 +4779,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // File/Cancel, or the recording length cap the plan tier allows.
     function hardStop(){
       stopCapture();
+      stopMicPreview();
       pcmChunks = [];
       pcmLength = 0;
       stopTimer();
@@ -4934,20 +4984,32 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       });
     }
 
+    if (opts.deviceSelectEl){
+      opts.deviceSelectEl.addEventListener("change", function(){ startMicPreview(); });
+    }
+
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
       if (opts.canStart && !opts.canStart()) return;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
         alert(STR[lang].recordUnsupported);
         return;
       }
+      stopMicPreview(); // hand the device off cleanly -- never hold two open streams on it at once
       capSeconds = opts.getCapSeconds ? opts.getCapSeconds() : capSeconds;
       // Raw, unprocessed input: Gemstar's own Clean/Punch/etc. chain does
       // the noise reduction and leveling, so the browser's built-in
       // echo-cancellation/noise-suppression/AGC would just fight it —
       // better to hand it the truest possible signal to work with.
+      // No forced sampleRate here on purpose -- asking for a rate that
+      // doesn't match what a USB interface is actually running at forces
+      // the browser into a real-time resample on every buffer, which is a
+      // well-known source of crackle/static specifically on interfaces
+      // (never shows up on a laptop's built-in mic, which is exactly what
+      // got reported). Leaving it unset lets the browser just use
+      // whatever rate the device is already running at.
       var baseConstraints = {
         echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-        channelCount:{ideal:1}, sampleRate:{ideal:48000}
+        channelCount:{ideal:1}
       };
       var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
       var audioConstraints = pickedDeviceId
@@ -4985,7 +5047,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       refreshIdleHint();
     });
 
-    return { stop: hardStop, refreshIdleHint: refreshIdleHint };
+    return { stop: hardStop, refreshIdleHint: refreshIdleHint, startMicPreview: startMicPreview, stopMicPreview: stopMicPreview };
   }
 
   var mainDeviceSelector = createDeviceSelector(
@@ -5006,6 +5068,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dotEl: document.getElementById("record-dot"),
     timeEl: document.getElementById("record-time"),
     meterBar: document.getElementById("record-meter-bar"),
+    deviceSelectEl: document.getElementById("record-device-select"),
     waveformCanvas: document.getElementById("record-waveform"),
     hintEl: document.getElementById("record-hint"),
     btWarnEl: document.getElementById("record-bt-warn"),
@@ -5665,6 +5728,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dotEl: document.getElementById("extra-record-dot"),
     timeEl: document.getElementById("extra-record-time"),
     meterBar: document.getElementById("extra-record-meter-bar"),
+    deviceSelectEl: document.getElementById("extra-record-device-select"),
     waveformCanvas: document.getElementById("extra-record-waveform"),
     hintEl: document.getElementById("extra-record-hint"),
     btWarnEl: document.getElementById("extra-record-bt-warn"),
