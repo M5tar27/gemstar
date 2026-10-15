@@ -339,9 +339,9 @@
   var invite = new URLSearchParams(location.search).get("t") || "";
   if (!invite) { fail("This invite link isn't valid."); return; }
 
-  fetch("/api/resolve-invite", {
+  fetch("/api/invite", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ invite: invite })
+    body: JSON.stringify({ action: "resolve", invite: invite })
   }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {
       if (!res.ok) { fail(res.d.error || "This invite link isn't valid."); return; }
