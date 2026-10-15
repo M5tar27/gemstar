@@ -9121,7 +9121,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!hasCloudToken()) return Promise.resolve();
     var leadFile = rec.lead ? rec.lead.blob : null;
     var extraFiles = (rec.extras || []).map(function(e){ return e.blob; });
-    return cloudApi("save-project", {
+    return cloudApi("projects", {action: "save",
       name: rec.name,
       settings: rec.settings,
       lead: leadFile ? {name: leadFile.name, ext: cloudExtOf(leadFile)} : null,
@@ -9151,7 +9151,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       return;
     }
     if (cloudSignInHintEl) cloudSignInHintEl.hidden = true;
-    cloudApi("list-projects", {}).then(function(res){
+    cloudApi("projects", {action: "list"}).then(function(res){
       var list = (res.ok && res.d && res.d.projects) || [];
       cloudProjectsListEl.innerHTML = "";
       if (cloudProjectsEmptyEl) cloudProjectsEmptyEl.hidden = list.length > 0;
@@ -9186,7 +9186,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           shareBtn.addEventListener("click", function(){
             var email = window.prompt(STR[lang].cloudSharePrompt, "");
             if (!email) return;
-            cloudApi("share-project", {projectId: p.id, email: email.trim()}).then(function(res2){
+            cloudApi("projects", {action: "share", projectId: p.id, email: email.trim()}).then(function(res2){
               if (!res2.ok){
                 exportStatus.textContent = (res2.d && res2.d.error) || STR[lang].cloudShareErr;
                 exportStatus.className = "export-status err";
@@ -9205,7 +9205,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           delBtn.textContent = STR[lang].projectDeleteBtn;
           delBtn.addEventListener("click", function(){
             if (!window.confirm(STR[lang].projectDeleteConfirm.replace("{name}", p.name))) return;
-            cloudApi("delete-project", {projectId: p.id}).then(function(){ renderCloudProjectsList(); });
+            cloudApi("projects", {action: "delete", projectId: p.id}).then(function(){ renderCloudProjectsList(); });
           });
           row.appendChild(delBtn);
         }
@@ -9221,7 +9221,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
     clearExtraVocals();
-    cloudApi("get-project", {projectId: p.id}).then(function(res){
+    cloudApi("projects", {action: "get", projectId: p.id}).then(function(res){
       if (!res.ok || !res.d) throw new Error((res.d && res.d.error) || "Couldn't open this project.");
       var data = res.d;
       var leadPromise = (data.lead && data.lead.url)
