@@ -226,6 +226,30 @@
   }
   #undo-toast-btn:hover{opacity:0.88;}
 
+  /* "Need help?" idle nudge -- a small, dismissible corner prompt (never a
+     blocking modal) that points back at the existing Need Help guide after
+     a stretch of no interaction. Bottom-right so it never collides with the
+     undo toast or mini transport, which both sit bottom-center. */
+  #help-nudge{
+    display:none; align-items:center; gap:10px;
+    position:fixed; right:16px; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); z-index:510;
+    max-width:min(88vw, 300px); padding:12px 14px; border-radius:12px;
+    background:var(--bg-panel); border:1px solid var(--cyan); box-shadow:0 12px 34px rgba(0,0,0,0.45);
+    font-size:0.8rem; color:var(--ink);
+  }
+  #help-nudge.show{display:flex;}
+  #help-nudge-text{color:var(--ink-muted); flex:1;}
+  #help-nudge-btn{
+    background:var(--cyan); border:1px solid var(--cyan); color:#050508; font-weight:700;
+    border-radius:999px; padding:6px 13px; font-size:0.76rem; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  #help-nudge-btn:hover{opacity:0.88;}
+  #help-nudge-close{
+    background:none; border:none; color:var(--ink-muted); font-size:1rem; line-height:1;
+    cursor:pointer; padding:2px 2px; flex-shrink:0;
+  }
+  #help-nudge-close:hover{color:var(--ink);}
+
   /* "My Projects" -- named, reopenable saves (separate from the single
      automatic "current session" backup used by Save Project above). */
   .projects-overlay{
@@ -1184,6 +1208,12 @@
     <button type="button" id="undo-toast-btn" data-i18n="undoToastBtn">Undo</button>
   </div>
 
+  <div id="help-nudge" role="status" aria-live="polite">
+    <span id="help-nudge-text" data-i18n="helpNudgeText">Stuck on something? Tap Need Help for a quick guide.</span>
+    <button type="button" id="help-nudge-btn" data-i18n="helpNudgeBtn">Need Help?</button>
+    <button type="button" id="help-nudge-close" data-i18n-aria="helpNudgeCloseAria" aria-label="Dismiss">✕</button>
+  </div>
+
   <div id="projects-overlay" class="projects-overlay" hidden>
     <div class="projects-card">
       <button type="button" class="projects-close" id="projects-close" data-i18n-aria="projectsCloseAria" aria-label="Close">✕</button>
@@ -1910,6 +1940,7 @@
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
       helpIntro:"A quick rundown of the basics — every knob also shows this same text if you double-tap it (or hover over it on computer).",
+      helpNudgeText:"Stuck on something? Tap Need Help for a quick guide.", helpNudgeBtn:"Need Help?", helpNudgeCloseAria:"Dismiss",
       collabIntroTitle:"Collab: record with a friend",
       collabIntroText:"Invite anyone to add their voice to your track. They don't need an app or an account.",
       collabTip1:"Upload your track (a beat, a rough mix, or a finished song) and tap Create invite link.",
@@ -2126,6 +2157,7 @@
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
       helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la tocas dos veces (o pasas el cursor sobre ella en computadora).",
+      helpNudgeText:"¿Atascado con algo? Toca Ayuda para una guía rápida.", helpNudgeBtn:"¿Ayuda?", helpNudgeCloseAria:"Cerrar",
       collabIntroTitle:"Collab: graba con un amigo",
       collabIntroText:"Invita a quien quieras a agregar su voz a tu canción. No necesita app ni cuenta.",
       collabTip1:"Sube tu pista (un beat, una mezcla o una canción terminada) y toca Crear enlace de invitación.",
@@ -8363,6 +8395,53 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   document.addEventListener("keydown", function(e){
     if (e.key === "Escape" && helpOverlay && helpOverlay.classList.contains("show")) closeHelp();
   });
+
+  /* ---------- "Need help?" idle nudge ---------- */
+  // Reuses the existing Need Help guide rather than inventing a second help
+  // surface -- after a stretch with no clicks/taps/keys/scrolling, and only
+  // once a vocal or beat is actually loaded (nudging an empty landing page
+  // helps no one), a small corner prompt points at it. Never shown while
+  // something's actually playing -- that's someone listening, not someone
+  // stuck -- and never more than once per visit (sessionStorage, not
+  // localStorage: a browser that comes back another day to work on a new
+  // take deserves the nudge again if they get stuck again).
+  var helpNudgeEl = document.getElementById("help-nudge");
+  var helpNudgeBtnEl = document.getElementById("help-nudge-btn");
+  var helpNudgeCloseEl = document.getElementById("help-nudge-close");
+  var HELP_NUDGE_IDLE_MS = 50000;
+  var HELP_NUDGE_SEEN_KEY = "gemstarHelpNudgeSeenSession";
+  var helpNudgeTimer = null;
+  var helpNudgeAutoHideTimer = null;
+  function helpNudgeAlreadySeen(){
+    try { return sessionStorage.getItem(HELP_NUDGE_SEEN_KEY) === "1"; } catch(e){ return false; }
+  }
+  function markHelpNudgeSeen(){
+    try { sessionStorage.setItem(HELP_NUDGE_SEEN_KEY, "1"); } catch(e){}
+  }
+  function hideHelpNudge(){
+    if (helpNudgeAutoHideTimer){ clearTimeout(helpNudgeAutoHideTimer); helpNudgeAutoHideTimer = null; }
+    if (helpNudgeEl) helpNudgeEl.classList.remove("show");
+  }
+  function showHelpNudge(){
+    if (!helpNudgeEl || helpNudgeAlreadySeen()) return;
+    if (isPlaying) return; // someone actually listening, not someone stuck
+    if (!audioBuffer && !beatBuffer) return; // nothing loaded yet
+    if (helpOverlay && helpOverlay.classList.contains("show")) return; // already looking at help
+    markHelpNudgeSeen();
+    helpNudgeEl.classList.add("show");
+    helpNudgeAutoHideTimer = setTimeout(hideHelpNudge, 20000);
+  }
+  function resetHelpNudgeTimer(){
+    if (helpNudgeTimer){ clearTimeout(helpNudgeTimer); helpNudgeTimer = null; }
+    if (helpNudgeAlreadySeen()) return; // only ever arms once per visit
+    helpNudgeTimer = setTimeout(showHelpNudge, HELP_NUDGE_IDLE_MS);
+  }
+  ["pointerdown","keydown","wheel","touchstart"].forEach(function(evt){
+    document.addEventListener(evt, resetHelpNudgeTimer, {passive:true});
+  });
+  resetHelpNudgeTimer();
+  if (helpNudgeBtnEl) helpNudgeBtnEl.addEventListener("click", function(){ hideHelpNudge(); openHelp(); });
+  if (helpNudgeCloseEl) helpNudgeCloseEl.addEventListener("click", hideHelpNudge);
 
   /* collab-intro:start */
   /* ---------- Collab intro pop-up ---------- */
