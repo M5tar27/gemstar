@@ -643,7 +643,7 @@
   // ---- Invite --------------------------------------------------------------
   $("i-make").addEventListener("click", function () {
     $("i-make").disabled = true; say("i-note", "Creating link…");
-    api("create-invite", { trackId: S.trackId }).then(function (res) {
+    api("invite", { action: "create", trackId: S.trackId }).then(function (res) {
       if (!res.ok) throw new Error(res.d.error || "Could not create the invite.");
       $("i-link").value = res.d.link; $("i-box").classList.remove("hidden");
       $("i-exp").textContent = "Expires " + new Date(res.d.expiresAt).toLocaleDateString() + ". " + res.d.spotsLeft + " spot" + (res.d.spotsLeft === 1 ? "" : "s") + " left.";
