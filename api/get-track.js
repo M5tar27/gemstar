@@ -43,7 +43,7 @@ module.exports = async (req, res) => {
     // same order -- otherwise every layer from the same guest showed the
     // identical "Guest N" label, with no way to tell which one came first,
     // second, third... A guest or the owner can replace this with a real
-    // label ("lead", "ad lib") via /api/submit-layer or /api/update-layer,
+    // label ("lead", "ad lib") via /api/layer's "submit" or "update" action,
     // which always wins over the computed fallback below.
     const fallbackBase = {};
     let n = 0;
