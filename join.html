@@ -313,9 +313,9 @@
     $("save").addEventListener("click", function () {
       stopPreview();
       $("save").disabled = true; $("rerec").disabled = true; say("Saving your layer…");
-      fetch("/api/submit-layer", {
+      fetch("/api/layer", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite: invite, guestToken: guestToken, ext: "wav", offsetMs: offset, label: ($("layerLabel").value || "").trim().slice(0, 40) })
+        body: JSON.stringify({ action: "submit", invite: invite, guestToken: guestToken, ext: "wav", offsetMs: offset, label: ($("layerLabel").value || "").trim().slice(0, 40) })
       }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
           if (!res.ok) throw new Error(res.d.error || "Could not save your layer.");
