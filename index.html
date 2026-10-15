@@ -6078,6 +6078,21 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       }
       row.appendChild(controls);
       if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
+      // Tap/click anywhere in this row's own waveform to jump playback
+      // straight there -- same seek the main timeline does, just scoped to
+      // this one track's strip so you can seek right from whichever wave
+      // you're looking at (including the beat's, with nothing else loaded).
+      canvas.style.cursor = "pointer";
+      canvas.addEventListener("click", function(e){
+        e.stopPropagation(); // don't also fire the row's own setEditTarget click
+        if (total <= 0) return;
+        var r = canvas.getBoundingClientRect();
+        if (!r.width) return;
+        var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        tlCursor = frac * total;
+        if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+        restartPlaybackFromCursor();
+      });
       allVocalsRowsEl.appendChild(row);
       var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)";
       drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0);
@@ -7243,7 +7258,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       return Math.max(0, Math.min(currentTotalDuration(), sec));
     }
     timelineEl.addEventListener("pointerdown", function(e){
-      if (!audioBuffer || currentTotalDuration() <= 0) return;
+      // Used to also require a lead vocal (audioBuffer) to exist before the
+      // timeline would respond at all -- which meant a beat loaded on its
+      // own, with nothing recorded yet, couldn't be seeked/scrubbed. Any
+      // audio source at all (beat, lead, or an extra vocal) is enough.
+      if (currentTotalDuration() <= 0) return;
       e.preventDefault();
       try { timelineEl.setPointerCapture(e.pointerId); } catch(err){}
       tlPress = {id: e.pointerId, x: e.clientX, t: tlTimeAt(e.clientX), dragging: false};
