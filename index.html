@@ -742,12 +742,23 @@
   }
   .vocal-mixer .controls-heading{ text-align:left; margin:0; }
   .ai-mix-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .ai-mix-actions{display:flex; align-items:center; gap:8px; flex-shrink:0;}
   .icon-btn.btn-ai-mix{
     background:linear-gradient(90deg, var(--cyan), var(--gem)); border:none; color:#050508; font-weight:700;
     flex-shrink:0;
   }
   .icon-btn.btn-ai-mix:hover{opacity:0.88; color:#050508;}
   .icon-btn.btn-ai-mix:disabled{background:var(--bg-panel-2); color:var(--ink-dim); opacity:0.6; cursor:not-allowed;}
+  /* Inline AI Mix undo -- replaces the old floating bottom toast for this
+     one action specifically (the shared #undo-toast stays as-is for track
+     remove/re-record, which still benefit from a toast since those buttons
+     aren't always still on screen when they fire). Same gem-colored pill
+     language as #undo-toast-btn so it still reads as "the undo control",
+     just anchored right next to the button that created the thing to undo. */
+  #btn-ai-mix-undo{
+    background:var(--gem); border:1px solid var(--gem); color:#050508; font-weight:700; border-radius:999px;
+  }
+  #btn-ai-mix-undo:hover{opacity:0.88; color:#050508;}
   .ai-mix-hint{margin-top:-4px;}
   .extra-vocal-row input[type=range]{ flex:1 1 auto; max-width:220px; accent-color:var(--gem); cursor:pointer; }
   .btn-remove-vocal{ padding:6px 10px !important; }
@@ -1380,7 +1391,10 @@
       <div class="vocal-mixer" id="vocal-mixer" hidden>
         <div class="ai-mix-row">
           <p class="controls-heading" data-i18n="vocalMixerHeading">Vocal Mixer</p>
-          <button type="button" class="icon-btn small btn-ai-mix" id="btn-ai-mix" data-i18n="aiMixBtn" data-i18n-aria="aiMixAria" aria-label="AI Mix: automatically balance levels, pan and tone across every track">✨ AI Mix</button>
+          <span class="ai-mix-actions">
+            <button type="button" class="icon-btn small btn-ai-mix" id="btn-ai-mix" data-i18n="aiMixBtn" data-i18n-aria="aiMixAria" aria-label="AI Mix: automatically balance levels, pan and tone across every track">✨ AI Mix</button>
+            <button type="button" class="icon-btn small" id="btn-ai-mix-undo" data-i18n="aiMixUndoBtn" data-i18n-aria="aiMixUndoAria" aria-label="Undo AI Mix -- restore the levels, pan and tone from before" hidden>↺ Undo</button>
+          </span>
         </div>
         <p class="vocal-cap-note ai-mix-hint" data-i18n="aiMixHint">Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.</p>
         <div class="slider-row vocal-track-row lead-row">
@@ -1872,6 +1886,7 @@
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
       aiMixHint:"Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.",
       aiMixAppliedToast:"✨ AI Mix applied",
+      aiMixUndoBtn:"↺ Undo", aiMixUndoAria:"Undo AI Mix -- restore the levels, pan and tone from before",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
@@ -2089,6 +2104,7 @@
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
       aiMixHint:"Equilibra niveles, panorama y tono en cada pista (y en la pista instrumental, si hay una) con un toque. Se puede deshacer.",
       aiMixAppliedToast:"✨ Mezcla IA aplicada",
+      aiMixUndoBtn:"↺ Deshacer", aiMixUndoAria:"Deshacer Mezcla IA -- restaura los niveles, panorama y tono anteriores",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
@@ -2202,6 +2218,12 @@
 
   function applyLang(l){
     lang = l;
+    // Exposed so the separate access-gate script (a standalone <script>
+    // block with its own closure -- see window.gemstarApplyTier et al. for
+    // why that bridge exists) can show its paywall/billing text in the
+    // right language too, without needing direct access to this script's
+    // own STR/lang variables.
+    window.gemstarLang = l;
     document.documentElement.lang = l;
     document.getElementById("lang-en").classList.toggle("active", l==="en");
     document.getElementById("lang-es").classList.toggle("active", l==="es");
@@ -5913,6 +5935,31 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       runAiMix();
     });
   }
+  // Inline AI Mix undo -- right next to the button that triggered it,
+  // instead of the floating bottom toast every other undoable action uses
+  // (that one stays a toast; see the CSS comment on #btn-ai-mix-undo for
+  // why AI Mix gets its own treatment). Same reversible window (8s) and
+  // single-pending-action shape as showUndoToast()/hideUndoToast() below.
+  var btnAiMixUndo = document.getElementById("btn-ai-mix-undo");
+  var aiMixUndoTimer = null;
+  var aiMixUndoAction = null;
+  function hideAiMixUndoBtn(){
+    if (aiMixUndoTimer){ clearTimeout(aiMixUndoTimer); aiMixUndoTimer = null; }
+    if (btnAiMixUndo) btnAiMixUndo.hidden = true;
+    aiMixUndoAction = null;
+  }
+  function showAiMixUndoBtn(onUndo){
+    if (!btnAiMixUndo) return;
+    hideAiMixUndoBtn();
+    aiMixUndoAction = onUndo;
+    btnAiMixUndo.hidden = false;
+    aiMixUndoTimer = setTimeout(hideAiMixUndoBtn, 8000);
+  }
+  if (btnAiMixUndo) btnAiMixUndo.addEventListener("click", function(){
+    var action = aiMixUndoAction;
+    hideAiMixUndoBtn();
+    if (action) action();
+  });
 
   // Live re-detect: if an interface gets plugged in (or unplugged) while a
   // record panel is already open, refresh whichever picker(s) are visible
@@ -6568,7 +6615,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     scheduleSave();
     if (wasPlaying) startPlayback();
 
-    showUndoToast(STR[lang].aiMixAppliedToast, function(){
+    showAiMixUndoBtn(function(){
       var wp = isPlaying;
       if (wp) stopPlayback();
       applyLeadSnapshot(leadSnap);
@@ -7091,10 +7138,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (audioBuffer){
       if (isPlaying) return; // already playing on its own -- don't restart it from 0
       // Monitor from the top of the song, so the new take lines up with the
-      // beat/other vocals when it's added as a track starting at 0. Reuses
-      // the real transport (startPlayback), so the timeline/playhead and
-      // beat waveform visibly scrub along underneath it, same as any
-      // regular playback.
+      // beat/other vocals when it's added as a track starting at 0.
       // Loop the whole mix (tlLoop=true, no region) for as long as recording
       // keeps running, instead of the normal "play once and stop" behavior --
       // otherwise the beat/other vocals you're singing along to go silent
@@ -7102,8 +7146,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // is still capturing. That left you recording the back half of a take
       // against dead silence, which is what made it sound like "the vocals
       // only play once and stop."
+      // Uses startRecordMonitorLite() instead of the real transport
+      // (startPlayback/retainMixWiring) -- monitoring already-recorded
+      // tracks while a NEW take is being captured doesn't need their full
+      // processing chain (EQ, compression, the pitch-correction worklet);
+      // running all of that live, on top of the mic-capture worklet, is
+      // exactly the extra real-time-audio-thread load that was causing
+      // static/glitches while recording with other tracks already on the
+      // song. The timeline/playhead and beat waveform still scrub along
+      // underneath it the same as any regular playback -- only the signal
+      // path each track's audio takes is lighter, not the UI.
       tlCursor = 0; tlRegion = null; tlLoop = true;
-      startPlayback();
+      startRecordMonitorLite();
       recordMonitorOwnsPlayback = true;
     } else if (beatBuffer && chain){
       // No lead vocal yet -- just the beat alone, played directly (it
@@ -7140,9 +7194,68 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       renderTimeline();
     }
   }
+  // Lightweight recording-monitor playback: plays already-recorded tracks
+  // (and the beat) straight into chain.mixSum -- level/pan only, same as
+  // wireTrackSource() always did, but skipping each track's own processing
+  // chain (chain.input / vocalTrackInput()) entirely, so none of that DSP
+  // (EQ, compressors, the pitch-correction worklet) runs live while a new
+  // take is being captured. Deliberately NOT retainMixWiring()/startPlayback
+  // -- this never touches the heavy per-track racks or their ref-count at
+  // all, so normal Play and Auto-Master/export are completely unaffected;
+  // this is purely what you hear while tracking a new part. The real
+  // processed sound is back the moment recording stops and Play is pressed.
+  function startRecordMonitorLite(){
+    if (!chain || currentTotalDuration() <= 0) return;
+    try {
+      stopSourceOnly();
+      stopBeatSourceOnly();
+      vocalSourceNodes = [];
+      var leadSrc = audioBuffer ? makeTimedSource(audioBuffer, 0, null, true) : null;
+      if (leadSrc){
+        var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.mixSum);
+        leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
+        vocalSourceNodes.push({src:leadSrc, gain:leadNodes.gain, pan:leadNodes.pan, ref:leadTrack});
+      }
+      extraVocals.forEach(function(t){
+        var src = makeTimedSource(t.buffer, 0, null, true);
+        if (!src) return;
+        var nodes = wireTrackSource(src, t, chain.mixSum);
+        t._liveGain = nodes.gain; t._livePan = nodes.pan;
+        vocalSourceNodes.push({src:src, gain:nodes.gain, pan:nodes.pan, ref:t});
+      });
+      if (beatBuffer){
+        beatSourceNode = makeTimedSource(beatBuffer, 0, null, true);
+        if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
+      }
+      var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
+      if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
+      playStartCtxTime = startAt;
+      playStartOffset = 0;
+      playRegion = null;
+      playLoopWhole = true;
+      isPlaying = true;
+      updatePlayButton();
+      renderTimeline();
+      runVisualizer();
+    } catch(err){
+      try { stopSourceOnly(); } catch(e2){}
+      try { stopBeatSourceOnly(); } catch(e2){}
+      isPlaying = false;
+      updatePlayButton();
+      renderTimeline();
+    }
+  }
+  function stopRecordMonitorLite(){
+    stopSourceOnly();
+    stopBeatSourceOnly();
+    isPlaying = false;
+    updatePlayButton();
+    renderTimeline();
+  }
   function stopRecordMonitor(){
     if (recordMonitorBeatOnly) stopRecordMonitorBeatOnly();
-    else if (recordMonitorOwnsPlayback && isPlaying) stopPlayback();
+    else if (recordMonitorOwnsPlayback && isPlaying) stopRecordMonitorLite();
     recordMonitorOwnsPlayback = false;
   }
 
@@ -9684,43 +9797,85 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
 
   window.gemstarHasAccess = false;
 
-  var GATE_COPY = {
-    export: {
-      t: "Subscribe to Export",
-      d: "You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export."
+  // This whole paywall/billing overlay lives in its own <script> block with
+  // its own closure (separate from the main app's STR/lang/applyLang), so
+  // it was never wired into the site's Spanish translation -- every string
+  // in here showed English even with ES selected. Kept self-contained
+  // (own small EN/ES dictionary, read fresh off window.gemstarLang -- see
+  // applyLang() -- every time any of this text is actually shown) rather
+  // than reaching into the main STR object, so this fix doesn't depend on
+  // or risk touching that object's structure.
+  var GATE_STR = {
+    en: {
+      copy: {
+        export: { t:"Subscribe to Export", d:"You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export." },
+        knob: { t:"Unlock Signature Knobs", d:"M5tar & Jewels signature knobs are part of the Unlimited plan (Mix subscribers from before this changed keep them too). Enter the email you used to subscribe to unlock them." },
+        fullMix: { t:"Unlock Full Song Mix", d:"Full Song Mix — blending your vocal with a beat, mixed and mastered — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it." },
+        stems: { t:"Unlock Stem Export", d:"Stem export (every processed vocal as its own 24-bit WAV, ready for your DAW) is part of the Unlimited plan. Enter the email you used to subscribe to unlock it." },
+        device: { t:"Record Through Your Interface", d:"Choosing your audio interface (or any specific mic) as the recording input is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it. On Starter, Gemstar records from your computer's default input." },
+        autoTrim: { t:"Unlock Clean Silence", d:"Clean Silence (auto-muting the dead air between your phrases) is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it." },
+        aiMix: { t:"Unlock AI Mix", d:"AI Mix — one-tap level, pan and tone balancing across every track (and the beat) — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it." },
+        plan: { t:"Verify Your Plan", d:"Enter the email you used to subscribe so this browser reflects your actual plan." }
+      },
+      sendCode:"Send Code", verifyCode:"Verify Code",
+      backLink:"← Use a different email", resendLink:"Resend code",
+      codeSub:"We sent a 6-digit code to {email} — enter it below to unlock export.",
+      checkingSub:"Checking your subscription…",
+      unlockedExporting:"Unlocked — exporting…", unlockedUnlocking:"Unlocked — unlocking…",
+      emailNotConfigured:"Email delivery isn't set up yet — contact Gemstaraudio@gmail.com.",
+      noSub:"No active subscription found for that email. Double-check it matches your Stripe checkout email, or subscribe below.",
+      genericErrorRetryMoment:"Something went wrong — try again in a moment.",
+      genericErrorRetry:"Something went wrong — try again.",
+      verifying:"Verifying…",
+      incorrectCode:"Incorrect code — try again.",
+      sendingNewCode:"Sending a new code…",
+      openingPortal:"Opening billing portal…",
+      portalError:"Could not open billing portal — try again."
     },
-    knob: {
-      t: "Unlock Signature Knobs",
-      d: "M5tar & Jewels signature knobs are part of the Unlimited plan (Mix subscribers from before this changed keep them too). Enter the email you used to subscribe to unlock them."
-    },
-    fullMix: {
-      t: "Unlock Full Song Mix",
-      d: "Full Song Mix — blending your vocal with a beat, mixed and mastered — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
-    },
-    stems: {
-      t: "Unlock Stem Export",
-      d: "Stem export (every processed vocal as its own 24-bit WAV, ready for your DAW) is part of the Unlimited plan. Enter the email you used to subscribe to unlock it."
-    },
-    device: {
-      t: "Record Through Your Interface",
-      d: "Choosing your audio interface (or any specific mic) as the recording input is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it. On Starter, Gemstar records from your computer's default input."
-    },
-    autoTrim: {
-      t: "Unlock Clean Silence",
-      d: "Clean Silence (auto-muting the dead air between your phrases) is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
-    },
-    aiMix: {
-      t: "Unlock AI Mix",
-      d: "AI Mix — one-tap level, pan and tone balancing across every track (and the beat) — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
-    },
-    plan: {
-      t: "Verify Your Plan",
-      d: "Enter the email you used to subscribe so this browser reflects your actual plan."
+    es: {
+      copy: {
+        export: { t:"Suscríbete Para Exportar", d:"Puedes ajustar y escuchar tu cadena vocal gratis. Ingresa el correo con el que te suscribiste (Starter, Mix o Unlimited) para desbloquear la exportación en MP3." },
+        knob: { t:"Desbloquea las Perillas Exclusivas", d:"Las perillas exclusivas M5tar y Jewels son parte del plan Unlimited (los suscriptores de Mix de antes de este cambio también las conservan). Ingresa el correo con el que te suscribiste para desbloquearlas." },
+        fullMix: { t:"Desbloquea Full Song Mix", d:"Full Song Mix — tu voz mezclada con un beat, mezclado y masterizado — es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        stems: { t:"Desbloquea la Exportación de Stems", d:"La exportación de stems (cada voz procesada como su propio WAV de 24 bits, listo para tu DAW) es parte del plan Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        device: { t:"Graba A Través De Tu Interfaz", d:"Elegir tu interfaz de audio (o cualquier micrófono específico) como entrada de grabación es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo. En Starter, Gemstar graba desde la entrada predeterminada de tu computadora." },
+        autoTrim: { t:"Desbloquea Clean Silence", d:"Clean Silence (silencia automáticamente los espacios muertos entre tus frases) es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        aiMix: { t:"Desbloquea AI Mix", d:"AI Mix — balancea nivel, paneo y tono en cada pista (y el beat) con un solo toque — es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        plan: { t:"Verifica Tu Plan", d:"Ingresa el correo con el que te suscribiste para que este navegador refleje tu plan actual." }
+      },
+      sendCode:"Enviar Código", verifyCode:"Verificar Código",
+      backLink:"← Usar otro correo", resendLink:"Reenviar código",
+      codeSub:"Te enviamos un código de 6 dígitos a {email} — ingrésalo abajo para desbloquear la exportación.",
+      checkingSub:"Verificando tu suscripción…",
+      unlockedExporting:"Desbloqueado — exportando…", unlockedUnlocking:"Desbloqueado — desbloqueando…",
+      emailNotConfigured:"El envío de correos aún no está configurado — contacta a Gemstaraudio@gmail.com.",
+      noSub:"No encontramos una suscripción activa con ese correo. Verifica que coincida con el correo que usaste en Stripe, o suscríbete abajo.",
+      genericErrorRetryMoment:"Algo salió mal — intenta de nuevo en un momento.",
+      genericErrorRetry:"Algo salió mal — intenta de nuevo.",
+      verifying:"Verificando…",
+      incorrectCode:"Código incorrecto — intenta de nuevo.",
+      sendingNewCode:"Enviando un nuevo código…",
+      openingPortal:"Abriendo el portal de facturación…",
+      portalError:"No se pudo abrir el portal de facturación — intenta de nuevo."
     }
   };
+  // Read fresh every time instead of cached once -- the gate overlay only
+  // ever becomes visible on demand (hitting a paywalled feature, or Manage
+  // Subscription), so there's no need to listen for language-switch events;
+  // whatever window.gemstarLang is AT THAT MOMENT is simply correct.
+  function T(){ return GATE_STR[window.gemstarLang === "es" ? "es" : "en"]; }
+
+  function applyGateStaticStrings(){
+    if (submitBtn) submitBtn.textContent = T().sendCode;
+    if (codeSubmitBtn) codeSubmitBtn.textContent = T().verifyCode;
+    if (backLink) backLink.textContent = T().backLink;
+    if (resendLink) resendLink.textContent = T().resendLink;
+  }
+
+  var GATE_COPY_FALLBACK = "export";
   function applyGateCopy(reason){
     var key = (reason && reason.indexOf("knob:") === 0) ? "knob" : reason;
-    var c = GATE_COPY[key] || GATE_COPY.export;
+    var c = T().copy[key] || T().copy[GATE_COPY_FALLBACK];
     if (gateTitleEl) gateTitleEl.textContent = c.t;
     if (gateDescEl) gateDescEl.textContent = c.d;
   }
@@ -9729,6 +9884,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   function hideGate(){ overlay.classList.remove("show"); }
   window.gemstarShowGate = function(reason){
     pendingAction = reason || "export";
+    applyGateStaticStrings();
     applyGateCopy(pendingAction);
     showGate();
   };
@@ -9750,7 +9906,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   function showCodeStep(){
     stepEmail.hidden = true;
     stepCode.hidden = false;
-    codeSub.textContent = "We sent a 6-digit code to " + currentEmail + " — enter it below to unlock export.";
+    codeSub.textContent = T().codeSub.replace("{email}", currentEmail);
     codeInput.value = "";
     setStatus("");
     setTimeout(function(){ codeInput.focus(); }, 50);
@@ -9799,7 +9955,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
       if(btnEl) btnEl.disabled = false;
       if(data && data.access && data.token){
         // Allowlisted founders skip the code step entirely.
-        statusEl("Unlocked — " + (pendingAction === "export" ? "exporting" : "unlocking") + "…", "ok");
+        statusEl(pendingAction === "export" ? T().unlockedExporting : T().unlockedUnlocking, "ok");
         unlockWithToken(data.token, data.tier);
       } else if(data && data.ok && data.challenge){
         currentChallenge = data.challenge;
@@ -9807,12 +9963,12 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
         showCodeStep();
       } else {
         statusEl(data && data.error === "Email delivery not configured"
-          ? "Email delivery isn't set up yet — contact Gemstaraudio@gmail.com."
-          : "No active subscription found for that email. Double-check it matches your Stripe checkout email, or subscribe below.", "err");
+          ? T().emailNotConfigured
+          : T().noSub, "err");
       }
     }).catch(function(){
       if(btnEl) btnEl.disabled = false;
-      statusEl("Something went wrong — try again in a moment.", "err");
+      statusEl(T().genericErrorRetryMoment, "err");
     });
   }
 
@@ -9821,7 +9977,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     var email = emailInput.value.trim();
     if(!email) return;
     submitBtn.disabled = true;
-    setStatus("Checking your subscription…");
+    setStatus(T().checkingSub);
     requestCode(email, setStatus, submitBtn);
   });
 
@@ -9830,21 +9986,21 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     var code = codeInput.value.trim();
     if(!code || !currentChallenge) return;
     codeSubmitBtn.disabled = true;
-    setCodeStatus("Verifying…");
+    setCodeStatus(T().verifying);
     fetch("/api/verify-code", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ challenge: currentChallenge, code: code, deviceId: getDeviceId() })
     }).then(function(r){ return r.json(); }).then(function(data){
       codeSubmitBtn.disabled = false;
       if(data && data.access && data.token){
-        setCodeStatus("Unlocked — " + (pendingAction === "export" ? "exporting" : "unlocking") + "…", "ok");
+        setCodeStatus(pendingAction === "export" ? T().unlockedExporting : T().unlockedUnlocking, "ok");
         unlockWithToken(data.token, data.tier, data.legacyKnobs);
       } else {
-        setCodeStatus((data && data.error) || "Incorrect code — try again.", "err");
+        setCodeStatus((data && data.error) || T().incorrectCode, "err");
       }
     }).catch(function(){
       codeSubmitBtn.disabled = false;
-      setCodeStatus("Something went wrong — try again in a moment.", "err");
+      setCodeStatus(T().genericErrorRetryMoment, "err");
     });
   });
 
@@ -9857,7 +10013,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   resendLink.addEventListener("click", function(e){
     e.preventDefault();
     if(!currentEmail) return;
-    setCodeStatus("Sending a new code…");
+    setCodeStatus(T().sendingNewCode);
     requestCode(currentEmail, setCodeStatus, null);
   });
 
@@ -9873,7 +10029,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
       var saved; try{ saved = localStorage.getItem(STORE_KEY); }catch(err){ saved = null; }
       if (!saved){ window.gemstarShowGate("plan"); return; }
       manageSubLink.dataset.busy = "1";
-      manageSubLink.textContent = "Opening billing portal…";
+      manageSubLink.textContent = T().openingPortal;
       fetch("/api/verify-token", {
         method:"POST", headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ token: saved, deviceId: getDeviceId(), action: "portal" })
@@ -9882,17 +10038,18 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
         if (data && data.ok && data.url){
           window.location.href = data.url;
         } else {
-          manageSubLink.textContent = (data && data.error) || "Could not open billing portal — try again.";
+          manageSubLink.textContent = (data && data.error) || T().portalError;
           setTimeout(function(){ manageSubLink.textContent = original; }, 4000);
         }
       }).catch(function(){
         manageSubLink.dataset.busy = "";
-        manageSubLink.textContent = "Something went wrong — try again.";
+        manageSubLink.textContent = T().genericErrorRetry;
         setTimeout(function(){ manageSubLink.textContent = original; }, 4000);
       });
     });
   }
 
+  applyGateStaticStrings();
   showEmailStep();
   verifyStoredToken();
 })();
