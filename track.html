@@ -61,6 +61,23 @@
   .note.ok{color:var(--ok)} .note.bad{color:var(--danger)}
   .hidden{display:none}
   a.link{color:var(--cyan)}
+
+  /* Stacked waveforms: beat + every layer, always visible regardless of
+     status, aligned on one shared, zoomable timeline. */
+  .wf-row{margin-bottom:14px}
+  .wf-row-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:.82rem;color:var(--ink-muted);flex-wrap:wrap}
+  .wf-row-head strong{color:var(--ink);font-weight:700}
+  .wf-label-input{width:auto;min-width:110px;max-width:170px;padding:4px 8px;font-size:.82rem;font-weight:700;
+    border-radius:6px;border:1px solid var(--line-strong);background:#0d0d16;color:var(--ink);font-family:var(--font-body)}
+  .wf-scroll{overflow-x:auto;padding-bottom:4px}
+  .wf-canvas-wrap{position:relative;height:56px}
+  .wf-canvas-wrap canvas{display:block;border-radius:8px;background:#0d0d16;border:1px solid var(--line)}
+  .wf-canvas-wrap.is-muted canvas{opacity:.4}
+  .wf-trim{position:absolute;top:1px;bottom:1px;background:rgba(10,10,18,.78);pointer-events:none}
+  .wf-handle{position:absolute;top:0;bottom:0;width:14px;margin-left:-7px;cursor:ew-resize;touch-action:none}
+  .wf-handle::after{content:"";position:absolute;top:50%;left:50%;width:3px;height:22px;background:var(--cyan);
+    border-radius:2px;transform:translate(-50%,-50%)}
+  .wf-loading{font-size:.76rem;color:var(--ink-muted);padding:18px 10px}
 </style>
 </head>
 <body>
@@ -132,6 +149,16 @@
       </div>
       <button class="cta" id="t-dl" type="button" style="margin-top:12px">Download mix (WAV)</button>
       <p class="note" id="t-note" role="status"></p>
+    </div>
+
+    <div class="card">
+      <h2>Waveforms</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" id="w-zoom-out" type="button">− Zoom out</button>
+        <button class="btn" id="w-zoom-in" type="button">+ Zoom in</button>
+      </div>
+      <div class="wf-scroll"><div id="waveforms"></div></div>
+      <p class="sm">Every layer shows here no matter its status. Drag a vocal's left/right edge to trim it.</p>
     </div>
 
     <div class="card">
@@ -239,6 +266,7 @@
   var ctx = null;
   var S = { trackId: null, title: "Mix", baseUrl: null, baseBuf: null, layers: [] };
   var mixVol = { beat: 1, voc: 1 };
+  var ZOOM = 60, ZOOM_MIN = 15, ZOOM_MAX = 240;    // pixels per second, stacked waveform view
   var polish = "light";                                  // vocal polish for guest layers: off | light | full
   var PB = { state: "stopped", nodes: [], masters: null, layers: null, pos: 0, dur: 0, startCtx: 0, pos0: 0, timer: null };
 
@@ -260,15 +288,24 @@
   }
   function prepare(layers) { return ensureBase().then(function () { return Promise.all(layers.map(ensureLayer)); }); }
 
+  // Each vocal item also carries trimStart/trimDur (seconds into its own
+  // buffer to start/stop at) -- defaults to the whole buffer when the
+  // layer has no cuts, so untouched layers behave exactly as before.
   function itemsFor(layers) {
-    var items = [{ buffer: S.baseBuf, gain: 1, rel: 0, kind: "beat" }];
-    layers.forEach(function (l) { if (l.buffer) items.push({ buffer: l.buffer, gain: l.volume, rel: l.offsetMs / 1000, kind: "voc" }); });
+    var items = [{ buffer: S.baseBuf, gain: 1, rel: 0, kind: "beat", trimStart: 0, trimDur: S.baseBuf ? S.baseBuf.duration : 0 }];
+    layers.forEach(function (l) {
+      if (!l.buffer) return;
+      var full = l.buffer.duration;
+      var ts = Math.max(0, Math.min((l.trimStartMs || 0) / 1000, full));
+      var te = (l.trimEndMs == null) ? full : Math.max(ts, Math.min(l.trimEndMs / 1000, full));
+      items.push({ buffer: l.buffer, gain: l.volume, rel: l.offsetMs / 1000, kind: "voc", trimStart: ts, trimDur: Math.max(0, te - ts) });
+    });
     return items;
   }
   function timeline(items) {
     var minRel = 0, end = 0;
     items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
-    items.forEach(function (i) { var e = i.rel - minRel + i.buffer.duration; if (e > end) end = e; });
+    items.forEach(function (i) { var e = i.rel - minRel + i.trimDur; if (e > end) end = e; });
     return { minRel: minRel, end: end };
   }
   // Starts every item at the right moment, as if the song were already `fromPos` seconds in.
@@ -280,16 +317,131 @@
     var pol = (window.GemstarPolish && polish !== "off") ? window.GemstarPolish.create(c, polish, vocM) : null;
     items.forEach(function (i) {
       var at = i.rel - tl.minRel;
-      if (at + i.buffer.duration <= fromPos) return;           // already finished before this point
+      if (at + i.trimDur <= fromPos) return;           // already finished before this point
       var s = c.createBufferSource(); s.buffer = i.buffer;
       var g = c.createGain(); g.gain.value = i.gain;
       s.connect(g); g.connect(i.kind === "beat" ? beatM : (pol ? pol.channel() : vocM));
-      if (at >= fromPos) s.start(startBase + (at - fromPos)); else s.start(startBase, fromPos - at);
+      if (at >= fromPos) s.start(startBase + (at - fromPos), i.trimStart, i.trimDur);
+      else s.start(startBase, i.trimStart + (fromPos - at), i.trimDur - (fromPos - at));
       nodes.push(s);
     });
     return { nodes: nodes, end: tl.end, masters: { beat: beatM, voc: vocM } };
   }
   function accepted() { return S.layers.filter(function (l) { return l.status === "accepted"; }); }
+
+  // ---- Waveforms (beat + every layer, stacked, zoomable, trimmable) -------
+  // Shows every non-removed layer's waveform at all times, whatever its
+  // status (pending/accepted/muted) -- so there's always something to see,
+  // instead of a layer only "existing" visually once it's accepted. All
+  // rows share one timeline (seconds -> pixels) so they line up vertically,
+  // the same way offsetMs lines them up for playback.
+  function ensureAllBuffers() {
+    ensureBase().then(renderWaveforms).catch(function () {});
+    S.layers.forEach(function (l) { ensureLayer(l).then(renderWaveforms); });
+    renderWaveforms();
+  }
+  function waveTimeline() {
+    var items = [{ dur: S.baseBuf ? S.baseBuf.duration : 0, rel: 0 }];
+    S.layers.forEach(function (l) { if (l.buffer) items.push({ dur: l.buffer.duration, rel: l.offsetMs / 1000 }); });
+    var minRel = 0, end = 0;
+    items.forEach(function (i) { if (i.rel < minRel) minRel = i.rel; });
+    items.forEach(function (i) { var e = i.rel - minRel + i.dur; if (e > end) end = e; });
+    return { minRel: minRel, end: Math.max(1, end) };
+  }
+  function drawWave(canvas, buffer, color, offsetPx) {
+    var cx = canvas.getContext("2d"), h = canvas.height;
+    var data = buffer.getChannelData(0);
+    var drawW = Math.max(1, Math.round(buffer.duration * ZOOM));
+    var step = Math.max(1, Math.floor(data.length / drawW));
+    var mid = h / 2;
+    cx.strokeStyle = color; cx.lineWidth = 1; cx.beginPath();
+    for (var x = 0; x < drawW; x++) {
+      var start = x * step, end = Math.min(data.length, start + step), mn = 1, mx = -1;
+      for (var i = start; i < end; i++) { var v = data[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+      if (mn > mx) { mn = 0; mx = 0; }
+      var y1 = mid - mx * mid * 0.92, y2 = mid - mn * mid * 0.92;
+      cx.moveTo(offsetPx + x + 0.5, y1); cx.lineTo(offsetPx + x + 0.5, y2);
+    }
+    cx.stroke();
+    return drawW;
+  }
+  // Draggable start/end "cut" handles over a vocal layer's own footprint
+  // within the shared canvas. Dragging only redraws locally; the trimmed
+  // range is saved (and applied to playback) once you let go.
+  function attachTrimHandles(wrap, l, offsetPx, drawW) {
+    var full = l.buffer.duration;
+    function clampMs(ms) { return Math.max(0, Math.min(ms, Math.round(full * 1000))); }
+    function tsPx() { return offsetPx + (clampMs(l.trimStartMs || 0) / 1000) * ZOOM; }
+    function tePx() { var te = (l.trimEndMs == null) ? full * 1000 : l.trimEndMs; return offsetPx + (clampMs(te) / 1000) * ZOOM; }
+    var lo = el("div", "wf-trim"), ro = el("div", "wf-trim");
+    var lh = el("div", "wf-handle"), rh = el("div", "wf-handle");
+    wrap.appendChild(lo); wrap.appendChild(ro); wrap.appendChild(lh); wrap.appendChild(rh);
+    function layout() {
+      var a = tsPx(), b = tePx();
+      lo.style.left = offsetPx + "px"; lo.style.width = Math.max(0, a - offsetPx) + "px";
+      ro.style.left = b + "px"; ro.style.width = Math.max(0, (offsetPx + drawW) - b) + "px";
+      lh.style.left = a + "px"; rh.style.left = b + "px";
+    }
+    layout();
+    function wire(handleEl, isLeft) {
+      handleEl.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        try { handleEl.setPointerCapture(e.pointerId); } catch (e2) {}
+        var wrapRect = wrap.getBoundingClientRect();
+        function onMove(ev) {
+          var x = ev.clientX - wrapRect.left;
+          var ms = clampMs(Math.round(((x - offsetPx) / ZOOM) * 1000));
+          if (isLeft) {
+            var curEndMs = (l.trimEndMs == null) ? Math.round(full * 1000) : l.trimEndMs;
+            l.trimStartMs = Math.max(0, Math.min(ms, curEndMs - 50));
+          } else {
+            var curStartMs = l.trimStartMs || 0;
+            var newEnd = Math.max(ms, curStartMs + 50);
+            l.trimEndMs = (newEnd >= Math.round(full * 1000) - 20) ? null : newEnd;
+          }
+          layout();
+        }
+        function onUp() {
+          handleEl.removeEventListener("pointermove", onMove);
+          handleEl.removeEventListener("pointerup", onUp);
+          patchLayer(l, { trimStartMs: l.trimStartMs || 0, trimEndMs: l.trimEndMs }, "Trim updated.");
+        }
+        handleEl.addEventListener("pointermove", onMove);
+        handleEl.addEventListener("pointerup", onUp);
+      });
+    }
+    wire(lh, true); wire(rh, false);
+  }
+  function renderWaveforms() {
+    var box = $("waveforms"); if (!box) return;
+    box.textContent = "";
+    var tl = waveTimeline();
+    var rowWidthPx = Math.max(300, Math.ceil(tl.end * ZOOM));
+    function addRow(labelText, buffer, isMuted, relSec, layerRef) {
+      var row = el("div", "wf-row");
+      var head = el("div", "wf-row-head");
+      head.appendChild(el("strong", null, labelText));
+      row.appendChild(head);
+      var wrap = el("div", "wf-canvas-wrap" + (isMuted ? " is-muted" : ""));
+      if (!buffer) {
+        wrap.appendChild(el("div", "wf-loading", "Loading waveform\u2026"));
+      } else {
+        var canvas = document.createElement("canvas");
+        canvas.width = rowWidthPx; canvas.height = 56;
+        canvas.style.width = rowWidthPx + "px"; canvas.style.height = "56px";
+        wrap.appendChild(canvas);
+        var offsetPx = Math.round(((relSec || 0) - tl.minRel) * ZOOM);
+        var drawW = drawWave(canvas, buffer, layerRef ? "#00F5FF" : "#FF2E88", offsetPx);
+        if (layerRef) attachTrimHandles(wrap, layerRef, offsetPx, drawW);
+      }
+      row.appendChild(wrap);
+      box.appendChild(row);
+    }
+    addRow("Beat", S.baseBuf, false, 0, null);
+    S.layers.forEach(function (l) { addRow(l.label, l.buffer || null, l.status === "muted", l.offsetMs / 1000, l); });
+  }
+  if ($("w-zoom-out")) $("w-zoom-out").addEventListener("click", function () { ZOOM = Math.max(ZOOM_MIN, Math.round(ZOOM * 0.75)); renderWaveforms(); });
+  if ($("w-zoom-in")) $("w-zoom-in").addEventListener("click", function () { ZOOM = Math.min(ZOOM_MAX, Math.round(ZOOM * 1.33)); renderWaveforms(); });
 
   function fmt(t) { t = Math.max(0, Math.floor(t)); return Math.floor(t / 60) + ":" + (t % 60 < 10 ? "0" : "") + (t % 60); }
   function curPos() { return PB.state === "playing" ? PB.pos0 + (ctx.currentTime - PB.startCtx) : PB.pos; }
@@ -423,13 +575,17 @@
 
   // ---- Layers --------------------------------------------------------------
   function patchLayer(l, payload, okMsg) {
-    return api("update-layer", Object.assign({ layerId: l.id }, payload)).then(function (res) {
+    return api("layer", Object.assign({ action: "update", layerId: l.id }, payload)).then(function (res) {
       if (!res.ok) throw new Error(res.d.error || "Could not update the layer.");
       var u = res.d.layer; l.status = u.status; l.volume = u.volume; l.offsetMs = u.offsetMs;
+      if (u.label !== undefined) l.label = u.label;
+      if (u.trimStartMs !== undefined) l.trimStartMs = u.trimStartMs;
+      if (u.trimEndMs !== undefined) l.trimEndMs = u.trimEndMs;
       if (u.status === "removed") S.layers = S.layers.filter(function (x) { return x.id !== l.id; });
       if (okMsg) say("t-note", okMsg, "ok");
       if (PB.state === "stopped") refreshDuration();
       renderLayers();
+      renderWaveforms();
     }).catch(function (e) { say("t-note", e.message || "Something went wrong.", "bad"); });
   }
   function renderLayers() {
@@ -438,7 +594,14 @@
     S.layers.forEach(function (l) {
       var row = el("div", "layer");
       var head = el("div", "row");
-      var name = el("strong", null, l.label); name.appendChild(el("span", "badge " + l.status, l.status));
+      var name = el("span", null, null);
+      var labelInput = document.createElement("input");
+      labelInput.type = "text"; labelInput.maxLength = 40; labelInput.className = "wf-label-input";
+      labelInput.value = l.label || ""; labelInput.placeholder = "Label (lead, ad lib...)";
+      labelInput.setAttribute("aria-label", "Label for this layer");
+      labelInput.addEventListener("change", function () { patchLayer(l, { label: labelInput.value.trim() }, "Label updated."); });
+      name.appendChild(labelInput);
+      name.appendChild(el("span", "badge " + l.status, l.status));
       head.appendChild(name); row.appendChild(head);
       if (l.err) { row.appendChild(el("p", "sm", l.err)); }
 
@@ -446,8 +609,14 @@
       var pv = el("button", "btn", "▶ Hear with track"); pv.type = "button";
       pv.addEventListener("click", function () { say("t-note", ""); playFrom([l], 0); });
       acts.appendChild(pv);
-      if (l.status !== "accepted") { var ac = el("button", "btn ok", "Accept"); ac.type = "button"; ac.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer accepted."); }); acts.appendChild(ac); }
-      if (l.status === "accepted") { var mu = el("button", "btn", "Mute"); mu.type = "button"; mu.addEventListener("click", function () { patchLayer(l, { status: "muted" }); }); acts.appendChild(mu); }
+      // Mute/Unmute is a real toggle now -- muting a layer used to make its
+      // only action button vanish (replaced by "Accept", with no "Unmute"
+      // anywhere), which read as the track breaking/disappearing rather than
+      // a deliberate, reversible mute. Each status now always shows exactly
+      // one clearly-labeled action button, scoped to this one layer only.
+      if (l.status === "pending") { var ac = el("button", "btn ok", "Accept"); ac.type = "button"; ac.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer accepted."); }); acts.appendChild(ac); }
+      if (l.status === "accepted") { var mu = el("button", "btn", "Mute"); mu.type = "button"; mu.addEventListener("click", function () { patchLayer(l, { status: "muted" }, "Layer muted."); }); acts.appendChild(mu); }
+      if (l.status === "muted") { var um = el("button", "btn ok", "Unmute"); um.type = "button"; um.addEventListener("click", function () { patchLayer(l, { status: "accepted" }, "Layer unmuted."); }); acts.appendChild(um); }
       var rm = el("button", "btn bad", "Remove"); rm.type = "button";
       rm.addEventListener("click", function () { if (confirm("Remove this layer? This deletes the recording.")) patchLayer(l, { status: "removed" }, "Layer removed."); });
       acts.appendChild(rm);
@@ -474,7 +643,7 @@
   // ---- Invite --------------------------------------------------------------
   $("i-make").addEventListener("click", function () {
     $("i-make").disabled = true; say("i-note", "Creating link…");
-    api("create-invite", { trackId: S.trackId }).then(function (res) {
+    api("invite", { action: "create", trackId: S.trackId }).then(function (res) {
       if (!res.ok) throw new Error(res.d.error || "Could not create the invite.");
       $("i-link").value = res.d.link; $("i-box").classList.remove("hidden");
       $("i-exp").textContent = "Expires " + new Date(res.d.expiresAt).toLocaleDateString() + ". " + res.d.spotsLeft + " spot" + (res.d.spotsLeft === 1 ? "" : "s") + " left.";
@@ -500,7 +669,7 @@
       if (!res.ok) throw new Error(res.d.error);
       var d = res.d;
       S.trackId = d.track.id; S.title = d.track.title; S.baseUrl = d.baseUrl;
-      S.layers = d.layers.map(function (l) { return { id: l.id, label: l.label, status: l.status, offsetMs: l.offsetMs, volume: l.volume, url: l.url }; });
+      S.layers = d.layers.map(function (l) { return { id: l.id, label: l.label, status: l.status, offsetMs: l.offsetMs, volume: l.volume, url: l.url, trimStartMs: l.trimStartMs || 0, trimEndMs: (l.trimEndMs === undefined ? null : l.trimEndMs) }; });
       $("t-title").textContent = d.track.title || "Untitled track";
       $("t-meta").textContent = d.track.bpm ? Math.round(d.track.bpm) + " BPM" : "";
       $("t-spots").textContent = d.spotsLeft > 0 ? d.spotsLeft + " collaborator spot" + (d.spotsLeft === 1 ? "" : "s") + " open." : "All collaborator spots are filled.";
@@ -508,7 +677,7 @@
       $("back").classList.remove("hidden");
       try { var pv = localStorage.getItem(polKey()); if (pv === "off" || pv === "light" || pv === "full") { polish = pv; $("v-polish").value = pv; } } catch (e) {}
       try { var sv = JSON.parse(localStorage.getItem(volKey()) || "null"); if (sv) { mixVol.beat = Math.min(1.5, Math.max(0, +sv.beat)); mixVol.voc = Math.min(1.5, Math.max(0, +sv.voc)); } } catch (e) {}
-      applyVolUI(); renderLayers(); show("v-track"); refreshDuration();
+      applyVolUI(); renderLayers(); show("v-track"); refreshDuration(); ensureAllBuffers();
     });
   }
 

@@ -32,6 +32,11 @@
   var MINOR = [5.0, 2.0, 3.5, 4.5, 2.0, 4.0, 2.0, 4.5, 3.5, 2.0, 1.5, 4.0];
 
   var MIN_HZ = 60, MAX_HZ = 4000, PEAKS_PER_FRAME = 24, DEFAULT_FRAMES = 64, FRAMES_PER_SLICE = 4;
+  // Spectral-flatness gate that keeps key detection on instrumentation
+  // (bass/chords/melody) and off drums: a frame flatter (noisier) than
+  // PERC_FLATNESS is treated as percussive and dropped, unless doing so
+  // would leave fewer than MIN_TONAL_FRAMES frames to work with.
+  var PERC_FLATNESS = 0.32, MIN_TONAL_FRAMES = 6;
 
   var fftCache = {};
   function getFFT(n) {
@@ -148,6 +153,21 @@
           var maxM = 0, k;
           for (k = kmin - 1; k <= kmax + 1; k++) { mag[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]); if (mag[k] > maxM) maxM = mag[k]; }
           if (maxM <= 0) return;
+
+          // Spectral flatness over the analysis band (geometric vs
+          // arithmetic mean of power): near 0 means the energy here is
+          // concentrated in a few tonal peaks -- a bass, chord, pad or
+          // melody line; near 1 means it's spread flat/broadband, the
+          // signature of a kick, snare, hat or clap. Frames that read as
+          // percussive are dropped below so only instrumentation -- never
+          // the drums -- shapes the key guess.
+          var logSum = 0, linSum = 0, bandN = 0;
+          for (k = kmin; k <= kmax; k++) {
+            var pw = mag[k] * mag[k] + 1e-12;
+            logSum += Math.log(pw); linSum += pw; bandN++;
+          }
+          var flatness = bandN > 0 ? Math.exp(logSum / bandN) / (linSum / bandN) : 1;
+
           var thr = maxM * 0.03, cand = [];
           for (k = kmin; k <= kmax; k++) {
             if (mag[k] > thr && mag[k] > mag[k - 1] && mag[k] >= mag[k + 1]) cand.push(k);
@@ -164,15 +184,22 @@
             // Fundamentals matter more than high overtones.
             peaks.push({ hz: hz, w: Math.sqrt(mag[k] / maxM) / (1 + hz / 1500) });
           }
-          if (peaks.length) framePeaks.push(peaks);
+          if (peaks.length) framePeaks.push({ peaks: peaks, flatness: flatness });
         }
 
         function finish() {
           if (!framePeaks.length) { resolve(null); return; }
+          // Prefer instrumentation-only frames (tonal per the flatness gate
+          // above). Falls back to every frame with peaks when too few
+          // survive, so a stretch that's nearly all drums still gets a
+          // best-effort guess instead of silently giving up.
+          var tonalFrames = framePeaks.filter(function (fr) { return fr.flatness < PERC_FLATNESS; });
+          var useFrames = tonalFrames.length >= MIN_TONAL_FRAMES ? tonalFrames : framePeaks;
+
           // Tuning offset from the A=440 grid, as a circular mean (period = 1 semitone).
           var sx = 0, sy = 0, sw = 0, f, p, peaks;
-          for (f = 0; f < framePeaks.length; f++) {
-            peaks = framePeaks[f];
+          for (f = 0; f < useFrames.length; f++) {
+            peaks = useFrames[f].peaks;
             for (p = 0; p < peaks.length; p++) {
               if (peaks[p].hz < 150) continue;               // low bins are too coarse to judge tuning
               var m = 69 + 12 * Math.log(peaks[p].hz / 440) / Math.LN2, dev = m - Math.round(m);
@@ -184,8 +211,8 @@
 
           var chroma = new Array(12), q;
           for (q = 0; q < 12; q++) chroma[q] = 0;
-          for (f = 0; f < framePeaks.length; f++) {
-            peaks = framePeaks[f];
+          for (f = 0; f < useFrames.length; f++) {
+            peaks = useFrames[f].peaks;
             var fc = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], tot = 0;
             for (p = 0; p < peaks.length; p++) {
               var mm = 69 + 12 * Math.log(peaks[p].hz / 440) / Math.LN2 - tuning;

@@ -226,6 +226,30 @@
   }
   #undo-toast-btn:hover{opacity:0.88;}
 
+  /* "Need help?" idle nudge -- a small, dismissible corner prompt (never a
+     blocking modal) that points back at the existing Need Help guide after
+     a stretch of no interaction. Bottom-right so it never collides with the
+     undo toast or mini transport, which both sit bottom-center. */
+  #help-nudge{
+    display:none; align-items:center; gap:10px;
+    position:fixed; right:16px; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); z-index:510;
+    max-width:min(88vw, 300px); padding:12px 14px; border-radius:12px;
+    background:var(--bg-panel); border:1px solid var(--cyan); box-shadow:0 12px 34px rgba(0,0,0,0.45);
+    font-size:0.8rem; color:var(--ink);
+  }
+  #help-nudge.show{display:flex;}
+  #help-nudge-text{color:var(--ink-muted); flex:1;}
+  #help-nudge-btn{
+    background:var(--cyan); border:1px solid var(--cyan); color:#050508; font-weight:700;
+    border-radius:999px; padding:6px 13px; font-size:0.76rem; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  #help-nudge-btn:hover{opacity:0.88;}
+  #help-nudge-close{
+    background:none; border:none; color:var(--ink-muted); font-size:1rem; line-height:1;
+    cursor:pointer; padding:2px 2px; flex-shrink:0;
+  }
+  #help-nudge-close:hover{color:var(--ink);}
+
   /* "My Projects" -- named, reopenable saves (separate from the single
      automatic "current session" backup used by Save Project above). */
   .projects-overlay{
@@ -507,6 +531,12 @@
      so it reads as a one-way action without needing extra copy. */
   .icon-btn.btn-danger{border-color:rgba(255,92,122,0.4); color:var(--danger);}
   .icon-btn.btn-danger:hover{border-color:var(--danger); background:rgba(255,92,122,0.1);}
+  /* "Keep stacking vocals" CTAs (Add Vocal Track / Record Vocal Track) --
+     given the same signature magenta as the record-dot elsewhere, so the
+     next obvious action after dropping or recording a take visibly pops
+     instead of blending in with every other small outline button. */
+  #btn-add-vocal, #btn-record-add-vocal{border-color:var(--gem); color:var(--gem); background:rgba(255,46,136,0.12);}
+  #btn-add-vocal:hover, #btn-record-add-vocal:hover{background:rgba(255,46,136,0.22);}
   /* Live-recording row: sits right under the beat row while the mic is
      capturing, drawn by the active recorder's meter loop -- same pulse
      animation/color language as the record-dot elsewhere in Gemstar (its
@@ -643,6 +673,7 @@
   .vocal-track-label{display:flex; align-items:center; gap:8px; min-width:0; flex:0 1 auto;}
   .vocal-track-name{font-size:0.84rem; font-weight:700; color:#fff; overflow-wrap:anywhere;}
   .lead-badge{font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase; color:#050508; background:var(--yellow); padding:3px 8px; border-radius:10px; font-weight:700; white-space:nowrap;}
+  .vocal-track-order{font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-muted); background:var(--bg-panel-2); border:1px solid var(--line); padding:3px 8px; border-radius:10px; font-weight:700; white-space:nowrap;}
   .btn-make-lead{white-space:nowrap;}
   .vocal-track-row{flex-wrap:wrap;}
   .vocal-track-row .btn-edit-fx.active{border-color:var(--yellow); color:var(--yellow);}
@@ -711,12 +742,23 @@
   }
   .vocal-mixer .controls-heading{ text-align:left; margin:0; }
   .ai-mix-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .ai-mix-actions{display:flex; align-items:center; gap:8px; flex-shrink:0;}
   .icon-btn.btn-ai-mix{
     background:linear-gradient(90deg, var(--cyan), var(--gem)); border:none; color:#050508; font-weight:700;
     flex-shrink:0;
   }
   .icon-btn.btn-ai-mix:hover{opacity:0.88; color:#050508;}
   .icon-btn.btn-ai-mix:disabled{background:var(--bg-panel-2); color:var(--ink-dim); opacity:0.6; cursor:not-allowed;}
+  /* Inline AI Mix undo -- replaces the old floating bottom toast for this
+     one action specifically (the shared #undo-toast stays as-is for track
+     remove/re-record, which still benefit from a toast since those buttons
+     aren't always still on screen when they fire). Same gem-colored pill
+     language as #undo-toast-btn so it still reads as "the undo control",
+     just anchored right next to the button that created the thing to undo. */
+  #btn-ai-mix-undo{
+    background:var(--gem); border:1px solid var(--gem); color:#050508; font-weight:700; border-radius:999px;
+  }
+  #btn-ai-mix-undo:hover{opacity:0.88; color:#050508;}
   .ai-mix-hint{margin-top:-4px;}
   .extra-vocal-row input[type=range]{ flex:1 1 auto; max-width:220px; accent-color:var(--gem); cursor:pointer; }
   .btn-remove-vocal{ padding:6px 10px !important; }
@@ -952,6 +994,7 @@
   .tier-name{font-family:var(--font-display); font-size:0.95rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink); margin:0;}
   .tier-sub{font-size:0.76rem; color:var(--ink-dim); margin:4px 0 2px; line-height:1.4;}
   .tier-pitch{font-size:0.78rem; color:var(--gem); font-weight:600; margin:2px 0 0; line-height:1.4;}
+  .tier-discount{font-size:0.72rem; color:var(--cyan); font-weight:600; margin:2px 0 0; line-height:1.3;}
   .tier .price{font-family:var(--font-display); font-size:2rem; color:var(--cyan); font-variant-numeric:tabular-nums;}
   .tier .price small{font-family:var(--font-body); font-size:0.8rem; color:var(--ink-dim); font-weight:400;}
   .tier ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px;}
@@ -1051,6 +1094,37 @@
   .gate-status.ok{color:var(--ok);}
   .gate-card .gate-sub-link{display:inline-block; margin-top:4px; margin-inline:6px; font-size:0.78rem; color:var(--cyan); text-decoration:none;}
   .gate-card input#gate-code{letter-spacing:0.3em; text-align:center; font-size:1.1rem; font-family:var(--font-display);}
+/* ---- Guided Steps: recording-flow reorder (visual order only, DOM unchanged) ---- */
+  .transport > #beat-drop{ order:10; }
+  .transport > #beat-drop::before{
+    content:"STEP 1 · DROP YOUR BEAT";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:10px; text-align:left;
+  }
+  .transport > #player-block{
+    order:20; border:1px solid var(--line); border-radius:12px; padding:14px 16px 16px;
+    background:var(--bg-panel-2);
+  }
+  .transport > #player-block::before{
+    content:"STEP 2 · CHECK THE VIBE";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:10px;
+  }
+  .transport > #input-mode-row{ order:30; margin-top:4px; }
+  .transport > #input-mode-row::before{
+    content:"STEP 3 · HIT RECORD";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:10px;
+  }
+  .transport > #dropzone{ order:31; }
+  .transport > #record-panel{ order:31; }
+  .transport > #vocal-mixer{ order:40; margin-top:4px; }
+  .transport > #vocal-mixer::before{
+    content:"STEP 4 · MIX IT IN";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:2px;
+  }
+  .transport > #beat-block{ order:50; }
 </style>
 
 <div class="wrap">
@@ -1145,6 +1219,12 @@
     <button type="button" id="undo-toast-btn" data-i18n="undoToastBtn">Undo</button>
   </div>
 
+  <div id="help-nudge" role="status" aria-live="polite">
+    <span id="help-nudge-text" data-i18n="helpNudgeText">Stuck on something? Tap Need Help for a quick guide.</span>
+    <button type="button" id="help-nudge-btn" data-i18n="helpNudgeBtn">Need Help?</button>
+    <button type="button" id="help-nudge-close" data-i18n-aria="helpNudgeCloseAria" aria-label="Dismiss">✕</button>
+  </div>
+
   <div id="projects-overlay" class="projects-overlay" hidden>
     <div class="projects-card">
       <button type="button" class="projects-close" id="projects-close" data-i18n-aria="projectsCloseAria" aria-label="Close">✕</button>
@@ -1152,6 +1232,10 @@
       <p class="projects-sub" data-i18n="projectsSub">Named saves you can come back to and reopen, separate from the automatic "current session" backup.</p>
       <div id="projects-list" class="projects-list"></div>
       <p class="projects-empty" id="projects-empty" data-i18n="projectsEmpty">No saved projects yet — load a vocal, dial it in, then tap "Save As Project…" to save it under a name.</p>
+      <h3 data-i18n="cloudSectionTitle">☁ Cloud (synced to your account)</h3>
+      <p class="projects-sub" id="cloud-signin-hint" data-i18n="cloudSignInHint" hidden>Verify your email above to sync your projects to your account — open them from any device.</p>
+      <div id="cloud-projects-list" class="projects-list"></div>
+      <p class="projects-empty" id="cloud-projects-empty" data-i18n="cloudEmpty" hidden>No cloud projects yet. Save a project while verified and it'll show up here.</p>
     </div>
   </div>
 
@@ -1200,7 +1284,7 @@
         </div>
       </div>
     </div>
-    <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock the M5tar &amp; Jewels signature knobs and Full Song Mix; any plan unlocks export.</p>
+    <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock Full Song Mix (Unlimited also unlocks the M5tar &amp; Jewels signature knobs); any plan unlocks export.</p>
     <div class="transport">
       <div class="mode-toggle" role="tablist" aria-label="Mix mode">
         <button type="button" class="mode-btn" id="mode-full" role="tab" aria-selected="false">
@@ -1220,11 +1304,12 @@
           <option value="unlimited" id="plan-opt-unlimited">Unlimited · 8 vocal tracks</option>
         </select>
         <a href="#" id="plan-unlock-link" class="plan-unlock-link" data-i18n="planUnlockLink">Verify plan &rarr;</a>
+        <a href="#" id="manage-sub-link" class="plan-unlock-link" data-i18n="manageSubLink" hidden>Manage / cancel subscription &rarr;</a>
       </div>
 
       <div class="beat-drop" id="beat-drop" tabindex="0" role="button" aria-label="Upload beat or instrumental" hidden>
         <span data-i18n="beatDzTitle">Drop your beat here (MP3/WAV)</span>
-        <input type="file" id="beat-input" accept="audio/*" />
+        <input type="file" id="beat-input" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.aif,.aiff,.caf,.ogg,.mp4,.m4b,video/mp4,public.audio" />
       </div>
 
       <div class="input-mode-row" id="input-mode-row">
@@ -1241,7 +1326,7 @@
         </div>
         <h3 data-i18n="dzTitle">Drop your vocal here</h3>
         <p data-i18n="dzSub">MP3 or WAV &middot; or tap to browse</p>
-        <input type="file" id="file-input" accept="audio/*" multiple />
+        <input type="file" id="file-input" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.aif,.aiff,.caf,.ogg,.mp4,.m4b,video/mp4,public.audio" multiple />
       </div>
 
       <div class="record-panel" id="record-panel">
@@ -1260,10 +1345,19 @@
         </div>
         <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
         <label class="record-fx-monitor-row">
-          <input type="checkbox" id="record-fx-monitor" />
-          <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
+          <input type="checkbox" id="record-fx-monitor" checked />
+          <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
         </label>
-        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
+        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+        <label class="record-fx-monitor-row">
+          <input type="checkbox" id="record-fx-reverb" />
+          <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
+        </label>
+        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
+        <button type="button" class="icon-btn small" id="btn-calibrate-sync" data-i18n="calibrateSyncBtn">🎯 Calibrate your timing</button>
+        <p class="record-hint" data-i18n="calibrateSyncHint">Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.</p>
+        <button type="button" class="pill-btn pill-cyan rec-big" id="btn-calibrate-tap" hidden data-i18n="calibrateSyncTapBtn">TAP</button>
+        <p class="record-hint" id="calibrate-sync-result"></p>
         <div class="record-controls">
           <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
           <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1271,7 +1365,7 @@
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
-        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
       </div>
 
       <div id="beat-block" hidden>
@@ -1302,7 +1396,10 @@
       <div class="vocal-mixer" id="vocal-mixer" hidden>
         <div class="ai-mix-row">
           <p class="controls-heading" data-i18n="vocalMixerHeading">Vocal Mixer</p>
-          <button type="button" class="icon-btn small btn-ai-mix" id="btn-ai-mix" data-i18n="aiMixBtn" data-i18n-aria="aiMixAria" aria-label="AI Mix: automatically balance levels, pan and tone across every track">✨ AI Mix</button>
+          <span class="ai-mix-actions">
+            <button type="button" class="icon-btn small btn-ai-mix" id="btn-ai-mix" data-i18n="aiMixBtn" data-i18n-aria="aiMixAria" aria-label="AI Mix: automatically balance levels, pan and tone across every track">✨ AI Mix</button>
+            <button type="button" class="icon-btn small" id="btn-ai-mix-undo" data-i18n="aiMixUndoBtn" data-i18n-aria="aiMixUndoAria" aria-label="Undo AI Mix -- restore the levels, pan and tone from before" hidden>↺ Undo</button>
+          </span>
         </div>
         <p class="vocal-cap-note ai-mix-hint" data-i18n="aiMixHint">Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.</p>
         <div class="slider-row vocal-track-row lead-row">
@@ -1315,15 +1412,8 @@
         </div>
         <p class="vocal-cap-note lead-pick-hint" id="lead-pick-hint" hidden data-i18n="leadPickHint">Tap ☆ Make Lead on any track to choose your lead vocal.</p>
         <div id="extra-vocals-list"></div>
-        <div class="extra-vocal-add-row">
-          <button type="button" class="icon-btn small" id="btn-add-vocal" data-i18n="addVocalBtn">+ Add Vocal Track</button>
-          <button type="button" class="icon-btn small" id="btn-record-add-vocal" data-i18n="recordAddVocalBtn">🎙 Record Vocal Track</button>
-          <button type="button" class="icon-btn small" id="btn-undo-last-vocal" hidden data-i18n="undoLastVocalBtn" data-i18n-aria="undoLastVocalAria" aria-label="Remove the most recently added vocal track">↺ Undo Last Track</button>
-          <button type="button" class="icon-btn small" id="btn-clean-silence" data-i18n="cleanBtn" title="">✂ Clean Silence</button>
-          <button type="button" class="icon-btn small" id="btn-undo-clean" hidden data-i18n="cleanUndoBtn">↺ Undo Clean</button>
-        </div>
         <p class="vocal-cap-note clean-status" id="clean-status" role="status" aria-live="polite"></p>
-        <input type="file" id="extra-vocal-input" accept="audio/*" multiple hidden />
+        <input type="file" id="extra-vocal-input" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.aif,.aiff,.caf,.ogg,.mp4,.m4b,video/mp4,public.audio" multiple hidden />
 
         <div class="record-panel record-panel-compact" id="extra-record-panel" hidden>
           <div class="record-visual">
@@ -1340,10 +1430,15 @@
             <p class="record-device-hint" id="extra-record-device-hint"></p>
           </div>
           <label class="record-fx-monitor-row">
-            <input type="checkbox" id="extra-record-fx-monitor" />
-            <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
+            <input type="checkbox" id="extra-record-fx-monitor" checked />
+            <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
           </label>
-          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.</p>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+          <label class="record-fx-monitor-row">
+            <input type="checkbox" id="extra-record-fx-reverb" />
+            <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
+          </label>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
           <div class="record-controls">
             <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
             <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1351,7 +1446,7 @@
             <button type="button" class="icon-btn small" id="extra-btn-record-cancel" data-i18n="recordCancel">Cancel</button>
           </div>
           <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
-          <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+          <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
         </div>
 
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
@@ -1366,12 +1461,24 @@
             <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
           </div>
         </div>
+        <div class="extra-vocal-add-row" id="extra-vocal-add-row" hidden>
+          <button type="button" class="icon-btn small" id="btn-add-vocal" data-i18n="addVocalBtn">+ Add Vocal Track</button>
+          <button type="button" class="icon-btn small" id="btn-record-add-vocal" data-i18n="recordAddVocalBtn">🎙 Record Vocal Track</button>
+          <button type="button" class="icon-btn small" id="btn-undo-last-vocal" hidden data-i18n="undoLastVocalBtn" data-i18n-aria="undoLastVocalAria" aria-label="Remove the most recently added vocal track">↺ Undo Last Track</button>
+          <button type="button" class="icon-btn small" id="btn-clean-silence" data-i18n="cleanBtn" title="">✂ Clean Silence</button>
+          <button type="button" class="icon-btn small" id="btn-undo-clean" hidden data-i18n="cleanUndoBtn">↺ Undo Clean</button>
+        </div>
         <div class="waveform-shell" id="lead-waveform-shell">
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
           <canvas id="waveform" width="900" height="110"></canvas>
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
           <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
+<div class="tl-zoom" id="trk-zoom">
+  <button class="icon-btn small" id="btn-trk-zoom-out" type="button" aria-label="Zoom out on vocal waveforms">−</button>
+  <span class="tl-zoom-level" id="trk-zoom-level">Zoom: Off</span>
+  <button class="icon-btn small" id="btn-trk-zoom-in" type="button" aria-label="Zoom in on vocal waveforms">+</button>
+</div>
           <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
             <div class="live-row" id="grid-live-row" hidden>
@@ -1384,6 +1491,10 @@
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
           <span class="wf-label" data-i18n="wfLabelBeat">Beat</span>
           <canvas id="beat-waveform" width="900" height="56"></canvas>
+        </div>
+        <div class="key-detect" id="key-detect" hidden>
+          <span class="kd-text" id="key-detect-text" role="status" aria-live="polite"></span>
+          <button type="button" class="pill-btn pill-cyan kd-btn" id="key-detect-use" hidden></button>
         </div>
         <div class="timeline-wrap" id="timeline-wrap">
           <div class="timeline-scroll" id="timeline-scroll">
@@ -1417,6 +1528,12 @@
       </div>
     </div>
 
+    <div class="export-row" id="project-save-row">
+      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">💾 Save Project</button>
+      <button class="icon-btn" id="btn-save-as-project" type="button" data-i18n="saveAsProjectBtn">💾 Save Project As…</button>
+      <button class="icon-btn" id="btn-open-projects" type="button" data-i18n="openProjectsBtn">📁 My Projects</button>
+    </div>
+
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
     <div class="spectrum-shell" id="spectrum-shell">
       <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
@@ -1444,12 +1561,8 @@
         <option value="minor" id="tune-scale-minor">Minor</option>
       </select>
       <p class="tune-key-hint" data-i18n="tuneKeyHint">Set your song's key so Tune only snaps to notes that fit it.</p>
-      <div class="key-detect" id="key-detect" hidden>
-        <span class="kd-text" id="key-detect-text" role="status" aria-live="polite"></span>
-        <button type="button" class="pill-btn pill-cyan kd-btn" id="key-detect-use" hidden></button>
-      </div>
     </div>
-    <p class="signature-note" data-i18n="signatureNote">M5tar &amp; Jewels: each engineer's own signature touch, dialed in.</p>
+    <p class="signature-note" data-i18n="signatureNote">M5tar &amp; Jewels: each engineer's own signature touch — an Unlimited-plan feature (Mix subscribers from before this changed keep it too).</p>
 
     <div class="control-bar">
       <div class="pill-row">
@@ -1501,9 +1614,6 @@
       </select>
       <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
       <button class="icon-btn" id="btn-export-stems" type="button" data-i18n="stemsBtn">⬇ Export Stems</button>
-      <button class="icon-btn" id="btn-save-project" type="button" data-i18n="saveProjectBtn">💾 Save Project</button>
-      <button class="icon-btn" id="btn-save-as-project" type="button" data-i18n="saveAsProjectBtn">💾 Save Project As…</button>
-      <button class="icon-btn" id="btn-open-projects" type="button" data-i18n="openProjectsBtn">📁 My Projects</button>
     </div>
     <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-note" data-i18n="stemsNote">Unlimited: Export Stems downloads every processed vocal as its own 24-bit WAV (in one .zip), lined up from the start of the song, so you can finish the mix in any DAW.</p>
@@ -1540,7 +1650,7 @@
     <div class="section-head">
       <p class="eyebrow" data-i18n="pricingEyebrow">Plans</p>
       <h2 data-i18n="pricingTitle">Pick your monthly chain</h2>
-      <p data-i18n="pricingSub">Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.</p>
+      <p data-i18n="pricingSub">Every plan runs the full vocal chain — Mix builds on that with the Full Song Mix; Unlimited adds both engineers' signature knobs too.</p>
     </div>
     <div class="tiers">
       <div class="tier">
@@ -1561,7 +1671,6 @@
         <p class="price">$49<small>/mo</small></p>
         <ul>
           <li data-i18n="pro1">Full Song Mix — vocal + beat, mastered together</li>
-          <li data-i18n="pro2">M5tar &amp; Jewels signature knobs unlocked</li>
           <li data-i18n="pro3">Up to 5 vocal tracks, each with its own full effects chain — plus pan, mute, solo &amp; role presets</li>
           <li data-i18n="pro4">Clean Silence, custom input device picker, recordings up to 6 minutes</li>
           <li data-i18n="pro5">✨ AI Mix — one-tap level, pan &amp; tone balancing across every track</li>
@@ -1574,8 +1683,10 @@
         <p class="tier-name" data-i18n="studioName">Unlimited</p>
         <p class="tier-sub" data-i18n="studioSub">For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.</p>
         <p class="price">$99<small>/mo</small></p>
-        <p class="tier-pitch" data-i18n="studioPitch">Most producers pick this — more tracks than Mix, plus full stem export for your DAW.</p>
+        <p class="tier-discount" data-i18n="studioDiscount">10% off your first 3 months — applied automatically, no code needed</p>
+        <p class="tier-pitch" data-i18n="studioPitch">Most producers pick this — the M5tar &amp; Jewels signature knobs, more tracks than Mix, and full stem export for your DAW.</p>
         <ul>
+          <li data-i18n="studio0">M5tar &amp; Jewels signature knobs unlocked</li>
           <li data-i18n="studio1">Everything in Mix — including Collab</li>
           <li data-i18n="studio2">Up to 8 vocal tracks, each with its own full effects chain</li>
           <li data-i18n="studio3">Stem Export — every vocal as its own 24-bit WAV, ready for your DAW</li>
@@ -1583,7 +1694,7 @@
           <li data-i18n="studio5">✨ AI Mix — one-tap level, pan &amp; tone balancing across every track</li>
           <li data-i18n="studio6">🤝 Collab — invite a friend to record a layer on your track, then accept, mix &amp; download</li>
         </ul>
-        <a class="tier-cta" href="https://buy.stripe.com/9B69ASfva5IP9No8K71RC02" target="_blank" rel="noopener" data-i18n="join">Subscribe Now</a>
+        <a class="tier-cta" href="https://buy.stripe.com/6oU7sKaaQc7d9Nod0n1RC03?prefilled_promo_code=UNLIMITED10" target="_blank" rel="noopener" data-i18n="join">Subscribe Now</a>
       </div>
     </div>
   </section>
@@ -1633,7 +1744,7 @@
         <details class="faq-item"><summary data-i18n="faqQ5">How do I play just one part of the song?</summary><p data-i18n="faqA5">Tap the timeline under the waveform to choose where playback starts, or drag across it to select a section. Dragging turns Loop on, so that section repeats while you dial in the knobs.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ6">Why does my vocal sound robotic?</summary><p data-i18n="faqA6">That's the Speed (Tune) knob, which is high in the Auto-Tuned preset. Turn Speed down for a gentler glide and raise Humanize for a more natural sound.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ7">I press Play but hear nothing.</summary><p data-i18n="faqA7">Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.</p></details>
-        <details class="faq-item"><summary data-i18n="faqQ8">What do the plans include?</summary><p data-i18n="faqA8">Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 8 vocal tracks, unlimited songs. Every plan includes auto key detection for your beat.</p></details>
+        <details class="faq-item"><summary data-i18n="faqQ8">What do the plans include?</summary><p data-i18n="faqA8">Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), the M5tar & Jewels signature knobs, 8 vocal tracks, unlimited songs, and 10% off your first 3 months. Every plan includes auto key detection for your beat.</p></details>
         <details class="faq-item"><summary data-i18n="faqQCollab">What is Collab?</summary><p data-i18n="faqACollab">Collab lets you invite a friend to record a layer over one of your tracks, from their phone or computer, with no account needed. You get an email, listen, accept or mute their layer, adjust its volume and timing, and download the full mix. Collab is included on Mix and Unlimited.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ9">Does Gemstar remember my settings?</summary><p data-i18n="faqA9">Yes, in the same browser. Your knobs, output gain, Auto-Tune key and language are saved automatically. Audio files aren't stored, but drop the same files again and each one picks its level, pan and knob settings back up.</p></details>
       </div>
@@ -1644,6 +1755,7 @@
   <footer>
     <span data-i18n="footerText">Gemstar &middot; M5tar Studio x Gemsquad Production</span>
     <span style="display:flex; gap:14px;">
+      <a href="/help.html">Help</a>
       <a href="/legal.html#terms">Terms</a>
       <a href="/legal.html#privacy">Privacy</a>
       <a href="/legal.html#refunds">Refunds</a>
@@ -1696,9 +1808,17 @@
       recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
-      recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
-      recordFxMonitorLabel:"🎧 Hear a touch of reverb while tracking",
-      recordFxMonitorHint:"Only affects what you hear — never what's recorded. Headphones only: leave this off if you're on speakers, or you'll get feedback.",
+      recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat, and hearing yourself through a Bluetooth mic/speaker can bleed back into the recording. Turn off “Hear yourself while tracking” above if that happens, or use wired headphones (or your interface) for the most reliable recording. <a href=\"/help.html#bluetooth\" target=\"_blank\" rel=\"noopener\">Recording setup tips →</a>",
+      recordFxMonitorLabel:"🎧 Hear yourself while tracking",
+      recordFxMonitorHint:"On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.",
+      recordFxReverbLabel:"✨ Add a touch of reverb to your monitor",
+      recordFxReverbHint:"Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.",
+      calibrateSyncBtn:"🎯 Calibrate your timing",
+      calibrateSyncHint:"Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.",
+      calibrateSyncRunning:"Tap TAP in time with each click…",
+      calibrateSyncDone:"Calibrated — compensating {ms}ms from now on.",
+      calibrateSyncFailed:"Didn't catch enough taps — tap TAP right when you hear each click, then try again.",
+      calibrateSyncTapBtn:"TAP",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -1708,7 +1828,7 @@
       recordCapNote:"Up to {cap} on the {plan} plan.",
       recordCapReached:"You've hit the {max} vocal track limit for the {plan} plan. Remove a track or upgrade to record another.",
       controlsHeading:"Vocal Controls", outputGainLabel:"Output Gain",
-      signatureNote:"M5tar & Jewels: each engineer's own signature touch, dialed in.",
+      signatureNote:"M5tar & Jewels: each engineer's own signature touch — an Unlimited-plan feature (Mix subscribers from before this changed keep it too).",
       inputReady:"INPUT · FILE · READY", inputLive:"INPUT · FILE · LIVE",
       changeFile:"Change File", play:"▶ Play", pause:"⏸ Pause", ab:"A/B: After", abBefore:"A/B: Before",
       preset:"Preset", reset:"Reset to Default", bypass:"Bypass",
@@ -1749,12 +1869,18 @@
       projectsEmpty:"No saved projects yet — load a vocal, dial it in, then tap \"Save As Project…\" to save it under a name.",
       projectOpenBtn:"Open", projectDeleteBtn:"Delete", projectDeleteConfirm:"Delete \"{name}\"? This can't be undone.",
       projectTrackCount:"{count} track(s)", projectOpening:"Opening…", projectOpenErr:"Couldn't open this project.",
+      cloudSectionTitle:"☁ Cloud (synced to your account)",
+      cloudSignInHint:"Verify your email above to sync your projects to your account — open them from any device.",
+      cloudEmpty:"No cloud projects yet. Save a project while verified and it'll show up here.",
+      cloudShareBtn:"Share", cloudSharePrompt:"Share this project with (email):",
+      cloudShareOk:"Shared with {email}.", cloudShareErr:"Couldn't share this project.",
       pricingEyebrow:"Plans", pricingTitle:"Pick your monthly chain",
-      pricingSub:"Every plan runs the full vocal chain — Mix and Unlimited build on that with the Full Song Mix and both engineers' signature knobs.",
+      pricingSub:"Every plan runs the full vocal chain — Mix builds on that with the Full Song Mix; Unlimited adds both engineers' signature knobs too.",
       starterName:"Starter", starterSub:"For the bedroom studio — dial in your vocal chain (up to 3 vocal tracks, no Full Song Mix yet).", starter1:"Full vocal chain — 11 core knobs", starter2:"Pitch correction with key & scale lock — auto-detects your beat's key", starter3:"Recordings up to 3 minutes, 3 vocal tracks", starter4:"Standard MP3/WAV export",
-      proName:"Mix", proSub:"For the home studio — full songs, mixed and mastered, with up to 5 vocal tracks that each get their own independent effects chain.", pro1:"Full Song Mix — vocal + beat, mastered together", pro2:"M5tar & Jewels signature knobs unlocked", pro3:"Up to 5 vocal tracks, each with its own full effects chain — plus pan, mute, solo & role presets", pro4:"Clean Silence, custom input device picker, recordings up to 6 minutes", pro5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", pro6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
-      studioName:"Unlimited", studioSub:"For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.", studio1:"Everything in Mix, plus more", studio2:"Up to 8 vocal tracks, each with its own full effects chain", studio3:"Stem Export — every vocal as its own 24-bit WAV, ready for your DAW", studio4:"Recordings up to 10 minutes", studio5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", studio6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
-      studioPitch:"Most producers pick this — more tracks than Mix, plus full stem export for your DAW.",
+      proName:"Mix", proSub:"For the home studio — full songs, mixed and mastered, with up to 5 vocal tracks that each get their own independent effects chain.", pro1:"Full Song Mix — vocal + beat, mastered together", pro3:"Up to 5 vocal tracks, each with its own full effects chain — plus pan, mute, solo & role presets", pro4:"Clean Silence, custom input device picker, recordings up to 6 minutes", pro5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", pro6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
+      studioName:"Unlimited", studioSub:"For the working studio — up to 8 vocal tracks, each with its own effects chain, plus stem export for your DAW.", studio0:"M5tar & Jewels signature knobs unlocked", studio1:"Everything in Mix, plus more", studio2:"Up to 8 vocal tracks, each with its own full effects chain", studio3:"Stem Export — every vocal as its own 24-bit WAV, ready for your DAW", studio4:"Recordings up to 10 minutes", studio5:"✨ AI Mix — one-tap level, pan & tone balancing across every track", studio6:"🤝 Collab — invite a friend to record a layer on your track, then accept, mix & download",
+      studioPitch:"Most producers pick this — the M5tar & Jewels signature knobs, more tracks than Mix, and full stem export for your DAW.",
+      studioDiscount:"10% off your first 3 months — applied automatically, no code needed",
       bestSeller:"BEST SELLER", join:"Subscribe Now",
       wlTitle:"Not ready to subscribe?", wlSub:"Join the list and we'll email you about new features, plans, and updates.",
       emailLabel:"Email", planLabel:"Plan you're interested in", wlSubmit:"Notify Me",
@@ -1772,12 +1898,13 @@
       wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency", wfLabelRecording:"Recording",
       allVocalsLabel:"Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here",
       volumeKnobLabel:"Volume",
-      planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →",
+      planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →", manageSubLink:"Manage / cancel subscription →",
       planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
       aiMixHint:"Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.",
       aiMixAppliedToast:"✨ AI Mix applied",
+      aiMixUndoBtn:"↺ Undo", aiMixUndoAria:"Undo AI Mix -- restore the levels, pan and tone from before",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
@@ -1824,12 +1951,12 @@
       faqQ5:"How do I play just one part of the song?", faqA5:"Tap the timeline under the waveform to choose where playback starts, or drag across it to select a section. Dragging turns Loop on, so that section repeats while you dial in the knobs.",
       faqQ6:"Why does my vocal sound robotic?", faqA6:"That's the Speed (Tune) knob, which is high in the Auto-Tuned preset. Turn Speed down for a gentler glide and raise Humanize for a more natural sound.",
       faqQ7:"I press Play but hear nothing.", faqA7:"Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.",
-      faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, the M5tar & Jewels signature knobs, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), 8 vocal tracks, unlimited songs. Every plan includes auto key detection for your beat.",
+      faqQ8:"What do the plans include?", faqA8:"Starter ($19/mo): the full core vocal chain, 3 vocal tracks. Mix ($49/mo): Full Song Mix with your beat, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (invite friends to record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix and Collab), the M5tar & Jewels signature knobs, 8 vocal tracks, unlimited songs, and 10% off your first 3 months. Every plan includes auto key detection for your beat.",
       vocalCapNote:"{count} of {max} vocal tracks used ({plan} plan). Each track runs live in your browser, so higher tiers allow more at once.",
       knobs:{clean:"Clean",punch:"Punch",bass:"Bass",voice:"Voice",highs:"Highs",smooth:"Smooth",tune:"Speed",humanize:"Humanize",space:"Space",wide:"Wide",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Delay"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
-        clean:"Clean: cuts sub-bass rumble/mic thump with a high-pass filter and removes background hiss and room noise before anything else touches the vocal.",
+        clean:"Clean: an all-in-one noise pass \u2014 suppresses quiet background noise between phrases, rolls off muddy sub-bass rumble and mic thump, lifts the mid-highs for crisp, easy-to-understand speech, and tames harsh S/T sibilance, all before anything else touches the vocal.",
         punch:"Punch: compresses the vocal for punch and consistency, evening out loud and quiet moments.",
         bass:"Bass: shapes low-end body and warmth in the vocal.",
         voice:"Voice: boosts midrange presence and clarity so the vocal cuts through the mix.",
@@ -1846,6 +1973,7 @@
       },
       helpBtnAria:"Help", helpBtnLabel:"Need Help", helpTitle:"How Gemstar Works",
       helpIntro:"A quick rundown of the basics — every knob also shows this same text if you double-tap it (or hover over it on computer).",
+      helpNudgeText:"Stuck on something? Tap Need Help for a quick guide.", helpNudgeBtn:"Need Help?", helpNudgeCloseAria:"Dismiss",
       collabIntroTitle:"Collab: record with a friend",
       collabIntroText:"Invite anyone to add their voice to your track. They don't need an app or an account.",
       collabTip1:"Upload your track (a beat, a rough mix, or a finished song) and tap Create invite link.",
@@ -1900,9 +2028,17 @@
       recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
-      recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
-      recordFxMonitorLabel:"🎧 Escuchar un toque de reverb mientras grabas",
-      recordFxMonitorHint:"Solo afecta lo que escuchas — nunca lo que se graba. Solo con audífonos: déjalo apagado si usas bocinas, o tendrás retroalimentación (feedback).",
+      recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo, y escucharte a ti mismo por un micrófono/altavoz Bluetooth puede filtrarse de vuelta a la grabación. Desactiva “Escúchate mientras grabas” arriba si eso pasa, o usa audífonos con cable (o tu interfaz) para grabar de forma más confiable. <a href=\"/help.html#bluetooth\" target=\"_blank\" rel=\"noopener\">Consejos de grabación →</a>",
+      recordFxMonitorLabel:"🎧 Escúchate mientras grabas",
+      recordFxMonitorHint:"Activado de forma predeterminada para que te escuches mientras grabas. Solo con audífonos — apágalo si usas bocinas, o tendrás retroalimentación (feedback).",
+      recordFxReverbLabel:"✨ Agregar un toque de reverb a tu monitor",
+      recordFxReverbHint:"Desactivado de forma predeterminada — actívalo si quieres un poco de reverb mientras grabas. Nunca afecta tu toma grabada.",
+      calibrateSyncBtn:"🎯 Calibra tu sincronización",
+      calibrateSyncHint:"Toca esto y luego toca TOCAR (o la barra espaciadora) justo cuando escuches cada uno de los 6 clics. Mide tu retraso real y lo usa en cada voz que grabes de ahora en adelante.",
+      calibrateSyncRunning:"Toca TOCAR al mismo tiempo que cada clic…",
+      calibrateSyncDone:"Calibrado — compensando {ms}ms de ahora en adelante.",
+      calibrateSyncFailed:"No se detectaron suficientes toques — toca TOCAR justo cuando escuches cada clic, luego intenta de nuevo.",
+      calibrateSyncTapBtn:"TOCAR",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -1912,7 +2048,7 @@
       recordCapNote:"Hasta {cap} en el plan {plan}.",
       recordCapReached:"Llegaste al límite de {max} pistas vocales del plan {plan}. Quita una pista o mejora tu plan para grabar otra.",
       controlsHeading:"Controles Vocales", outputGainLabel:"Ganancia de Salida",
-      signatureNote:"M5tar y Jewels: el toque de firma de cada ingeniero, a tu gusto.",
+      signatureNote:"M5tar y Jewels: el toque de firma de cada ingeniero — una función del plan Ilimitado (los suscriptores de Mix desde antes de este cambio también la conservan).",
       inputReady:"ENTRADA · ARCHIVO · LISTO", inputLive:"ENTRADA · ARCHIVO · EN VIVO",
       changeFile:"Cambiar Archivo", play:"▶ Reproducir", pause:"⏸ Pausar", ab:"A/B: Después", abBefore:"A/B: Antes",
       preset:"Preajuste", reset:"Restablecer", bypass:"Anular",
@@ -1953,12 +2089,18 @@
       projectsEmpty:"Aún no hay proyectos guardados — carga una voz, ajústala, y toca \"Guardar Como Proyecto…\" para guardarla con un nombre.",
       projectOpenBtn:"Abrir", projectDeleteBtn:"Eliminar", projectDeleteConfirm:"¿Eliminar \"{name}\"? Esto no se puede deshacer.",
       projectTrackCount:"{count} pista(s)", projectOpening:"Abriendo…", projectOpenErr:"No se pudo abrir este proyecto.",
+      cloudSectionTitle:"☁ Nube (sincronizado con tu cuenta)",
+      cloudSignInHint:"Verifica tu correo arriba para sincronizar tus proyectos con tu cuenta — ábrelos desde cualquier dispositivo.",
+      cloudEmpty:"Aún no hay proyectos en la nube. Guarda un proyecto estando verificado y aparecerá aquí.",
+      cloudShareBtn:"Compartir", cloudSharePrompt:"Comparte este proyecto con (correo):",
+      cloudShareOk:"Compartido con {email}.", cloudShareErr:"No se pudo compartir este proyecto.",
       pricingEyebrow:"Planes", pricingTitle:"Elige tu cadena mensual",
-      pricingSub:"Todos los planes usan la cadena vocal completa — Mix e Ilimitado suman la Mezcla De Canción Completa y las perillas de firma de ambos ingenieros.",
+      pricingSub:"Todos los planes usan la cadena vocal completa — Mix suma la Mezcla De Canción Completa; Ilimitado añade también las perillas de firma de ambos ingenieros.",
       starterName:"Inicial", starterSub:"Para el estudio casero — ajusta tu cadena vocal (hasta 3 pistas vocales, sin Mezcla De Canción Completa todavía).", starter1:"Cadena vocal completa — 11 perillas base", starter2:"Corrección de tono con bloqueo de tonalidad y escala — detecta automáticamente el tono de tu beat", starter3:"Grabaciones de hasta 3 minutos, 3 pistas vocales", starter4:"Exportación estándar en MP3/WAV",
-      proName:"Mix", proSub:"Para el home studio — canciones completas, mezcladas y masterizadas, con hasta 5 pistas vocales, cada una con su propia cadena de efectos independiente.", pro1:"Mezcla De Canción Completa — voz + beat, masterizados juntos", pro2:"Perillas de firma M5tar y Jewels desbloqueadas", pro3:"Hasta 5 pistas vocales, cada una con su propia cadena de efectos completa — más pan, silencio, solo y roles preestablecidos", pro4:"Silencio Limpio, selector de dispositivo de entrada, grabaciones de hasta 6 minutos", pro5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", pro6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
-      studioName:"Ilimitado", studioSub:"Para el estudio profesional — hasta 8 pistas vocales, cada una con su propia cadena de efectos, más exportación de stems para tu DAW.", studio1:"Todo lo del plan Mix, y más", studio2:"Hasta 8 pistas vocales, cada una con su propia cadena de efectos completa", studio3:"Exportación de Stems — cada voz como su propio WAV de 24 bits, listo para tu DAW", studio4:"Grabaciones de hasta 10 minutos", studio5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", studio6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
-      studioPitch:"La mayoría de los productores elige este — más pistas que Mix, más exportación completa de stems.",
+      proName:"Mix", proSub:"Para el home studio — canciones completas, mezcladas y masterizadas, con hasta 5 pistas vocales, cada una con su propia cadena de efectos independiente.", pro1:"Mezcla De Canción Completa — voz + beat, masterizados juntos", pro3:"Hasta 5 pistas vocales, cada una con su propia cadena de efectos completa — más pan, silencio, solo y roles preestablecidos", pro4:"Silencio Limpio, selector de dispositivo de entrada, grabaciones de hasta 6 minutos", pro5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", pro6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
+      studioName:"Ilimitado", studioSub:"Para el estudio profesional — hasta 8 pistas vocales, cada una con su propia cadena de efectos, más exportación de stems para tu DAW.", studio0:"Perillas de firma M5tar y Jewels desbloqueadas", studio1:"Todo lo del plan Mix, y más", studio2:"Hasta 8 pistas vocales, cada una con su propia cadena de efectos completa", studio3:"Exportación de Stems — cada voz como su propio WAV de 24 bits, listo para tu DAW", studio4:"Grabaciones de hasta 10 minutos", studio5:"✨ Mezcla IA — equilibra niveles, panorama y tono en cada pista con un toque", studio6:"🤝 Collab — invita a un amigo a grabar una capa en tu pista; acéptala, mézclala y descárgala",
+      studioPitch:"La mayoría de los productores elige este — las perillas de firma M5tar y Jewels, más pistas que Mix, y exportación completa de stems.",
+      studioDiscount:"10% de descuento tus primeros 3 meses — se aplica automáticamente, sin código",
       bestSeller:"MÁS VENDIDO", join:"Suscribirme Ahora",
       wlTitle:"¿Aún no te suscribes?", wlSub:"Únete a la lista y te avisaremos sobre nuevas funciones, planes y novedades.",
       emailLabel:"Correo", planLabel:"Plan de tu interés", wlSubmit:"Avísenme",
@@ -1976,12 +2118,13 @@
       wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia", wfLabelRecording:"Grabando",
       allVocalsLabel:"Todo a la vez — toca una voz para ajustar sus perillas, o silencia/solo cualquier pista (voces o beat) aquí mismo",
       volumeKnobLabel:"Volumen",
-      planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →",
+      planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →", manageSubLink:"Gestionar / cancelar suscripción →",
       planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
       aiMixHint:"Equilibra niveles, panorama y tono en cada pista (y en la pista instrumental, si hay una) con un toque. Se puede deshacer.",
       aiMixAppliedToast:"✨ Mezcla IA aplicada",
+      aiMixUndoBtn:"↺ Deshacer", aiMixUndoAria:"Deshacer Mezcla IA -- restaura los niveles, panorama y tono anteriores",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
@@ -2028,12 +2171,12 @@
       faqQ5:"¿Cómo reproduzco solo una parte de la canción?", faqA5:"Toca la línea de tiempo debajo de la forma de onda para elegir dónde empieza, o arrastra para seleccionar una sección. Al arrastrar se activa el Bucle y esa sección se repite mientras ajustas.",
       faqQ6:"¿Por qué mi voz suena robótica?", faqA6:"Es la perilla Speed (Tune), que está alta en el preset Auto-Tuned. Bájala para un deslizamiento más suave y sube Humanize para un sonido más natural.",
       faqQ7:"Presiono Reproducir y no escucho nada.", faqA7:"Revisa el volumen y que la pestaña no esté silenciada, y recarga la página. Si usas una interfaz de audio, verifica que la salida de sonido de tu computadora sea la que estás escuchando. ¿Sigue sin funcionar? Escribe a Gemstaraudio@gmail.com.",
-      faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 3 pistas vocales. Mix ($49/mes): Mezcla Completa con tu beat, las perillas firma de M5tar y Jewels, 5 pistas vocales con su propia cadena de efectos, Mezcla IA con un toque y Collab (invita amigos a grabar en tus pistas). Unlimited ($99/mes): todo lo de Mix (incluyendo Mezcla IA y Collab), 8 pistas vocales, canciones ilimitadas. Todos los planes incluyen detección automática del tono de tu beat.",
+      faqQ8:"¿Qué incluye cada plan?", faqA8:"Starter ($19/mes): la cadena vocal principal completa, 3 pistas vocales. Mix ($49/mes): Mezcla Completa con tu beat, 5 pistas vocales con su propia cadena de efectos, Mezcla IA con un toque y Collab (invita amigos a grabar en tus pistas). Unlimited ($99/mes): todo lo de Mix (incluyendo Mezcla IA y Collab), las perillas firma de M5tar y Jewels, 8 pistas vocales, canciones ilimitadas, y 10% de descuento tus primeros 3 meses. Todos los planes incluyen detección automática del tono de tu beat.",
       vocalCapNote:"{count} de {max} pistas vocales usadas (plan {plan}). Cada pista corre en vivo en tu navegador, por eso los planes más altos permiten más a la vez.",
       knobs:{clean:"Limpio",punch:"Pegada",bass:"Bajo",voice:"Voz",highs:"Agudos",smooth:"Suave",tune:"Velocidad",humanize:"Humanizar",space:"Espacio",wide:"Amplio",radio:"Radio",m5tar:"M5tar",jewels:"Jewels",delay:"Retardo"},
       pitchGroupLabel:"Auto-Tune",
       knobDesc:{
-        clean:"Limpio: corta el retumbo de graves/golpes del micro con un filtro pasa-altos y elimina el ruido de fondo y de sala antes de que cualquier otro efecto toque la voz.",
+        clean:"Limpio: un pase de limpieza todo en uno \u2014 reduce el ruido de fondo entre frases, corta el retumbo de graves/golpes del micro, realza los medios-agudos para una voz n\u00edtida y f\u00e1cil de entender, y suaviza las eses \u00e1speras, todo antes de que cualquier otro efecto toque la voz.",
         punch:"Pegada: comprime la voz para dar pegada y consistencia, nivelando los momentos fuertes y suaves.",
         bass:"Bajo: da forma al cuerpo y la calidez de graves en la voz.",
         voice:"Voz: realza la presencia y claridad en los medios para que la voz destaque en la mezcla.",
@@ -2050,6 +2193,7 @@
       },
       helpBtnAria:"Ayuda", helpBtnLabel:"Ayuda", helpTitle:"Cómo Funciona Gemstar",
       helpIntro:"Un repaso rápido de lo básico — cada perilla también muestra este mismo texto si la tocas dos veces (o pasas el cursor sobre ella en computadora).",
+      helpNudgeText:"¿Atascado con algo? Toca Ayuda para una guía rápida.", helpNudgeBtn:"¿Ayuda?", helpNudgeCloseAria:"Cerrar",
       collabIntroTitle:"Collab: graba con un amigo",
       collabIntroText:"Invita a quien quieras a agregar su voz a tu canción. No necesita app ni cuenta.",
       collabTip1:"Sube tu pista (un beat, una mezcla o una canción terminada) y toca Crear enlace de invitación.",
@@ -2094,6 +2238,12 @@
 
   function applyLang(l){
     lang = l;
+    // Exposed so the separate access-gate script (a standalone <script>
+    // block with its own closure -- see window.gemstarApplyTier et al. for
+    // why that bridge exists) can show its paywall/billing text in the
+    // right language too, without needing direct access to this script's
+    // own STR/lang variables.
+    window.gemstarLang = l;
     document.documentElement.lang = l;
     document.getElementById("lang-en").classList.toggle("active", l==="en");
     document.getElementById("lang-es").classList.toggle("active", l==="es");
@@ -2443,7 +2593,82 @@
   var extraVocalIdSeq = 1;
   // Mix settings for the lead vocal (its level is mainVocalLevel). Extra
   // tracks carry the same pan/muted/solo/role fields on their own objects.
-  var leadTrack = {id:"lead", pan:0, muted:false, solo:false, role:"", _file:null};
+  var leadTrack = {id:"lead", pan:0, muted:false, solo:false, role:"", _file:null, nudgeSec:0};
+
+  // Per-track timing nudge: how many seconds earlier (negative) or later
+  // (positive) a specific vocal track's audio should actually start,
+  // relative to the beat and every other track -- set by dragging that
+  // track's mini waveform left/right in the "everything at once" grid (see
+  // renderAllVocalsStrip()). Lets a take that's still a touch early/late
+  // after sync calibration (see runSyncCalibration()) get hand-aligned
+  // precisely, without re-recording it. Clamped well inside the extra
+  // lead-in startPlayback() and the export/auto-master render schedule
+  // sources with, so a nudge can never require starting a source in the past.
+  var TRACK_NUDGE_MAX = 2; // seconds (2 seconds either way) -- widened from the original 250ms cap so a take can be dragged far enough to correct real-world drift by ear
+  function clampNudge(v){
+    v = (typeof v === "number" && isFinite(v)) ? v : 0;
+    return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
+  }
+  function trackNudgeSec(tr){ return tr ? clampNudge(tr.nudgeSec || 0) : 0; }
+
+// Zoom for the per-track waveform rows in "everything at once" (see
+// renderAllVocalsStrip()/addRow()) -- 0 is the original whole-song view
+// (unchanged default); each other level is a fixed window (in seconds)
+// centered on song-time 0, the anchor every track's nudge is measured
+// against, since a take always starts at the top of the song. Zooming in
+// both reveals the waveform in real detail AND makes the nudge-drag
+// precise, since drag sensitivity below is tied to this same window.
+var TRACK_ZOOM_LEVELS = [0, 8, 2, 0.6];
+var trackZoomIdx = 0;
+// How many seconds a full-width drag moves the nudge by when NOT zoomed
+// in (TRACK_ZOOM_LEVELS[0]) -- a fixed, song-length-independent range,
+// instead of the old (dx/rectW * whole-song-duration) formula, which
+// made a drag of just a couple of pixels blow straight through the
+// entire +/-250ms nudge range on anything longer than a minute or so.
+var NUDGE_DRAG_RANGE_SEC = 2.4;
+// Same idea as drawBufferWaveform() but draws a fixed window of
+// absolute song-time (centered on 0) instead of squeezing the WHOLE
+// buffer into the canvas -- lets you actually see fine waveform detail
+// and drag precisely once zoomed in. startSec shifts the buffer within
+// that window exactly like drawBufferWaveform's own startSec does.
+function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, startSec){
+  var w = cv.width, h = cv.height;
+  cx.clearRect(0,0,w,h);
+  if (!buffer || windowDuration <= 0) return;
+  var data = buffer.getChannelData(0);
+  var sr = buffer.sampleRate;
+  var winStart = -windowDuration/2;
+  var nudge = startSec || 0;
+  var step = windowDuration / w;
+  cx.strokeStyle = color; cx.lineWidth = 1;
+  cx.beginPath();
+  for (var x=0; x<w; x++){
+    var i0 = Math.floor((winStart + x*step - nudge) * sr);
+    var i1 = Math.ceil((winStart + (x+1)*step - nudge) * sr);
+    if (i1 <= i0) i1 = i0 + 1;
+    var min=1, max=-1, any=false;
+    for (var i=i0; i<i1; i++){
+      if (i < 0 || i >= data.length) continue;
+      any = true;
+      var v = data[i];
+      if (v < min) min = v; if (v > max) max = v;
+    }
+    if (!any) continue;
+    var y1 = (1+min)*h/2, y2 = (1+max)*h/2;
+    cx.moveTo(x, y1); cx.lineTo(x, y2);
+  }
+  cx.stroke();
+  // Thin marker at song-time 0 -- the beat-aligned point every track's
+  // nudge is measured against -- so you can see exactly how far a
+  // transient sits from true zero while dragging it into place.
+  var anchorX = (0 - winStart) / windowDuration * w;
+  if (anchorX >= 0 && anchorX <= w){
+    cx.strokeStyle = "rgba(255,255,255,0.28)";
+    cx.beginPath();
+    cx.moveTo(anchorX, 0); cx.lineTo(anchorX, h);
+    cx.stroke();
+  }
+}
 
   /* Silent, automatic input gain-staging — no user-facing knob. Every recorded
      or uploaded vocal comes in at wildly different levels (quiet phone mic
@@ -2480,15 +2705,38 @@
   var currentPlan = "starter"; // free baseline until a Mix/Unlimited email verifies (see window.gemstarApplyTier)
   function maxRecordSeconds(){ return RECORD_LENGTH_LIMITS[currentPlan] || RECORD_LENGTH_LIMITS.starter; }
 
-  /* ---- tier gating: signature knobs + Full Song Mix require Mix/Unlimited,
-     everything else (core chain, finish, Auto-Tune, export) stays free/any-plan.
-     currentPlan is set for real by window.gemstarApplyTier once the gate IIFE
-     (below) verifies an email against Stripe or the founders allowlist. ---- */
+  /* ---- tier gating: signature knobs require Unlimited, Full Song Mix
+     requires Mix/Unlimited, everything else (core chain, finish, Auto-Tune,
+     export) stays free/any-plan. currentPlan is set for real by
+     window.gemstarApplyTier once the gate IIFE (below) verifies an email
+     against Stripe or the founders allowlist.
+
+     legacyKnobsUnlocked grandfathers in subscribers whose Mix subscription
+     predates the Unlimited-only cutover, so they keep the signature knobs
+     they already had. It's resolved from Stripe once (at /api/verify-code
+     time) and then just remembered in localStorage -- see LEGACY_KNOBS_KEY
+     below and the gate IIFE's unlockWithToken/verifyStoredToken. ---- */
   var TIER_RANK = {starter:1, mix:2, unlimited:3};
+  var LEGACY_KNOBS_KEY = "gemstar_legacy_knobs";
+  var legacyKnobsUnlocked = false;
+  function readLegacyKnobsFlag(){
+    try { return localStorage.getItem(LEGACY_KNOBS_KEY) === "1"; } catch(e){ return false; }
+  }
+  function writeLegacyKnobsFlag(v){
+    try { localStorage.setItem(LEGACY_KNOBS_KEY, v ? "1" : "0"); } catch(e){}
+  }
+  // Called by window.gemstarApplyTier; `legacyKnobs` is the value from a
+  // fresh /api/verify-code response when there is one (and gets persisted),
+  // or omitted on a plain token-reload check, in which case we fall back to
+  // whatever was last persisted.
+  function setLegacyKnobsUnlocked(legacyKnobs){
+    if (legacyKnobs !== undefined){ legacyKnobsUnlocked = !!legacyKnobs; writeLegacyKnobsFlag(legacyKnobsUnlocked); }
+    else { legacyKnobsUnlocked = readLegacyKnobsFlag(); }
+  }
   function isTierAtLeast(tier){ return (TIER_RANK[currentPlan]||1) >= (TIER_RANK[tier]||1); }
   function isKnobLocked(id){
     for (var i=0;i<KNOB_DEFS.length;i++){
-      if (KNOB_DEFS[i].id === id) return KNOB_DEFS[i].group === "signature" && !isTierAtLeast("mix");
+      if (KNOB_DEFS[i].id === id) return KNOB_DEFS[i].group === "signature" && !(isTierAtLeast("unlimited") || legacyKnobsUnlocked);
     }
     return false;
   }
@@ -3174,11 +3422,36 @@ registerProcessor('gemstar-pitch-processor', GemstarPitchProcessor);
   // own cached promise since AudioWorklet modules are per-context.
   var CAPTURE_WORKLET_SOURCE = `
 class GemstarCaptureProcessor extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    // Posting one message per 128-sample render quantum (the default) means
+    // ~375 postMessage calls/sec at 48kHz -- each one a structured-clone
+    // transfer that costs real time on top of the actual audio rendering.
+    // On a machine already working harder to service a USB interface's own
+    // driver, that extra per-quantum overhead is exactly the kind of thing
+    // that tips a render callback over its deadline and comes out as
+    // crackle/static, even though the DSP itself isn't doing anything new.
+    // Batching several quanta together before posting cuts that message
+    // count ~8x; the main thread already just concatenates whatever-sized
+    // chunks arrive (see pcmChunks/pcmLength in createVocalRecorder), so
+    // nothing downstream needs to change for a bigger chunk to work.
+    this._buf = [];
+    this._bufLen = 0;
+    this._batchSize = 1024;
+  }
   process(inputs) {
     var input = inputs[0];
     if (input && input[0] && input[0].length) {
-      var chunk = new Float32Array(input[0]);
-      this.port.postMessage(chunk, [chunk.buffer]);
+      this._buf.push(input[0].slice());
+      this._bufLen += input[0].length;
+      if (this._bufLen >= this._batchSize){
+        var merged = new Float32Array(this._bufLen);
+        var off = 0;
+        for (var i=0;i<this._buf.length;i++){ merged.set(this._buf[i], off); off += this._buf[i].length; }
+        this.port.postMessage(merged, [merged.buffer]);
+        this._buf = [];
+        this._bufLen = 0;
+      }
     }
     return true;
   }
@@ -3293,7 +3566,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     g.input = ctx.createGain();
 
-    // ---- Clean: rumble high-pass + noise-gate style waveshaper + hiss highshelf ----
+    // ---- Clean: rumble high-pass + noise-gate style waveshaper + presence
+    // lift + light de-ess + hiss highshelf ----
+    // Everything below is driven by the single Clean knob and behaves like
+    // an "auto-clean" pass on its own: suppress quiet background noise, cut
+    // the mud, lift intelligibility, and tame harsh S/T's -- the things a
+    // quick voice-isolation pass is expected to do.
     // A high-pass filter removes sub-bass rumble, mic-handling thump and room
     // noise below where the voice actually lives — standard first move in any
     // real vocal chain, and it's what was missing before. Tied to the Clean
@@ -3305,6 +3583,29 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.rumbleHPF.Q.value = 0.707;
 
     g.gateShaper = ctx.createWaveShaper();
+
+    // Presence: a modest mid-high lift (~3.5kHz) so speech reads as crisp
+    // and easier to understand, the other half of what "Clean" promises
+    // alongside noise/rumble removal. Kept gentle on purpose -- Voice and
+    // Highs are still the knobs for a bigger tonal push; this is just
+    // enough intelligibility lift to sound "clear and professional" on
+    // its own with Clean alone turned up.
+    g.cleanPresence = ctx.createBiquadFilter();
+    g.cleanPresence.type = "peaking";
+    g.cleanPresence.frequency.value = 3500;
+    g.cleanPresence.Q.value = 1;
+
+    // Clean's own light de-essing: same dry + inverted-sibilant-band trick
+    // as the Smooth knob below, just a separate, gentler instance so Clean
+    // alone already tames harsh S/T sounds -- Smooth is still there for
+    // whoever wants more on top.
+    g.cleanDeEssBand = ctx.createBiquadFilter();
+    g.cleanDeEssBand.type = "bandpass";
+    g.cleanDeEssBand.frequency.value = 6500;
+    g.cleanDeEssBand.Q.value = 1.4;
+    g.cleanDeEssGain = ctx.createGain();
+    g.cleanDeEssSum = ctx.createGain();
+
     g.hissFilter = ctx.createBiquadFilter();
     g.hissFilter.type = "highshelf";
     g.hissFilter.frequency.value = 8500;
@@ -3500,7 +3801,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     g.input.connect(g.rumbleHPF);
     g.rumbleHPF.connect(g.gateShaper);
-    g.gateShaper.connect(g.hissFilter);
+    g.gateShaper.connect(g.cleanPresence);
+
+    // Clean's own de-esser: dry + inverted sibilant band, same technique as
+    // Smooth's below, feeding into the chain before the hiss shelf.
+    g.cleanPresence.connect(g.cleanDeEssSum);
+    g.cleanPresence.connect(g.cleanDeEssBand);
+    g.cleanDeEssBand.connect(g.cleanDeEssGain);
+    g.cleanDeEssGain.connect(g.cleanDeEssSum);
+
+    g.cleanDeEssSum.connect(g.hissFilter);
     g.hissFilter.connect(g.punchComp);
     g.punchComp.connect(g.punchMakeup);
     g.punchMakeup.connect(g.bassFilter);
@@ -3934,6 +4244,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
     var newGateCurve = getGateShaperCurve(v.clean/100);
     if (chain.gateShaper.curve !== newGateCurve) chain.gateShaper.curve = newGateCurve;
+    chain.cleanPresence.gain.setTargetAtTime(lerp(v.clean,0,100,0,3), now, 0.02);
+    chain.cleanDeEssGain.gain.setTargetAtTime(-(v.clean/100)*0.5, now, 0.02);
     chain.hissFilter.gain.setTargetAtTime(lerp(v.clean,0,100,0,-6), now, 0.02);
 
     // At Punch = 0 this is a true pass-through (0dB threshold, 1:1 ratio) --
@@ -4095,7 +4407,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       leadTrack.originalBuffer = null;
       leadTrack._file = file;
       setLeadName(file.name);
-      applySavedLeadSettings(file.name);
+      applySavedLeadSettings(file.name); if (beatBuffer) autoLevelVocalToBeat();
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
       afterVocalSetChanged();
@@ -4144,7 +4456,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       setLeadName(loaded[0].name);
       mainVocalLevel = 1;
       if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
-      applySavedLeadSettings(loaded[0].name);
+      applySavedLeadSettings(loaded[0].name); if (beatBuffer) autoLevelVocalToBeat();
       loaded.slice(1).forEach(function(item){ pushExtraVocal(item.name, item.buffer)._file = item.file; });
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
@@ -4336,6 +4648,114 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }).catch(function(){ cb(false); });
   }
 
+  // ---- sync calibration: measures THIS device's real click-to-tap delay
+  // (hardware output latency plus the user's own reaction time, combined)
+  // by playing a few clicks and timing when the user actually taps back,
+  // then stores that one number and uses it directly in finishRecording()
+  // instead of guessing from ctx.outputLatency, which browsers often report
+  // inaccurately (sometimes ~0), especially over Bluetooth. Needs no
+  // microphone and no acoustic pickup, so it works the same on headphones,
+  // speakers, or Bluetooth.
+  var SYNC_CAL_KEY = "gemstarSyncCalSeconds";
+  function getStoredSyncCal(){
+    try {
+      var v = parseFloat(localStorage.getItem(SYNC_CAL_KEY));
+      if (isFinite(v) && v >= 0 && v < 1) return v;
+    } catch(e){}
+    return null;
+  }
+  function setStoredSyncCal(seconds){
+    try { localStorage.setItem(SYNC_CAL_KEY, String(seconds)); } catch(e){}
+  }
+  // Matches each scheduled click to the next tap that followed it within a
+  // plausible reaction window, then returns the median offset -- kept as
+  // its own pure function so the matching/averaging logic can be exercised
+  // with synthetic click/tap data independent of real audio or DOM events.
+  function computeSyncCalibration(clickTimes, tapTimes, leadSkip){
+    var offsets = [];
+    clickTimes.forEach(function(ct, idx){
+      if (idx < leadSkip) return;
+      var best = null, bestDelta = Infinity;
+      tapTimes.forEach(function(tt){
+        var delta = tt - ct;
+        if (delta >= -0.15 && delta <= 0.6 && delta < bestDelta){
+          bestDelta = delta; best = delta;
+        }
+      });
+      if (best !== null) offsets.push(best);
+    });
+    if (offsets.length < 2) return null;
+    offsets.sort(function(a,b){ return a - b; });
+    var mid = Math.floor(offsets.length / 2);
+    var median = offsets.length % 2 ? offsets[mid] : (offsets[mid-1] + offsets[mid]) / 2;
+    return Math.max(0, Math.min(0.5, median));
+  }
+  function runSyncCalibration(){
+    var btn = document.getElementById("btn-calibrate-sync");
+    var tapBtn = document.getElementById("btn-calibrate-tap");
+    var resultEl = document.getElementById("calibrate-sync-result");
+    if (!btn || !tapBtn || !resultEl) return;
+
+    btn.disabled = true;
+    resultEl.textContent = STR[lang].calibrateSyncRunning;
+
+    withRunningContext(function(){
+      var CLICK_COUNT = 6;
+      var INTERVAL = 0.8;
+      var LEAD_SKIP = 1;
+      var LEAD_IN = 0.5;
+
+      tapBtn.hidden = false;
+
+      var anchorPerf = performance.now();
+      var anchorCtx = ctx.currentTime;
+      var startAt = ctx.currentTime + LEAD_IN;
+      var clickTimes = [];
+      for (var i = 0; i < CLICK_COUNT; i++){
+        var t = startAt + i * INTERVAL;
+        clickTimes.push(t);
+        var osc = ctx.createOscillator();
+        var g = ctx.createGain();
+        osc.frequency.value = 1000;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.5, t + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        osc.connect(g); g.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.08);
+      }
+
+      var taps = [];
+      function onTap(e){
+        if (e.cancelable) e.preventDefault();
+        var perfNow = performance.now();
+        taps.push(anchorCtx + (perfNow - anchorPerf) / 1000);
+      }
+      function onKey(e){ if (e.code === "Space") onTap(e); }
+      tapBtn.addEventListener("pointerdown", onTap);
+      window.addEventListener("keydown", onKey);
+
+      var totalMs = (LEAD_IN + (CLICK_COUNT - 1) * INTERVAL + 1.0) * 1000;
+      setTimeout(function(){
+        tapBtn.removeEventListener("pointerdown", onTap);
+        window.removeEventListener("keydown", onKey);
+        tapBtn.hidden = true;
+        btn.disabled = false;
+
+        var median = computeSyncCalibration(clickTimes, taps, LEAD_SKIP);
+        if (median === null){
+          resultEl.textContent = STR[lang].calibrateSyncFailed;
+          return;
+        }
+        setStoredSyncCal(median);
+        resultEl.textContent = STR[lang].calibrateSyncDone.replace("{ms}", Math.round(median * 1000));
+      }, totalMs);
+    });
+  }
+  (function(){
+    var btn = document.getElementById("btn-calibrate-sync");
+    if (btn) btn.addEventListener("click", runSyncCalibration);
+  })();
+
   /* Reusable mic-recorder: wires one set of controls (start/stop/retry/dot/
      timer/meter/hint) to getUserMedia + a raw PCM capture node, and hands
      the finished take to onCaptured(file) as a real File — same object
@@ -4356,6 +4776,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var pcmLength = 0;
     var recording = false;
     var capSeconds = 600;
+    var detectedBluetooth = false;
 
     function stopTimer(){
       if (recordTimerInterval){ clearInterval(recordTimerInterval); recordTimerInterval = null; }
@@ -4383,6 +4804,55 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         recordStream.getTracks().forEach(function(t){ t.stop(); });
         recordStream = null;
       }
+    }
+
+    // ---- mic test preview: lights up the level meter the moment a mic is
+    // picked, before Start is ever pressed, so it's obvious the mic is
+    // actually live instead of silently waiting until a take begins. Its
+    // own isolated stream/analyser -- never connected to ctx.destination,
+    // never touches pcmChunks/captureNode -- so it can't affect what gets
+    // recorded or played back, and is always safe to tear down.
+    var previewStream = null;
+    var previewAnalyser = null;
+    var previewSrcNode = null;
+    var previewRAF = null;
+    var previewData = null;
+    function stopMicPreview(){
+      if (previewRAF){ cancelAnimationFrame(previewRAF); previewRAF = null; }
+      if (previewSrcNode){ try{ previewSrcNode.disconnect(); }catch(e){} previewSrcNode = null; }
+      previewAnalyser = null;
+      if (previewStream){ previewStream.getTracks().forEach(function(t){ t.stop(); }); previewStream = null; }
+      if (!recording && opts.meterBar) opts.meterBar.style.width = "0%";
+    }
+    function micPreviewLoop(){
+      if (!previewAnalyser) return;
+      if (!previewData || previewData.length !== previewAnalyser.fftSize) previewData = new Uint8Array(previewAnalyser.fftSize);
+      previewAnalyser.getByteTimeDomainData(previewData);
+      var peak = 0;
+      for (var i=0;i<previewData.length;i++){
+        var v = Math.abs(previewData[i]-128)/128;
+        if (v>peak) peak = v;
+      }
+      if (opts.meterBar) opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
+      previewRAF = requestAnimationFrame(micPreviewLoop);
+    }
+    function startMicPreview(){
+      if (recording) return; // the real recording's own meter already covers this
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+      stopMicPreview(); // only ever one preview stream open at a time
+      var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
+      var constraints = { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:{ideal:1} };
+      if (pickedDeviceId) constraints.deviceId = { exact: pickedDeviceId };
+      navigator.mediaDevices.getUserMedia({ audio: constraints }).then(function(stream){
+        if (recording){ stream.getTracks().forEach(function(t){ t.stop(); }); return; } // Start got hit while this was loading
+        ensureContext();
+        previewStream = stream;
+        previewSrcNode = ctx.createMediaStreamSource(stream);
+        previewAnalyser = ctx.createAnalyser();
+        previewAnalyser.fftSize = 1024;
+        previewSrcNode.connect(previewAnalyser);
+        micPreviewLoop();
+      }).catch(function(){ /* ignore here -- hitting Start surfaces the real mic error */ });
     }
     function stopCapture(){
       recording = false;
@@ -4467,6 +4937,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // File/Cancel, or the recording length cap the plan tier allows.
     function hardStop(){
       stopCapture();
+      stopMicPreview();
       pcmChunks = [];
       pcmLength = 0;
       stopTimer();
@@ -4479,6 +4950,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // Stop + keep whatever was captured — used by the Stop button and by
     // the plan's max-length auto-cutoff.
     function finishRecording(){
+      // Capture whether this take was sung against a live beat/monitor
+      // BEFORE stopCapture() resets those flags -- only a monitored take
+      // needs the leading-latency trim below; an a cappella take (nothing
+      // playing) has nothing to sync against, so it's left untouched.
+      var wasMonitored = recordMonitorOwnsPlayback || !!recordMonitorBeatOnly;
       stopCapture();
       stopTimer();
       stopMeter();
@@ -4492,6 +4968,40 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       pcmChunks.forEach(function(c){ merged.set(c, off); off += c.length; });
       pcmChunks = [];
       pcmLength = 0;
+
+      // Recording-latency compensation: a take sung against a live beat
+      // is captured a little after the beat actually started -- the
+      // browser's own audio-output latency, plus the small pre-roll used
+      // to start the monitor click-free (see startRecordMonitor). Left
+      // uncorrected, the captured take lands later on the timeline than
+      // what was actually sung, so it plays back behind the beat. Trim
+      // that same amount of leading audio here so the take lines back up.
+      if (wasMonitored){
+        var calibratedSync = getStoredSyncCal();
+        var compSeconds;
+        if (calibratedSync !== null){
+          // Measured directly from this device via "Calibrate your timing"
+          // (see runSyncCalibration) -- the real click-to-tap delay, which
+          // already captures hardware output latency AND the user's own
+          // reaction time, so it's used as-is instead of estimating.
+          compSeconds = 0.03 + calibratedSync;
+        } else {
+          var outLat = 0;
+          try {
+            if (typeof ctx.outputLatency === "number" && ctx.outputLatency > 0) outLat = ctx.outputLatency;
+            else if (typeof ctx.baseLatency === "number" && ctx.baseLatency > 0) outLat = ctx.baseLatency;
+          } catch(e){}
+          // Bluetooth's own round-trip delay (commonly 100-300ms) happens
+          // below the Web Audio API, so ctx.outputLatency rarely reflects
+          // it -- add a fixed extra trim on top of the measured latency
+          // whenever this take's input or output was detected as Bluetooth.
+          var btComp = detectedBluetooth ? 0.18 : 0;
+          compSeconds = 0.03 + outLat + btComp; // matches the monitor's own start pre-roll
+        }
+        var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
+        if (trimSamples > 0) merged = merged.subarray(trimSamples);
+      }
+
       var wavBlob = encodeWavBlob(merged, sr);
       var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
       // Reset before handing off the captured file -- handleFile() /
@@ -4517,15 +5027,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       recordStream = stream;
       ensureContext();
 
-      if (opts.btWarnEl){
-        var micTrack = stream.getAudioTracks()[0];
-        var inputIsBt = looksLikeBluetoothLabel(micTrack && micTrack.label);
-        opts.btWarnEl.hidden = !inputIsBt;
-        if (!inputIsBt){
-          checkOutputBluetooth(function(outIsBt){
-            if (outIsBt) opts.btWarnEl.hidden = false;
-          });
-        }
+      // Bluetooth detection -- kept independent of the warning banner so
+      // finishRecording() can use it for latency compensation even when
+      // this recorder instance has no opts.btWarnEl.
+      var micTrack = stream.getAudioTracks()[0];
+      detectedBluetooth = looksLikeBluetoothLabel(micTrack && micTrack.label);
+      if (opts.btWarnEl) opts.btWarnEl.hidden = !detectedBluetooth;
+      if (!detectedBluetooth){
+        checkOutputBluetooth(function(outIsBt){
+          if (outIsBt){
+            detectedBluetooth = true;
+            if (opts.btWarnEl) opts.btWarnEl.hidden = false;
+          }
+        });
       }
 
       recordSrcNode = ctx.createMediaStreamSource(stream);
@@ -4573,12 +5087,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         // that quietly carries over.
         if (opts.fxMonitorCheckbox && opts.fxMonitorCheckbox.checked){
           monitorFxDry = ctx.createGain(); monitorFxDry.gain.value = 0.5;
-          monitorFxWet = ctx.createGain(); monitorFxWet.gain.value = 0.22;
-          monitorFxConv = ctx.createConvolver();
-          monitorFxConv.buffer = getReverbBuffer(0.9, 2.2, 1);
           monitorFxOut = ctx.createGain(); monitorFxOut.gain.value = 1;
           recordSrcNode.connect(monitorFxDry); monitorFxDry.connect(monitorFxOut);
-          recordSrcNode.connect(monitorFxConv); monitorFxConv.connect(monitorFxWet); monitorFxWet.connect(monitorFxOut);
+          // The reverb touch is its own opt-in on top of plain self-monitoring
+          // (off by default -- see opts.fxReverbCheckbox), not bundled into
+          // "can you hear yourself" anymore.
+          if (opts.fxReverbCheckbox && opts.fxReverbCheckbox.checked){
+            monitorFxWet = ctx.createGain(); monitorFxWet.gain.value = 0.22;
+            monitorFxConv = ctx.createConvolver();
+            monitorFxConv.buffer = getReverbBuffer(0.9, 2.2, 1);
+            recordSrcNode.connect(monitorFxConv); monitorFxConv.connect(monitorFxWet); monitorFxWet.connect(monitorFxOut);
+          }
           monitorFxOut.connect(ctx.destination);
         }
         if (captureNode.port){
@@ -4628,20 +5147,32 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       });
     }
 
+    if (opts.deviceSelectEl){
+      opts.deviceSelectEl.addEventListener("change", function(){ startMicPreview(); });
+    }
+
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
       if (opts.canStart && !opts.canStart()) return;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
         alert(STR[lang].recordUnsupported);
         return;
       }
+      stopMicPreview(); // hand the device off cleanly -- never hold two open streams on it at once
       capSeconds = opts.getCapSeconds ? opts.getCapSeconds() : capSeconds;
       // Raw, unprocessed input: Gemstar's own Clean/Punch/etc. chain does
       // the noise reduction and leveling, so the browser's built-in
       // echo-cancellation/noise-suppression/AGC would just fight it —
       // better to hand it the truest possible signal to work with.
+      // No forced sampleRate here on purpose -- asking for a rate that
+      // doesn't match what a USB interface is actually running at forces
+      // the browser into a real-time resample on every buffer, which is a
+      // well-known source of crackle/static specifically on interfaces
+      // (never shows up on a laptop's built-in mic, which is exactly what
+      // got reported). Leaving it unset lets the browser just use
+      // whatever rate the device is already running at.
       var baseConstraints = {
         echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-        channelCount:{ideal:1}, sampleRate:{ideal:48000}
+        channelCount:{ideal:1}
       };
       var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
       var audioConstraints = pickedDeviceId
@@ -4679,7 +5210,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       refreshIdleHint();
     });
 
-    return { stop: hardStop, refreshIdleHint: refreshIdleHint };
+    return { stop: hardStop, refreshIdleHint: refreshIdleHint, startMicPreview: startMicPreview, stopMicPreview: stopMicPreview };
   }
 
   var mainDeviceSelector = createDeviceSelector(
@@ -4700,10 +5231,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dotEl: document.getElementById("record-dot"),
     timeEl: document.getElementById("record-time"),
     meterBar: document.getElementById("record-meter-bar"),
+    deviceSelectEl: document.getElementById("record-device-select"),
     waveformCanvas: document.getElementById("record-waveform"),
     hintEl: document.getElementById("record-hint"),
     btWarnEl: document.getElementById("record-bt-warn"),
     fxMonitorCheckbox: document.getElementById("record-fx-monitor"),
+    fxReverbCheckbox: document.getElementById("record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
     onCaptured: function(file){
@@ -4878,8 +5411,24 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // The beat's actual output level, after the Mute/Solo Beat buttons and
   // any vocal solo (per-track or the Solo Vocal group button) are factored
   // in -- mirrors trackOutGain()'s logic for the vocal side.
+  // Hot beats (peaks at/near 0 dBFS) used to slam the output limiter once the
+  // +3 dB output gain and the vocals were added, which is audible as
+  // distortion/static. Trim only the beats that peak above -3 dBFS, just
+  // enough to leave the limiter some room. Cached per decoded buffer.
+  function beatTrimFor(buf){
+    if (!buf) return 1;
+    if (buf._gemTrim != null) return buf._gemTrim;
+    var peak = 0, c, i, step;
+    for (c = 0; c < buf.numberOfChannels; c++){
+      var d = buf.getChannelData(c);
+      step = Math.max(1, Math.floor(d.length / 2000000));   // plenty accurate, quick on long files
+      for (i = 0; i < d.length; i += step){ var a = d[i] < 0 ? -d[i] : d[i]; if (a > peak) peak = a; }
+    }
+    buf._gemTrim = peak > 0.708 ? 0.708 / peak : 1;
+    return buf._gemTrim;
+  }
   function beatOutLevel(){
-    var lvl = parseFloat(beatLevelSlider.value)/100 * 1.1;
+    var lvl = parseFloat(beatLevelSlider.value)/100 * 1.1 * beatTrimFor(beatBuffer);
     if (beatMuted) return 0;
     if (vocalGroupSolo && !beatSolo) return 0;
     if (anySolo() && !beatSolo) return 0; // soloing one vocal track ducks the beat too
@@ -4896,7 +5445,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (btnVocalSolo) { btnVocalSolo.classList.toggle("on", vocalGroupSolo); btnVocalSolo.setAttribute("aria-pressed", String(vocalGroupSolo)); }
   }
 
-  function handleBeatFile(file){
+  function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_REFERENCE_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file){
     if (!file) return;
     ensureContext();
     var reader = new FileReader();
@@ -4904,7 +5453,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       ctx.decodeAudioData(e.target.result.slice(0), function(buf){
         beatBuffer = buf;
         beatNameEl.textContent = file.name;
-        updateBeatVisibility();
+        updateBeatVisibility(); autoLevelBeatForDrop(buf); autoLevelVocalToBeat(); refreshLiveMix();
         applyBeatLevel();
         if (window.gemstarKeyUI) window.gemstarKeyUI.onBeat(buf);
         if (isPlaying) startPlayback(); // restart in sync now that a beat exists
@@ -5007,6 +5556,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // track once a vocal is loaded -- that's where you add tracks, balance
     // them, and pick which one is the lead.
     vocalMixerEl.hidden = !(mode === "full" || (maxVocalTracks() > 1 && audioBuffer) || extraVocals.length > 0);
+    // Lives next to the Re-record/Remove/Change File row now (not inside
+    // #vocal-mixer's own DOM subtree anymore), so it needs this mirrored
+    // by hand to keep exactly the same show/hide behavior as before.
+    var addVocalRowEl = document.getElementById("extra-vocal-add-row");
+    if (addVocalRowEl) addVocalRowEl.hidden = vocalMixerEl.hidden;
     var leadHint = document.getElementById("lead-pick-hint");
     if (leadHint) leadHint.hidden = extraVocals.length === 0;
     var count = totalVocalTrackCount();
@@ -5038,7 +5592,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function pushExtraVocal(name, buffer){
     var t = {id: extraVocalIdSeq++, name: name, buffer: buffer, level: 1, _liveGain: null,
              values: Object.assign({}, DEFAULT_VALUES), chain: null,
-             pan: 0, muted: false, solo: false, role: ""};
+             pan: 0, muted: false, solo: false, role: "", nudgeSec: 0};
     applySavedTrackSettings(t, name);
     extraVocals.push(t);
     syncTrackChains();
@@ -5338,10 +5892,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     dotEl: document.getElementById("extra-record-dot"),
     timeEl: document.getElementById("extra-record-time"),
     meterBar: document.getElementById("extra-record-meter-bar"),
+    deviceSelectEl: document.getElementById("extra-record-device-select"),
     waveformCanvas: document.getElementById("extra-record-waveform"),
     hintEl: document.getElementById("extra-record-hint"),
     btWarnEl: document.getElementById("extra-record-bt-warn"),
     fxMonitorCheckbox: document.getElementById("extra-record-fx-monitor"),
+    fxReverbCheckbox: document.getElementById("extra-record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
     canStart: function(){
@@ -5465,6 +6021,31 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       runAiMix();
     });
   }
+  // Inline AI Mix undo -- right next to the button that triggered it,
+  // instead of the floating bottom toast every other undoable action uses
+  // (that one stays a toast; see the CSS comment on #btn-ai-mix-undo for
+  // why AI Mix gets its own treatment). Same reversible window (8s) and
+  // single-pending-action shape as showUndoToast()/hideUndoToast() below.
+  var btnAiMixUndo = document.getElementById("btn-ai-mix-undo");
+  var aiMixUndoTimer = null;
+  var aiMixUndoAction = null;
+  function hideAiMixUndoBtn(){
+    if (aiMixUndoTimer){ clearTimeout(aiMixUndoTimer); aiMixUndoTimer = null; }
+    if (btnAiMixUndo) btnAiMixUndo.hidden = true;
+    aiMixUndoAction = null;
+  }
+  function showAiMixUndoBtn(onUndo){
+    if (!btnAiMixUndo) return;
+    hideAiMixUndoBtn();
+    aiMixUndoAction = onUndo;
+    btnAiMixUndo.hidden = false;
+    aiMixUndoTimer = setTimeout(hideAiMixUndoBtn, 8000);
+  }
+  if (btnAiMixUndo) btnAiMixUndo.addEventListener("click", function(){
+    var action = aiMixUndoAction;
+    hideAiMixUndoBtn();
+    if (action) action();
+  });
 
   // Live re-detect: if an interface gets plugged in (or unplugged) while a
   // record panel is already open, refresh whichever picker(s) are visible
@@ -5477,6 +6058,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     });
   }
 
+  // Turns a 1-based position into "1st"/"2nd"/"3rd"/"4th" etc, used to
+  // badge each extra vocal row with the order it was recorded in -- every
+  // mic-recorded take shares the same generic file name
+  // ("gemstar-recording.wav"), so without this there's no way to tell
+  // which take came first, second, third...
+  function ordinal(n){
+    var s = ["th","st","nd","rd"], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
   function renderExtraVocals(){
     if (!extraVocalsListEl) return;
     extraVocalsListEl.innerHTML = "";
@@ -5487,6 +6078,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       var nameSpan = document.createElement("span");
       nameSpan.className = "vocal-track-label";
+      var orderBadge = document.createElement("span");
+      orderBadge.className = "vocal-track-order";
+      orderBadge.textContent = ordinal((audioBuffer ? 1 : 0) + idx + 1);
+      nameSpan.appendChild(orderBadge);
       var nameText = document.createElement("span");
       nameText.className = "vocal-track-name";
       nameText.textContent = t.name;
@@ -5673,9 +6268,83 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       }
       row.appendChild(controls);
       if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
+      // Tap/click anywhere in this row's own waveform to jump playback
+      // straight there -- same seek the main timeline does, just scoped to
+      // this one track's strip so you can seek right from whichever wave
+      // you're looking at (including the beat's, with nothing else loaded).
+      canvas.style.cursor = "pointer";
+      canvas.addEventListener("click", function(e){
+        e.stopPropagation(); // don't also fire the row's own setEditTarget click
+        if (total <= 0) return;
+        var r = canvas.getBoundingClientRect();
+        if (!r.width) return;
+        var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        tlCursor = frac * total;
+        if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+        restartPlaybackFromCursor();
+      });
       allVocalsRowsEl.appendChild(row);
-      drawBufferWaveform(canvas, canvas.getContext("2d"), buffer,
-        (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)", total);
+      var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)";
+      if (trackZoomIdx > 0){ drawBufferWaveformWindowed(canvas, canvas.getContext("2d"), buffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], opts.track ? trackNudgeSec(opts.track) : 0); } else { drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0); }
+
+      // Drag this track's mini waveform left/right to hand-align its timing
+      // against the beat and every other track -- see trackNudgeSec() and
+      // the extra TRACK_NUDGE_MAX lead-in startPlayback()/exportMix()
+      // schedule every source with. Purely visual while dragging (cheap,
+      // instant); only restarts live audio (if something's playing) once you
+      // let go, so a drag-in-progress never stutters playback.
+      if (opts.track){
+        (function(nudgeTrack, nudgeCanvas, nudgeBuffer){
+          var dragging = false, dragMoved = false, dragStartX = 0, dragStartNudge = 0;
+          var DRAG_TOLERANCE = 4;
+          function redraw(){
+            if (trackZoomIdx > 0){ drawBufferWaveformWindowed(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], trackNudgeSec(nudgeTrack)); } else { drawBufferWaveform(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, total, trackNudgeSec(nudgeTrack)); }
+          }
+          function updateTitle(){
+            var ms = Math.round(trackNudgeSec(nudgeTrack) * 1000);
+            nudgeCanvas.title = ms === 0 ? "Drag to nudge this vocal's timing vs. the beat"
+              : ((ms > 0 ? ("+" + ms) : String(ms)) + "ms — double-click to reset");
+          }
+          updateTitle();
+          nudgeCanvas.addEventListener("pointerdown", function(e){
+            dragging = true; dragMoved = false;
+            dragStartX = e.clientX;
+            dragStartNudge = trackNudgeSec(nudgeTrack);
+            try { nudgeCanvas.setPointerCapture(e.pointerId); } catch(err){}
+            e.preventDefault();
+          });
+          nudgeCanvas.addEventListener("pointermove", function(e){
+            if (!dragging) return;
+            var dx = e.clientX - dragStartX;
+            if (Math.abs(dx) > DRAG_TOLERANCE) dragMoved = true;
+            if (!dragMoved) return;
+            var rectW = nudgeCanvas.getBoundingClientRect().width;
+            if (rectW <= 0) return;
+            var dragRange = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : NUDGE_DRAG_RANGE_SEC; nudgeTrack.nudgeSec = clampNudge(dragStartNudge + (dx / rectW) * dragRange);
+            redraw();
+            updateTitle();
+          });
+          function endDrag(e){
+            if (!dragging) return;
+            dragging = false;
+            try { nudgeCanvas.releasePointerCapture(e.pointerId); } catch(err){}
+            if (dragMoved){
+              if (isPlaying) restartPlaybackFromCursor();
+              scheduleSave();
+            }
+          }
+          nudgeCanvas.addEventListener("pointerup", endDrag);
+          nudgeCanvas.addEventListener("pointercancel", endDrag);
+          nudgeCanvas.addEventListener("dblclick", function(e){
+            e.stopPropagation();
+            nudgeTrack.nudgeSec = 0;
+            redraw();
+            updateTitle();
+            if (isPlaying) restartPlaybackFromCursor();
+            scheduleSave();
+          });
+        })(opts.track, canvas, buffer);
+      }
     }
 
     if (showBeatRow) addRow(STR[lang].wfLabelBeat || "Beat", beatBuffer, "beat", {beat:true});
@@ -5872,23 +6541,28 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
 
   /* ---- one-tap vocal roles ---- */
-  // Tone/space/width/level/pan starting points for common vocal jobs. Tune,
-  // Humanize and the signature knobs are left alone on purpose -- those are
-  // taste calls the role shouldn't overwrite.
-  // Lead/background levels deliberately stop short of unity gain (100) --
-  // leaving headroom under the Radio knob's own parallel compression means
-  // that push does the loudness work instead of just raising the fader,
-  // which is what actually sounds like a polished radio/pop mix instead of
-  // a clipped one. Clean is set to 25 (its sweet spot) across most roles:
-  // enough to tame rumble/hiss without thinning the tone out. Background
-  // vocals get Clean turned down lower (10) since they're meant to sit
-  // further back/blended rather than sound as de-noised/forward as the lead.
-  var ROLE_PRESETS = {
-    lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:25, wide:10, radio:30}},
-    background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:60, wide:60, radio:10}},
-    doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:35, wide:15, radio:20}},
-    adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:55, wide:30, radio:35}}
+  // Tone/width/level/pan starting points for common vocal jobs. Tune,
+    // Humanize and the signature knobs are left alone on purpose -- those are
+    // taste calls the role shouldn't overwrite. Space (reverb), Delay, Wide
+    // (chorus/stereo doubling) and Radio (parallel-compression "radio/pop"
+    // push) are all deliberately held at 0 here -- per explicit feedback,
+    // AI Mix should never add any ambience, doubling, or stylized character
+    // on its own. It's a tone + balance pass only: clarity EQ (Clean/Bass/
+    // Voice/Highs), gentle dynamics (Punch/Smooth) and level/pan, nothing
+    // that would read as "an effect." Every knob that shapes the vocal's
+    // actual space/character stays a manual, taste-driven choice.
+    // Lead/background levels deliberately stop short of unity gain (100) to
+    // leave headroom for a clean push rather than a clipped one. Clean is
+    // set to 25 (its sweet spot) across most roles: enough to tame rumble/
+    // hiss without thinning the tone out. Background vocals get Clean turned
+    // down lower (10) since they're meant to sit further back/blended
+    // rather than sound as de-noised/forward as the lead.
+    var ROLE_PRESETS = {
+      lead:       {level:0.8,  pan:0,    knobs:{clean:25, punch:55, bass:45, voice:62, highs:30, smooth:40, space:0, wide:0, radio:0, delay:0}},
+      background: {level:0.6,  pan:0,    knobs:{clean:10, punch:40, bass:20, voice:35, highs:40, smooth:50, space:0, wide:0, radio:0, delay:0}},
+      doubleL:    {level:0.6,  pan:-0.8, knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:0, radio:0, delay:0}},
+      doubleR:    {level:0.6,  pan:0.8,  knobs:{clean:25, punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:0, radio:0, delay:0}},
+      adlib:      {level:0.7,  pan:0.3,  knobs:{clean:25, punch:60, bass:30, voice:55, highs:35, smooth:45, space:0, wide:0, radio:0, delay:0}}
   };
   function applyRole(tr, role){
     tr.role = role || "";
@@ -6014,7 +6688,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var beatActivity = analyzeTrackActivity(beatBuffer);
       if (beatActivity.activeRms){
         var desiredMult = AI_MIX_REFERENCE_RMS / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies
-        var pct = Math.max(10, Math.min(100, Math.round((desiredMult / 1.1) * 100)));
+        var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(beatBuffer))) * 100)));
         beatLevelSlider.value = String(pct);
       }
     }
@@ -6027,7 +6701,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     scheduleSave();
     if (wasPlaying) startPlayback();
 
-    showUndoToast(STR[lang].aiMixAppliedToast, function(){
+    showAiMixUndoBtn(function(){
       var wp = isPlaying;
       if (wp) stopPlayback();
       applyLeadSnapshot(leadSnap);
@@ -6089,8 +6763,9 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // Bridge from the gate IIFE (below), which owns Stripe/email verification —
   // called once a tier is actually confirmed (allowlist, fresh code entry,
   // or a valid stored token on reload).
-  window.gemstarApplyTier = function(tier){
+  window.gemstarApplyTier = function(tier, legacyKnobs){
     currentPlan = (tier === "mix" || tier === "unlimited") ? tier : "starter";
+    setLegacyKnobsUnlocked(legacyKnobs);
     if (window.gemstarLandingMode) window.gemstarLandingMode();
     updatePlanSelectUI();
     applyCurrentPlanSideEffects();
@@ -6320,7 +6995,36 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       src.loop = !!loopWhole;
       src._offset = dur > 0 ? (offset % dur) : 0;
     }
+    // De-click: every playback source runs through its own tiny fade node so
+    // starting, stopping, pausing and seeking never cut the waveform mid-cycle
+    // (that abrupt cut is an audible pop/crackle, especially on a loud beat).
+    var fade = ctx.createGain();
+    fade.gain.value = 0;
+    var rawConnect = src.connect.bind(src), rawStart = src.start.bind(src);
+    rawConnect(fade);
+    src._fade = fade;
+    src.connect = function(dest){ return fade.connect(dest); };
+    src.disconnect = function(){ try { fade.disconnect(); } catch(e){} };
+    src.start = function(when, off){
+      var t = (typeof when === "number" && when > 0) ? when : ctx.currentTime;
+      fade.gain.setValueAtTime(0, t);
+      fade.gain.linearRampToValueAtTime(1, t + 0.008);
+      return rawStart(when, off);
+    };
     return src;
+  }
+  // Fade a playback source out over ~10 ms, then stop and disconnect it.
+  function softStop(src, extraNodes){
+    var f = src && src._fade;
+    function cleanup(){
+      try { if (f) f.disconnect(); } catch(e){}
+      (extraNodes || []).forEach(function(n){ try { n.disconnect(); } catch(e){} });
+    }
+    if (!f || !ctx){ try { src.stop(); } catch(e){} cleanup(); return; }
+    var t = ctx.currentTime;
+    try { f.gain.cancelScheduledValues(t); f.gain.setValueAtTime(f.gain.value, t); f.gain.linearRampToValueAtTime(0, t + 0.01); } catch(e){}
+    try { src.stop(t + 0.012); } catch(e){}
+    setTimeout(cleanup, 60);
   }
 
   // Fires when the lead track reaches its natural end during plain
@@ -6424,9 +7128,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         thisPrimarySrc.onended = function(){ onLeadSourceEnded(thisPrimarySrc); };
       }
 
-      // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync
-      var startAt = ctx.currentTime + 0.03;
-      vocalSourceNodes.forEach(function(n){ n.src.start(startAt, n.src._offset); });
+      // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync.
+      // Extra head-room beyond the old flat 0.03s lead-in: a per-track timing
+      // nudge (trackNudgeSec(), set by dragging a track's mini waveform in
+      // renderAllVocalsStrip()) shifts that track's actual start time earlier
+      // or later than the others, and a source can never be scheduled into
+      // the past -- so every source gets pushed out by TRACK_NUDGE_MAX up
+      // front, leaving room for any track's nudge to pull it back toward (but
+      // never before) right now. The beat itself is never nudged -- it's what
+      // every vocal's timing is being hand-aligned against.
+      var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       playStartCtxTime = startAt;
       playStartOffset = offset;
@@ -6476,10 +7188,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // wrongly resets tlCursor to 0 / kills playback right after a pause
       // or seek, stomping on the position stopPlayback() just saved.
       try { n.src.onended = null; } catch(e){}
-      try { n.src.stop(); } catch(e){}
-      try { n.src.disconnect(); } catch(e){}
-      try { n.gain.disconnect(); } catch(e){}
-      if (n.pan) { try { n.pan.disconnect(); } catch(e){} }
+      softStop(n.src, [n.gain, n.pan]);   // fades out, then disconnects
       if (n.ref){ n.ref._liveGain = null; n.ref._livePan = null; }
     });
     vocalSourceNodes = [];
@@ -6487,8 +7196,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function stopBeatSourceOnly(){
     if (beatSourceNode){
       try { beatSourceNode.onended = null; } catch(e){} // see stopSourceOnly()
-      try { beatSourceNode.stop(); } catch(e){}
-      try { beatSourceNode.disconnect(); } catch(e){}
+      softStop(beatSourceNode);
       beatSourceNode = null;
     }
   }
@@ -6516,10 +7224,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (audioBuffer){
       if (isPlaying) return; // already playing on its own -- don't restart it from 0
       // Monitor from the top of the song, so the new take lines up with the
-      // beat/other vocals when it's added as a track starting at 0. Reuses
-      // the real transport (startPlayback), so the timeline/playhead and
-      // beat waveform visibly scrub along underneath it, same as any
-      // regular playback.
+      // beat/other vocals when it's added as a track starting at 0.
       // Loop the whole mix (tlLoop=true, no region) for as long as recording
       // keeps running, instead of the normal "play once and stop" behavior --
       // otherwise the beat/other vocals you're singing along to go silent
@@ -6527,8 +7232,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // is still capturing. That left you recording the back half of a take
       // against dead silence, which is what made it sound like "the vocals
       // only play once and stop."
+      // Uses startRecordMonitorLite() instead of the real transport
+      // (startPlayback/retainMixWiring) -- monitoring already-recorded
+      // tracks while a NEW take is being captured doesn't need their full
+      // processing chain (EQ, compression, the pitch-correction worklet);
+      // running all of that live, on top of the mic-capture worklet, is
+      // exactly the extra real-time-audio-thread load that was causing
+      // static/glitches while recording with other tracks already on the
+      // song. The timeline/playhead and beat waveform still scrub along
+      // underneath it the same as any regular playback -- only the signal
+      // path each track's audio takes is lighter, not the UI.
       tlCursor = 0; tlRegion = null; tlLoop = true;
-      startPlayback();
+      startRecordMonitorLite();
       recordMonitorOwnsPlayback = true;
     } else if (beatBuffer && chain){
       // No lead vocal yet -- just the beat alone, played directly (it
@@ -6538,9 +7253,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // of the generic stopPlayback() so it never touches the mix-wiring
       // ref-count that path didn't take out.
       stopRecordMonitorBeatOnly();
-      var src = ctx.createBufferSource();
-      src.buffer = beatBuffer;
-      src.loop = false;
+      var src = makeTimedSource(beatBuffer, 0, null, false);   // includes the click-free fade
       src.connect(chain.beatGain);
       var startAt = ctx.currentTime + 0.03;
       src.start(startAt, 0);
@@ -6560,17 +7273,81 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   }
   function stopRecordMonitorBeatOnly(){
     if (recordMonitorBeatOnly){
-      try { recordMonitorBeatOnly.stop(); } catch(e){}
-      try { recordMonitorBeatOnly.disconnect(); } catch(e){}
+      softStop(recordMonitorBeatOnly);
       recordMonitorBeatOnly = null;
       isPlaying = false;
       updatePlayButton();
       renderTimeline();
     }
   }
+  // Lightweight recording-monitor playback: plays already-recorded tracks
+  // (and the beat) straight into chain.mixSum -- level/pan only, same as
+  // wireTrackSource() always did, but skipping each track's own processing
+  // chain (chain.input / vocalTrackInput()) entirely, so none of that DSP
+  // (EQ, compressors, the pitch-correction worklet) runs live while a new
+  // take is being captured. Deliberately NOT retainMixWiring()/startPlayback
+  // -- this never touches the heavy per-track racks or their ref-count at
+  // all, so normal Play and Auto-Master/export are completely unaffected;
+  // this is purely what you hear while tracking a new part. The real
+  // processed sound is back the moment recording stops and Play is pressed.
+  function startRecordMonitorLite(){
+    if (!chain || currentTotalDuration() <= 0) return;
+    try {
+      stopSourceOnly();
+      stopBeatSourceOnly();
+      vocalSourceNodes = [];
+      // Don't monitor the stale take that's actively being replaced right
+      // now -- otherwise re-record (lead or an extra vocal) plays the OLD
+      // version back in your headphones while you're singing the new one,
+      // which sounds exactly like it's recording on top of itself even
+      // though the captured take only ever replaces, never layers.
+      var leadSrc = (audioBuffer && !reRecordLeadActive) ? makeTimedSource(audioBuffer, 0, null, true) : null;
+      if (leadSrc){
+        var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.mixSum);
+        leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
+        vocalSourceNodes.push({src:leadSrc, gain:leadNodes.gain, pan:leadNodes.pan, ref:leadTrack});
+      }
+      extraVocals.forEach(function(t){
+        if (t === reRecordExtraTarget) return; // being replaced right now -- don't play the take you're about to overwrite
+        var src = makeTimedSource(t.buffer, 0, null, true);
+        if (!src) return;
+        var nodes = wireTrackSource(src, t, chain.mixSum);
+        t._liveGain = nodes.gain; t._livePan = nodes.pan;
+        vocalSourceNodes.push({src:src, gain:nodes.gain, pan:nodes.pan, ref:t});
+      });
+      if (beatBuffer){
+        beatSourceNode = makeTimedSource(beatBuffer, 0, null, true);
+        if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
+      }
+      var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
+      if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
+      playStartCtxTime = startAt;
+      playStartOffset = 0;
+      playRegion = null;
+      playLoopWhole = true;
+      isPlaying = true;
+      updatePlayButton();
+      renderTimeline();
+      runVisualizer();
+    } catch(err){
+      try { stopSourceOnly(); } catch(e2){}
+      try { stopBeatSourceOnly(); } catch(e2){}
+      isPlaying = false;
+      updatePlayButton();
+      renderTimeline();
+    }
+  }
+  function stopRecordMonitorLite(){
+    stopSourceOnly();
+    stopBeatSourceOnly();
+    isPlaying = false;
+    updatePlayButton();
+    renderTimeline();
+  }
   function stopRecordMonitor(){
     if (recordMonitorBeatOnly) stopRecordMonitorBeatOnly();
-    else if (recordMonitorOwnsPlayback && isPlaying) stopPlayback();
+    else if (recordMonitorOwnsPlayback && isPlaying) stopRecordMonitorLite();
     recordMonitorOwnsPlayback = false;
   }
 
@@ -6597,6 +7374,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var btnTlZoomIn = document.getElementById("btn-tl-zoom-in");
   var btnTlZoomOut = document.getElementById("btn-tl-zoom-out");
   var tlZoomLevelEl = document.getElementById("tl-zoom-level");
+var btnTrkZoomIn = document.getElementById("btn-trk-zoom-in");
+var btnTrkZoomOut = document.getElementById("btn-trk-zoom-out");
+var trkZoomLevelEl = document.getElementById("trk-zoom-level");
+if (btnTrkZoomOut) btnTrkZoomOut.disabled = true;
+function trkZoomTo(idx){
+  trackZoomIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, idx));
+  if (trkZoomLevelEl){
+    var lvl = TRACK_ZOOM_LEVELS[trackZoomIdx];
+    trkZoomLevelEl.textContent = lvl > 0 ? ("Zoom: " + lvl + "s") : "Zoom: Off";
+  }
+  if (btnTrkZoomOut) btnTrkZoomOut.disabled = trackZoomIdx === 0;
+  if (btnTrkZoomIn) btnTrkZoomIn.disabled = trackZoomIdx === TRACK_ZOOM_LEVELS.length - 1;
+  if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+}
+if (btnTrkZoomIn) btnTrkZoomIn.addEventListener("click", function(){ trkZoomTo(trackZoomIdx + 1); });
+if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo(trackZoomIdx - 1); });
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
 
@@ -6745,7 +7538,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       return Math.max(0, Math.min(currentTotalDuration(), sec));
     }
     timelineEl.addEventListener("pointerdown", function(e){
-      if (!audioBuffer || currentTotalDuration() <= 0) return;
+      // Used to also require a lead vocal (audioBuffer) to exist before the
+      // timeline would respond at all -- which meant a beat loaded on its
+      // own, with nothing recorded yet, couldn't be seeked/scrubbed. Any
+      // audio source at all (beat, lead, or an extra vocal) is enough.
+      if (currentTotalDuration() <= 0) return;
       e.preventDefault();
       try { timelineEl.setPointerCapture(e.pointerId); } catch(err){}
       tlPress = {id: e.pointerId, x: e.clientX, t: tlTimeAt(e.clientX), dragging: false};
@@ -6981,12 +7778,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     return d;
   }
 
-  function drawBufferWaveform(cv, cx, buffer, color, totalDuration){
+  function drawBufferWaveform(cv, cx, buffer, color, totalDuration, startSec){
     var w = cv.width, h = cv.height;
     cx.clearRect(0,0,w,h);
     if (!buffer) return;
     var scale = totalDuration > 0 ? Math.min(1, buffer.duration / totalDuration) : 1;
     var drawW = Math.max(1, Math.round(w * scale));
+    // A manual timing nudge (see trackNudgeSec()) shifts this track's whole
+    // waveform left/right so what you SEE lines up with what you'll HEAR
+    // relative to the beat and every other track -- same px-per-second
+    // mapping the drag handler in renderAllVocalsStrip() uses.
+    var pxOffset = (startSec && totalDuration > 0) ? Math.round(startSec * (w / totalDuration)) : 0;
     var data = buffer.getChannelData(0);
     cx.strokeStyle = color;
     cx.lineWidth = 1;
@@ -7001,7 +7803,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (v<min) min=v; if (v>max) max=v;
       }
       var y1 = (1+min)*h/2, y2 = (1+max)*h/2;
-      cx.moveTo(x, y1); cx.lineTo(x, y2);
+      cx.moveTo(x + pxOffset, y1); cx.lineTo(x + pxOffset, y2);
     }
     cx.stroke();
   }
@@ -7151,19 +7953,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
       var vocalNodes = [];
       // Export / Auto-Master renders exactly what you hear: same levels,
-      // pans, mutes and solos as the live mixer.
+      // pans, mutes, solos, AND per-track timing nudges as the live mixer.
       var leadSrc = ctx.createBufferSource();
       leadSrc.buffer = audioBuffer;
       leadSrc.loop = false;
       wireTrackSource(leadSrc, leadTrack, chain.input);
-      vocalNodes.push(leadSrc);
+      vocalNodes.push({src:leadSrc, ref:leadTrack});
 
       extraVocals.forEach(function(t){
         var src = ctx.createBufferSource();
         src.buffer = t.buffer;
         src.loop = false;
         wireTrackSource(src, t, vocalTrackInput(t));
-        vocalNodes.push(src);
+        vocalNodes.push({src:src, ref:t});
       });
 
       var beatSrc = null;
@@ -7174,8 +7976,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         beatSrc.connect(chain.beatGain);
       }
 
-      var startAt = ctx.currentTime + 0.05;
-      vocalNodes.forEach(function(n){ n.start(startAt); });
+      // Same per-track timing nudge as live playback (see startPlayback())
+      // so an exported/auto-mastered file lines up exactly like Play does.
+      var startAt = ctx.currentTime + 0.05 + TRACK_NUDGE_MAX;
+      vocalNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref)); });
       if (beatSrc) beatSrc.start(startAt);
 
       // Beat level stays constant here too, matching live playback (see
@@ -7191,8 +7995,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         if (isWorklet){ try { tapNode.port.onmessage = null; } catch(err){} }
         else { tapNode.onaudioprocess = null; }
         vocalNodes.forEach(function(n){
-          try { n.stop(); } catch(err){}
-          try { n.disconnect(); } catch(err){}
+          try { n.src.stop(); } catch(err){}
+          try { n.src.disconnect(); } catch(err){}
         });
         if (beatSrc){
           try { beatSrc.stop(); } catch(err){}
@@ -7211,7 +8015,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           off += chunksL[i].length;
         }
         resolve([outL, outR]);
-      }, Math.ceil(durationSec*1000) + 250);
+      }, Math.ceil(durationSec*1000) + 250 + Math.round(TRACK_NUDGE_MAX*1000));
       } // end beginWithTap
 
       loadAnalysisWorklet(ctx).then(function(workletNode){
@@ -7813,6 +8617,53 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (e.key === "Escape" && helpOverlay && helpOverlay.classList.contains("show")) closeHelp();
   });
 
+  /* ---------- "Need help?" idle nudge ---------- */
+  // Reuses the existing Need Help guide rather than inventing a second help
+  // surface -- after a stretch with no clicks/taps/keys/scrolling, and only
+  // once a vocal or beat is actually loaded (nudging an empty landing page
+  // helps no one), a small corner prompt points at it. Never shown while
+  // something's actually playing -- that's someone listening, not someone
+  // stuck -- and never more than once per visit (sessionStorage, not
+  // localStorage: a browser that comes back another day to work on a new
+  // take deserves the nudge again if they get stuck again).
+  var helpNudgeEl = document.getElementById("help-nudge");
+  var helpNudgeBtnEl = document.getElementById("help-nudge-btn");
+  var helpNudgeCloseEl = document.getElementById("help-nudge-close");
+  var HELP_NUDGE_IDLE_MS = 50000;
+  var HELP_NUDGE_SEEN_KEY = "gemstarHelpNudgeSeenSession";
+  var helpNudgeTimer = null;
+  var helpNudgeAutoHideTimer = null;
+  function helpNudgeAlreadySeen(){
+    try { return sessionStorage.getItem(HELP_NUDGE_SEEN_KEY) === "1"; } catch(e){ return false; }
+  }
+  function markHelpNudgeSeen(){
+    try { sessionStorage.setItem(HELP_NUDGE_SEEN_KEY, "1"); } catch(e){}
+  }
+  function hideHelpNudge(){
+    if (helpNudgeAutoHideTimer){ clearTimeout(helpNudgeAutoHideTimer); helpNudgeAutoHideTimer = null; }
+    if (helpNudgeEl) helpNudgeEl.classList.remove("show");
+  }
+  function showHelpNudge(){
+    if (!helpNudgeEl || helpNudgeAlreadySeen()) return;
+    if (isPlaying) return; // someone actually listening, not someone stuck
+    if (!audioBuffer && !beatBuffer) return; // nothing loaded yet
+    if (helpOverlay && helpOverlay.classList.contains("show")) return; // already looking at help
+    markHelpNudgeSeen();
+    helpNudgeEl.classList.add("show");
+    helpNudgeAutoHideTimer = setTimeout(hideHelpNudge, 20000);
+  }
+  function resetHelpNudgeTimer(){
+    if (helpNudgeTimer){ clearTimeout(helpNudgeTimer); helpNudgeTimer = null; }
+    if (helpNudgeAlreadySeen()) return; // only ever arms once per visit
+    helpNudgeTimer = setTimeout(showHelpNudge, HELP_NUDGE_IDLE_MS);
+  }
+  ["pointerdown","keydown","wheel","touchstart"].forEach(function(evt){
+    document.addEventListener(evt, resetHelpNudgeTimer, {passive:true});
+  });
+  resetHelpNudgeTimer();
+  if (helpNudgeBtnEl) helpNudgeBtnEl.addEventListener("click", function(){ hideHelpNudge(); openHelp(); });
+  if (helpNudgeCloseEl) helpNudgeCloseEl.addEventListener("click", hideHelpNudge);
+
   /* collab-intro:start */
   /* ---------- Collab intro pop-up ---------- */
   // First tap on "Collab" explains what it is; after "Start collaborating"
@@ -8381,7 +9232,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       var now = Date.now();
       function rec(name, vals, level, tr){
         if (!name) return;
-        tracks[name] = {values: pickKnobs(vals), level: level, pan: tr.pan || 0, role: tr.role || "", at: now};
+        tracks[name] = {values: pickKnobs(vals), level: level, pan: tr.pan || 0, role: tr.role || "", nudgeSec: tr.nudgeSec || 0, at: now};
       }
       if (audioBuffer) rec(trackNameEl.textContent, leadValues, mainVocalLevel, leadTrack);
       extraVocals.forEach(function(t){ rec(t.name, t.values, t.level, t); });
@@ -8615,10 +9466,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var id = "np_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
     exportStatus.textContent = STR[lang].savingProject;
     exportStatus.className = "export-status";
-    npPut(captureNamedProjectRecord(id, name)).then(function(){
+    var namedRec = captureNamedProjectRecord(id, name);
+    npPut(namedRec).then(function(){
       exportStatus.textContent = STR[lang].savedAsProjectOk.replace("{name}", name);
       exportStatus.className = "export-status ok";
       renderProjectsList();
+      saveProjectToCloud(namedRec);
     }, function(){
       exportStatus.textContent = STR[lang].savedAsProjectErr;
       exportStatus.className = "export-status err";
@@ -8701,12 +9554,178 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!projectsOverlay) return;
     projectsOverlay.hidden = false;
     renderProjectsList();
+    renderCloudProjectsList();
   });
   var projectsCloseBtn = document.getElementById("projects-close");
   if (projectsCloseBtn) projectsCloseBtn.addEventListener("click", function(){ projectsOverlay.hidden = true; });
   if (projectsOverlay) projectsOverlay.addEventListener("click", function(e){
     if (e.target === projectsOverlay) projectsOverlay.hidden = true;
   });
+
+  // ---------- Cloud projects (account-tied, cross-device) ----------
+  // A second, independent project list alongside the local one above:
+  // explicit "Save Project As..." also uploads to Gemstar's backend under
+  // the caller's verified email (the same email/device token already used
+  // to unlock export), so "My Projects" can be found from any device or
+  // browser, not just the one that saved it -- and an owner can share a
+  // project with another Gemstar user by email. Local saves above are
+  // untouched and still work instantly/offline even without verifying.
+  function hasCloudToken(){
+    try { return !!localStorage.getItem(STORE_KEY); } catch(e){ return false; }
+  }
+  function cloudApi(path, payload){
+    var tok = "", dev = "";
+    try { tok = localStorage.getItem(STORE_KEY) || ""; dev = localStorage.getItem(DEVICE_KEY) || ""; } catch(e){}
+    return fetch("/api/" + path, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(Object.assign({token: tok, deviceId: dev}, payload || {}))
+    }).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, status: r.status, d: d}; }); });
+  }
+  var CLOUD_MIME_BY_EXT = {wav:"audio/wav", mp3:"audio/mpeg", m4a:"audio/mp4", webm:"audio/webm", ogg:"audio/ogg"};
+  var CLOUD_EXT_BY_TYPE = {"audio/wav":"wav", "audio/x-wav":"wav", "audio/mpeg":"mp3", "audio/mp4":"m4a", "audio/webm":"webm", "audio/ogg":"ogg"};
+  function cloudExtOf(file){
+    var m = /\.([a-zA-Z0-9]+)$/.exec((file && file.name) || "");
+    if (m && CLOUD_MIME_BY_EXT[m[1].toLowerCase()]) return m[1].toLowerCase();
+    return (file && CLOUD_EXT_BY_TYPE[file.type]) || "wav";
+  }
+  function cloudPutFile(uploadUrl, file){
+    var ext = cloudExtOf(file);
+    var fd = new FormData();
+    fd.append("cacheControl", "3600");
+    fd.append("", new Blob([file], {type: CLOUD_MIME_BY_EXT[ext] || file.type || "audio/wav"}));
+    return fetch(uploadUrl, {method: "PUT", body: fd});
+  }
+  function saveProjectToCloud(rec){
+    if (!hasCloudToken()) return Promise.resolve();
+    var leadFile = rec.lead ? rec.lead.blob : null;
+    var extraFiles = (rec.extras || []).map(function(e){ return e.blob; });
+    return cloudApi("projects", {action: "save",
+      name: rec.name,
+      settings: rec.settings,
+      lead: leadFile ? {name: leadFile.name, ext: cloudExtOf(leadFile)} : null,
+      extras: extraFiles.map(function(f){ return {name: f.name, ext: cloudExtOf(f)}; }),
+    }).then(function(res){
+      if (!res.ok || !res.d || !res.d.projectId) return;
+      var uploads = [];
+      if (leadFile && res.d.leadUploadUrl) uploads.push(cloudPutFile(res.d.leadUploadUrl, leadFile));
+      (res.d.extraUploadUrls || []).forEach(function(u, i){
+        if (u && extraFiles[i]) uploads.push(cloudPutFile(u, extraFiles[i]));
+      });
+      return Promise.all(uploads);
+    }).then(function(){
+      renderCloudProjectsList();
+    }).catch(function(){ /* best-effort -- the local save already succeeded */ });
+  }
+
+  var cloudProjectsListEl = document.getElementById("cloud-projects-list");
+  var cloudProjectsEmptyEl = document.getElementById("cloud-projects-empty");
+  var cloudSignInHintEl = document.getElementById("cloud-signin-hint");
+  function renderCloudProjectsList(){
+    if (!cloudProjectsListEl) return;
+    if (!hasCloudToken()){
+      cloudProjectsListEl.innerHTML = "";
+      if (cloudProjectsEmptyEl) cloudProjectsEmptyEl.hidden = true;
+      if (cloudSignInHintEl) cloudSignInHintEl.hidden = false;
+      return;
+    }
+    if (cloudSignInHintEl) cloudSignInHintEl.hidden = true;
+    cloudApi("projects", {action: "list"}).then(function(res){
+      var list = (res.ok && res.d && res.d.projects) || [];
+      cloudProjectsListEl.innerHTML = "";
+      if (cloudProjectsEmptyEl) cloudProjectsEmptyEl.hidden = list.length > 0;
+      list.forEach(function(p){
+        var row = document.createElement("div");
+        row.className = "project-row";
+        var info = document.createElement("div");
+        info.className = "project-row-info";
+        var nameEl = document.createElement("span");
+        nameEl.className = "project-row-name";
+        nameEl.textContent = p.name + (p.isOwner ? "" : "  ·  shared by " + p.ownerEmail);
+        var metaEl = document.createElement("span");
+        metaEl.className = "project-row-meta";
+        var metaBits = [fmtProjectDate(p.updatedAt)];
+        if (p.isOwner && p.sharedWith && p.sharedWith.length) metaBits.push("shared with " + p.sharedWith.join(", "));
+        metaEl.textContent = metaBits.join(" · ");
+        info.appendChild(nameEl); info.appendChild(metaEl);
+
+        var openBtn = document.createElement("button");
+        openBtn.type = "button";
+        openBtn.className = "project-row-open";
+        openBtn.textContent = STR[lang].projectOpenBtn;
+        openBtn.addEventListener("click", function(){ openCloudProject(p); });
+
+        row.appendChild(info); row.appendChild(openBtn);
+
+        if (p.isOwner){
+          var shareBtn = document.createElement("button");
+          shareBtn.type = "button";
+          shareBtn.className = "project-row-open";
+          shareBtn.textContent = STR[lang].cloudShareBtn;
+          shareBtn.addEventListener("click", function(){
+            var email = window.prompt(STR[lang].cloudSharePrompt, "");
+            if (!email) return;
+            cloudApi("projects", {action: "share", projectId: p.id, email: email.trim()}).then(function(res2){
+              if (!res2.ok){
+                exportStatus.textContent = (res2.d && res2.d.error) || STR[lang].cloudShareErr;
+                exportStatus.className = "export-status err";
+                return;
+              }
+              exportStatus.textContent = STR[lang].cloudShareOk.replace("{email}", email.trim());
+              exportStatus.className = "export-status ok";
+              renderCloudProjectsList();
+            });
+          });
+          row.appendChild(shareBtn);
+
+          var delBtn = document.createElement("button");
+          delBtn.type = "button";
+          delBtn.className = "project-row-delete";
+          delBtn.textContent = STR[lang].projectDeleteBtn;
+          delBtn.addEventListener("click", function(){
+            if (!window.confirm(STR[lang].projectDeleteConfirm.replace("{name}", p.name))) return;
+            cloudApi("projects", {action: "delete", projectId: p.id}).then(function(){ renderCloudProjectsList(); });
+          });
+          row.appendChild(delBtn);
+        }
+
+        cloudProjectsListEl.appendChild(row);
+      });
+    }).catch(function(){});
+  }
+  function openCloudProject(p){
+    if (projectsOverlay) projectsOverlay.hidden = true;
+    exportStatus.textContent = STR[lang].projectOpening;
+    exportStatus.className = "export-status";
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    clearExtraVocals();
+    cloudApi("projects", {action: "get", projectId: p.id}).then(function(res){
+      if (!res.ok || !res.d) throw new Error((res.d && res.d.error) || "Couldn't open this project.");
+      var data = res.d;
+      var leadPromise = (data.lead && data.lead.url)
+        ? fetch(data.lead.url).then(function(r){ return r.blob(); }).then(function(blob){
+            return handleFile(new File([blob], data.lead.name || "lead", {type: blob.type}));
+          })
+        : Promise.resolve();
+      return leadPromise.then(function(){
+        var extras = data.extras || [];
+        return Promise.all(extras.map(function(e){
+          if (!e.url) return Promise.resolve();
+          return fetch(e.url).then(function(r){ return r.blob(); }).then(function(blob){
+            return addExtraVocalFromFile(new File([blob], e.name || "vocal", {type: blob.type}));
+          });
+        })).then(function(){
+          applyNamedProjectSettings(data.settings);
+        });
+      });
+    }).then(function(){
+      exportStatus.textContent = STR[lang].savedProjectOk;
+      exportStatus.className = "export-status ok";
+    }).catch(function(){
+      exportStatus.textContent = STR[lang].projectOpenErr;
+      exportStatus.className = "export-status err";
+    });
+  }
 
   // Offered once on load, before the welcome screen, so a returning user
   // sees it first. "Resume" rebuilds the saved file(s) as real Files and
@@ -8732,6 +9751,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (noBtn) noBtn.addEventListener("click", function(){
         hide();
         idbDelete(PROJECT_KEY).catch(function(){});
+        // Discarding the saved take(s) should also drop the knob/fader
+        // state that was saved alongside them -- otherwise every EQ/FX
+        // knob, the output gain, and the key/scale just stay wherever the
+        // discarded session left them instead of going back to default.
+        try { window.localStorage.removeItem(SESSION_KEY); } catch(e){}
+        savedSession = null;
+        leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "lead") values = leadValues;
+        mainVocalLevel = 1; leadTrack.pan = 0; leadTrack.role = ""; leadTrack.nudgeSec = 0;
+        if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
+        renderAllKnobs();
+        outputGainDb = 3;
+        if (outputGainFader) outputGainFader.value = String(outputGainDb);
+        updateGainReadout();
+        tuneKey = "chromatic"; tuneScale = "major";
+        syncTuneKeyUI();
+        if (chain){ applyAllParams(); applyOutputGain(); }
       }, {once:true});
     }).catch(function(){});
   }
@@ -8753,16 +9788,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     mergeKnobs(t.values, st.values);
     if (typeof st.level === "number") t.level = Math.max(0, Math.min(1, st.level));
     if (typeof st.pan === "number") t.pan = Math.max(-1, Math.min(1, st.pan));
+    if (typeof st.nudgeSec === "number") t.nudgeSec = clampNudge(st.nudgeSec);
     t.role = st.role || "";
   }
   function applySavedLeadSettings(name){
     var st = savedTrack(name);
-    if (!st) return;
-    mergeKnobs(leadValues, st.values);
-    if (typeof st.level === "number") mainVocalLevel = Math.max(0, Math.min(1, st.level));
+if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "lead") values = leadValues; mainVocalLevel = 1; leadTrack.pan = 0; leadTrack.role = ""; leadTrack.nudgeSec = 0; }    if (st) mergeKnobs(leadValues, st.values);
+    if (st && typeof st.level === "number") mainVocalLevel = Math.max(0, Math.min(1, st.level));
     if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100));
-    if (typeof st.pan === "number") leadTrack.pan = Math.max(-1, Math.min(1, st.pan));
-    leadTrack.role = st.role || "";
+    if (st && typeof st.pan === "number") leadTrack.pan = Math.max(-1, Math.min(1, st.pan));
+    if (st && typeof st.nudgeSec === "number") leadTrack.nudgeSec = clampNudge(st.nudgeSec);
+    if (st) leadTrack.role = st.role || "";
     if (chain) applyParamsTo(chain, leadValues);
     if (values === leadValues) renderAllKnobs();
   }
@@ -8786,6 +9822,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (chain){ applyAllParams(); applyOutputGain(); broadcastScale(); }
     }
     sessionReady = true;
+
+    // Safety-net autosave: every action above already schedules its own
+    // save (a knob move, adding/removing a track, a drag-release...), but
+    // this is a plain timer on top of that -- every 60s, if a project is
+    // loaded, save it and its settings regardless of whether anything
+    // just triggered a save. Keeps you never more than a minute from a
+    // saved copy, even through a long stretch with no single triggering
+    // action (e.g. sitting in a live recording).
+    setInterval(function(){
+      if (!sessionReady || !audioBuffer) return;
+      saveSessionNow();
+      saveProjectNow();
+    }, 60000);
   }
   // Signature knobs are locked (forced to 0) until the plan verifies, which
   // happens after page load -- put the saved M5tar/Jewels amounts back once
@@ -8848,6 +9897,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var resendLink = document.getElementById("gate-resend-link");
   var gateTitleEl = document.getElementById("gate-title");
   var gateDescEl = document.getElementById("gate-desc");
+  var manageSubLink = document.getElementById("manage-sub-link");
   var STORE_KEY = "gemstar_access_token";
   var DEVICE_KEY = "gemstar_device_id";
   var pendingAction = "export";
@@ -8871,43 +9921,85 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   window.gemstarHasAccess = false;
 
-  var GATE_COPY = {
-    export: {
-      t: "Subscribe to Export",
-      d: "You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export."
+  // This whole paywall/billing overlay lives in its own <script> block with
+  // its own closure (separate from the main app's STR/lang/applyLang), so
+  // it was never wired into the site's Spanish translation -- every string
+  // in here showed English even with ES selected. Kept self-contained
+  // (own small EN/ES dictionary, read fresh off window.gemstarLang -- see
+  // applyLang() -- every time any of this text is actually shown) rather
+  // than reaching into the main STR object, so this fix doesn't depend on
+  // or risk touching that object's structure.
+  var GATE_STR = {
+    en: {
+      copy: {
+        export: { t:"Subscribe to Export", d:"You can dial in and preview your vocal chain for free. Enter the email you used to subscribe (Starter, Mix, or Unlimited) to unlock MP3 export." },
+        knob: { t:"Unlock Signature Knobs", d:"M5tar & Jewels signature knobs are part of the Unlimited plan (Mix subscribers from before this changed keep them too). Enter the email you used to subscribe to unlock them." },
+        fullMix: { t:"Unlock Full Song Mix", d:"Full Song Mix — blending your vocal with a beat, mixed and mastered — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it." },
+        stems: { t:"Unlock Stem Export", d:"Stem export (every processed vocal as its own 24-bit WAV, ready for your DAW) is part of the Unlimited plan. Enter the email you used to subscribe to unlock it." },
+        device: { t:"Record Through Your Interface", d:"Choosing your audio interface (or any specific mic) as the recording input is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it. On Starter, Gemstar records from your computer's default input." },
+        autoTrim: { t:"Unlock Clean Silence", d:"Clean Silence (auto-muting the dead air between your phrases) is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it." },
+        aiMix: { t:"Unlock AI Mix", d:"AI Mix — one-tap level, pan and tone balancing across every track (and the beat) — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it." },
+        plan: { t:"Verify Your Plan", d:"Enter the email you used to subscribe so this browser reflects your actual plan." }
+      },
+      sendCode:"Send Code", verifyCode:"Verify Code",
+      backLink:"← Use a different email", resendLink:"Resend code",
+      codeSub:"We sent a 6-digit code to {email} — enter it below to unlock export.",
+      checkingSub:"Checking your subscription…",
+      unlockedExporting:"Unlocked — exporting…", unlockedUnlocking:"Unlocked — unlocking…",
+      emailNotConfigured:"Email delivery isn't set up yet — contact Gemstaraudio@gmail.com.",
+      noSub:"No active subscription found for that email. Double-check it matches your Stripe checkout email, or subscribe below.",
+      genericErrorRetryMoment:"Something went wrong — try again in a moment.",
+      genericErrorRetry:"Something went wrong — try again.",
+      verifying:"Verifying…",
+      incorrectCode:"Incorrect code — try again.",
+      sendingNewCode:"Sending a new code…",
+      openingPortal:"Opening billing portal…",
+      portalError:"Could not open billing portal — try again."
     },
-    knob: {
-      t: "Unlock Signature Knobs",
-      d: "M5tar & Jewels signature knobs are part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock them."
-    },
-    fullMix: {
-      t: "Unlock Full Song Mix",
-      d: "Full Song Mix — blending your vocal with a beat, mixed and mastered — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
-    },
-    stems: {
-      t: "Unlock Stem Export",
-      d: "Stem export (every processed vocal as its own 24-bit WAV, ready for your DAW) is part of the Unlimited plan. Enter the email you used to subscribe to unlock it."
-    },
-    device: {
-      t: "Record Through Your Interface",
-      d: "Choosing your audio interface (or any specific mic) as the recording input is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it. On Starter, Gemstar records from your computer's default input."
-    },
-    autoTrim: {
-      t: "Unlock Clean Silence",
-      d: "Clean Silence (auto-muting the dead air between your phrases) is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
-    },
-    aiMix: {
-      t: "Unlock AI Mix",
-      d: "AI Mix — one-tap level, pan and tone balancing across every track (and the beat) — is part of the Mix and Unlimited plans. Enter the email you used to subscribe to unlock it."
-    },
-    plan: {
-      t: "Verify Your Plan",
-      d: "Enter the email you used to subscribe so this browser reflects your actual plan."
+    es: {
+      copy: {
+        export: { t:"Suscríbete Para Exportar", d:"Puedes ajustar y escuchar tu cadena vocal gratis. Ingresa el correo con el que te suscribiste (Starter, Mix o Unlimited) para desbloquear la exportación en MP3." },
+        knob: { t:"Desbloquea las Perillas Exclusivas", d:"Las perillas exclusivas M5tar y Jewels son parte del plan Unlimited (los suscriptores de Mix de antes de este cambio también las conservan). Ingresa el correo con el que te suscribiste para desbloquearlas." },
+        fullMix: { t:"Desbloquea Full Song Mix", d:"Full Song Mix — tu voz mezclada con un beat, mezclado y masterizado — es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        stems: { t:"Desbloquea la Exportación de Stems", d:"La exportación de stems (cada voz procesada como su propio WAV de 24 bits, listo para tu DAW) es parte del plan Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        device: { t:"Graba A Través De Tu Interfaz", d:"Elegir tu interfaz de audio (o cualquier micrófono específico) como entrada de grabación es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo. En Starter, Gemstar graba desde la entrada predeterminada de tu computadora." },
+        autoTrim: { t:"Desbloquea Clean Silence", d:"Clean Silence (silencia automáticamente los espacios muertos entre tus frases) es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        aiMix: { t:"Desbloquea AI Mix", d:"AI Mix — balancea nivel, paneo y tono en cada pista (y el beat) con un solo toque — es parte de los planes Mix y Unlimited. Ingresa el correo con el que te suscribiste para desbloquearlo." },
+        plan: { t:"Verifica Tu Plan", d:"Ingresa el correo con el que te suscribiste para que este navegador refleje tu plan actual." }
+      },
+      sendCode:"Enviar Código", verifyCode:"Verificar Código",
+      backLink:"← Usar otro correo", resendLink:"Reenviar código",
+      codeSub:"Te enviamos un código de 6 dígitos a {email} — ingrésalo abajo para desbloquear la exportación.",
+      checkingSub:"Verificando tu suscripción…",
+      unlockedExporting:"Desbloqueado — exportando…", unlockedUnlocking:"Desbloqueado — desbloqueando…",
+      emailNotConfigured:"El envío de correos aún no está configurado — contacta a Gemstaraudio@gmail.com.",
+      noSub:"No encontramos una suscripción activa con ese correo. Verifica que coincida con el correo que usaste en Stripe, o suscríbete abajo.",
+      genericErrorRetryMoment:"Algo salió mal — intenta de nuevo en un momento.",
+      genericErrorRetry:"Algo salió mal — intenta de nuevo.",
+      verifying:"Verificando…",
+      incorrectCode:"Código incorrecto — intenta de nuevo.",
+      sendingNewCode:"Enviando un nuevo código…",
+      openingPortal:"Abriendo el portal de facturación…",
+      portalError:"No se pudo abrir el portal de facturación — intenta de nuevo."
     }
   };
+  // Read fresh every time instead of cached once -- the gate overlay only
+  // ever becomes visible on demand (hitting a paywalled feature, or Manage
+  // Subscription), so there's no need to listen for language-switch events;
+  // whatever window.gemstarLang is AT THAT MOMENT is simply correct.
+  function T(){ return GATE_STR[window.gemstarLang === "es" ? "es" : "en"]; }
+
+  function applyGateStaticStrings(){
+    if (submitBtn) submitBtn.textContent = T().sendCode;
+    if (codeSubmitBtn) codeSubmitBtn.textContent = T().verifyCode;
+    if (backLink) backLink.textContent = T().backLink;
+    if (resendLink) resendLink.textContent = T().resendLink;
+  }
+
+  var GATE_COPY_FALLBACK = "export";
   function applyGateCopy(reason){
     var key = (reason && reason.indexOf("knob:") === 0) ? "knob" : reason;
-    var c = GATE_COPY[key] || GATE_COPY.export;
+    var c = T().copy[key] || T().copy[GATE_COPY_FALLBACK];
     if (gateTitleEl) gateTitleEl.textContent = c.t;
     if (gateDescEl) gateDescEl.textContent = c.d;
   }
@@ -8916,6 +10008,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function hideGate(){ overlay.classList.remove("show"); }
   window.gemstarShowGate = function(reason){
     pendingAction = reason || "export";
+    applyGateStaticStrings();
     applyGateCopy(pendingAction);
     showGate();
   };
@@ -8937,17 +10030,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function showCodeStep(){
     stepEmail.hidden = true;
     stepCode.hidden = false;
-    codeSub.textContent = "We sent a 6-digit code to " + currentEmail + " — enter it below to unlock export.";
+    codeSub.textContent = T().codeSub.replace("{email}", currentEmail);
     codeInput.value = "";
     setStatus("");
     setTimeout(function(){ codeInput.focus(); }, 50);
   }
 
-  function unlockWithToken(token, tier){
+  function unlockWithToken(token, tier, legacyKnobs){
     try{ localStorage.setItem(STORE_KEY, token); }catch(e){}
     window.gemstarHasAccess = true;
     window.gemstarTier = tier || "starter";
-    if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier);
+    if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier, legacyKnobs);
+    if (manageSubLink) manageSubLink.hidden = false;
     setTimeout(function(){
       hideGate();
       setStatus(""); setCodeStatus("");
@@ -8971,6 +10065,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         window.gemstarHasAccess = true;
         window.gemstarTier = data.tier || "starter";
         if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier);
+        if (manageSubLink) manageSubLink.hidden = false;
       }
       else{ try{ localStorage.removeItem(STORE_KEY); }catch(e){} }
     }).catch(function(){});
@@ -8984,7 +10079,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if(btnEl) btnEl.disabled = false;
       if(data && data.access && data.token){
         // Allowlisted founders skip the code step entirely.
-        statusEl("Unlocked — " + (pendingAction === "export" ? "exporting" : "unlocking") + "…", "ok");
+        statusEl(pendingAction === "export" ? T().unlockedExporting : T().unlockedUnlocking, "ok");
         unlockWithToken(data.token, data.tier);
       } else if(data && data.ok && data.challenge){
         currentChallenge = data.challenge;
@@ -8992,12 +10087,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         showCodeStep();
       } else {
         statusEl(data && data.error === "Email delivery not configured"
-          ? "Email delivery isn't set up yet — contact Gemstaraudio@gmail.com."
-          : "No active subscription found for that email. Double-check it matches your Stripe checkout email, or subscribe below.", "err");
+          ? T().emailNotConfigured
+          : T().noSub, "err");
       }
     }).catch(function(){
       if(btnEl) btnEl.disabled = false;
-      statusEl("Something went wrong — try again in a moment.", "err");
+      statusEl(T().genericErrorRetryMoment, "err");
     });
   }
 
@@ -9006,7 +10101,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var email = emailInput.value.trim();
     if(!email) return;
     submitBtn.disabled = true;
-    setStatus("Checking your subscription…");
+    setStatus(T().checkingSub);
     requestCode(email, setStatus, submitBtn);
   });
 
@@ -9015,21 +10110,21 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var code = codeInput.value.trim();
     if(!code || !currentChallenge) return;
     codeSubmitBtn.disabled = true;
-    setCodeStatus("Verifying…");
+    setCodeStatus(T().verifying);
     fetch("/api/verify-code", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({ challenge: currentChallenge, code: code, deviceId: getDeviceId() })
     }).then(function(r){ return r.json(); }).then(function(data){
       codeSubmitBtn.disabled = false;
       if(data && data.access && data.token){
-        setCodeStatus("Unlocked — " + (pendingAction === "export" ? "exporting" : "unlocking") + "…", "ok");
-        unlockWithToken(data.token, data.tier);
+        setCodeStatus(pendingAction === "export" ? T().unlockedExporting : T().unlockedUnlocking, "ok");
+        unlockWithToken(data.token, data.tier, data.legacyKnobs);
       } else {
-        setCodeStatus((data && data.error) || "Incorrect code — try again.", "err");
+        setCodeStatus((data && data.error) || T().incorrectCode, "err");
       }
     }).catch(function(){
       codeSubmitBtn.disabled = false;
-      setCodeStatus("Something went wrong — try again in a moment.", "err");
+      setCodeStatus(T().genericErrorRetryMoment, "err");
     });
   });
 
@@ -9042,7 +10137,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   resendLink.addEventListener("click", function(e){
     e.preventDefault();
     if(!currentEmail) return;
-    setCodeStatus("Sending a new code…");
+    setCodeStatus(T().sendingNewCode);
     requestCode(currentEmail, setCodeStatus, null);
   });
 
@@ -9050,6 +10145,35 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if(e.target === overlay){ pendingAction = "export"; hideGate(); }
   });
 
+  if (manageSubLink){
+    manageSubLink.addEventListener("click", function(e){
+      e.preventDefault();
+      if (manageSubLink.dataset.busy === "1") return;
+      var original = manageSubLink.textContent;
+      var saved; try{ saved = localStorage.getItem(STORE_KEY); }catch(err){ saved = null; }
+      if (!saved){ window.gemstarShowGate("plan"); return; }
+      manageSubLink.dataset.busy = "1";
+      manageSubLink.textContent = T().openingPortal;
+      fetch("/api/verify-token", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ token: saved, deviceId: getDeviceId(), action: "portal" })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        manageSubLink.dataset.busy = "";
+        if (data && data.ok && data.url){
+          window.location.href = data.url;
+        } else {
+          manageSubLink.textContent = (data && data.error) || T().portalError;
+          setTimeout(function(){ manageSubLink.textContent = original; }, 4000);
+        }
+      }).catch(function(){
+        manageSubLink.dataset.busy = "";
+        manageSubLink.textContent = T().genericErrorRetry;
+        setTimeout(function(){ manageSubLink.textContent = original; }, 4000);
+      });
+    });
+  }
+
+  applyGateStaticStrings();
   showEmailStep();
   verifyStoredToken();
 })();
