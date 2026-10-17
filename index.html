@@ -2604,7 +2604,7 @@
   // precisely, without re-recording it. Clamped well inside the extra
   // lead-in startPlayback() and the export/auto-master render schedule
   // sources with, so a nudge can never require starting a source in the past.
-  var TRACK_NUDGE_MAX = 0.25; // seconds (250ms either way)
+  var TRACK_NUDGE_MAX = 2; // seconds (2 seconds either way) -- widened from the original 250ms cap so a take can be dragged far enough to correct real-world drift by ear
   function clampNudge(v){
     v = (typeof v === "number" && isFinite(v)) ? v : 0;
     return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
@@ -2618,14 +2618,14 @@
 // against, since a take always starts at the top of the song. Zooming in
 // both reveals the waveform in real detail AND makes the nudge-drag
 // precise, since drag sensitivity below is tied to this same window.
-var TRACK_ZOOM_LEVELS = [0, 6, 2, 0.6];
+var TRACK_ZOOM_LEVELS = [0, 8, 2, 0.6];
 var trackZoomIdx = 0;
 // How many seconds a full-width drag moves the nudge by when NOT zoomed
 // in (TRACK_ZOOM_LEVELS[0]) -- a fixed, song-length-independent range,
 // instead of the old (dx/rectW * whole-song-duration) formula, which
 // made a drag of just a couple of pixels blow straight through the
 // entire +/-250ms nudge range on anything longer than a minute or so.
-var NUDGE_DRAG_RANGE_SEC = 0.8;
+var NUDGE_DRAG_RANGE_SEC = 2.4;
 // Same idea as drawBufferWaveform() but draws a fixed window of
 // absolute song-time (centered on 0) instead of squeezing the WHOLE
 // buffer into the canvas -- lets you actually see fine waveform detail
@@ -4984,7 +4984,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           // (see runSyncCalibration) -- the real click-to-tap delay, which
           // already captures hardware output latency AND the user's own
           // reaction time, so it's used as-is instead of estimating.
-          compSeconds = calibratedSync;
+          compSeconds = 0.03 + calibratedSync;
         } else {
           var outLat = 0;
           try {
