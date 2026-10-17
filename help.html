@@ -128,6 +128,14 @@
       <li><strong>USB audio interface:</strong> best quality, and lets you monitor yourself through the interface's own headphone output with effectively zero latency.</li>
     </ul>
     <p>If you're hearing pops, crackle, or dropouts specifically through an interface, it's usually a buffer-size or sample-rate setting on the interface or your computer's sound control panel, not Gemstar itself &mdash; check your interface's control panel (or your OS sound settings) for a buffer size option and try a larger one if you're getting glitches, or a smaller one if you need less delay and your system can handle it.</p>
+
+    <div class="tip good">
+      <p><strong>Check your interface's sample rate, too.</strong></p>
+      <p>A lot of interfaces default to (or get accidentally switched to) a very high rate like 176.4kHz or 192kHz &mdash; your browser's audio engine expects 44.1kHz or 48kHz, so a mismatch forces constant real-time resampling, which is a common cause of popping/crackle that has nothing to do with buffer size.<br>
+      On Mac: open <strong>Audio MIDI Setup</strong> (Spotlight search for it), select your interface in the left list, and check the "Format" dropdown.<br>
+      On Windows: right-click the speaker icon &rarr; <strong>Sound settings</strong> &rarr; your interface &rarr; <strong>Properties</strong> &rarr; <strong>Advanced</strong>, and check the default format.<br>
+      Set it to 44100 Hz or 48000 Hz, whichever your interface supports.</p>
+    </div>
   </section>
 
   <section id="monitor">
