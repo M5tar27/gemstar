@@ -1346,9 +1346,14 @@
         <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
         <label class="record-fx-monitor-row">
           <input type="checkbox" id="record-fx-monitor" checked />
-          <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
+          <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
         </label>
         <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+        <label class="record-fx-monitor-row">
+          <input type="checkbox" id="record-fx-reverb" />
+          <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
+        </label>
+        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
         <button type="button" class="icon-btn small" id="btn-calibrate-sync" data-i18n="calibrateSyncBtn">🎯 Calibrate your timing</button>
         <p class="record-hint" data-i18n="calibrateSyncHint">Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.</p>
         <button type="button" class="pill-btn pill-cyan rec-big" id="btn-calibrate-tap" hidden data-i18n="calibrateSyncTapBtn">TAP</button>
@@ -1360,7 +1365,7 @@
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
-        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
       </div>
 
       <div id="beat-block" hidden>
@@ -1426,9 +1431,14 @@
           </div>
           <label class="record-fx-monitor-row">
             <input type="checkbox" id="extra-record-fx-monitor" checked />
-            <span data-i18n="recordFxMonitorLabel">🎧 Hear a touch of reverb while tracking</span>
+            <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
           </label>
           <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+          <label class="record-fx-monitor-row">
+            <input type="checkbox" id="extra-record-fx-reverb" />
+            <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
+          </label>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
           <div class="record-controls">
             <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
             <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
@@ -1436,7 +1446,7 @@
             <button type="button" class="icon-btn small" id="extra-btn-record-cancel" data-i18n="recordCancel">Cancel</button>
           </div>
           <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
-          <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+          <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
         </div>
 
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
@@ -1740,6 +1750,7 @@
   <footer>
     <span data-i18n="footerText">Gemstar &middot; M5tar Studio x Gemsquad Production</span>
     <span style="display:flex; gap:14px;">
+      <a href="/help.html">Help</a>
       <a href="/legal.html#terms">Terms</a>
       <a href="/legal.html#privacy">Privacy</a>
       <a href="/legal.html#refunds">Refunds</a>
@@ -1792,9 +1803,11 @@
       recordHintIdle:"Tap Record, allow microphone access, and sing. Your take drops straight into the chain below.",
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
-      recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.",
-      recordFxMonitorLabel:"🎧 Hear a touch of reverb while tracking",
+      recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat, and hearing yourself through a Bluetooth mic/speaker can bleed back into the recording. Turn off “Hear yourself while tracking” above if that happens, or use wired headphones (or your interface) for the most reliable recording. <a href=\"/help.html#bluetooth\" target=\"_blank\" rel=\"noopener\">Recording setup tips →</a>",
+      recordFxMonitorLabel:"🎧 Hear yourself while tracking",
       recordFxMonitorHint:"On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.",
+      recordFxReverbLabel:"✨ Add a touch of reverb to your monitor",
+      recordFxReverbHint:"Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.",
       calibrateSyncBtn:"🎯 Calibrate your timing",
       calibrateSyncHint:"Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.",
       calibrateSyncRunning:"Tap TAP in time with each click…",
@@ -2010,9 +2023,11 @@
       recordHintIdle:"Toca Grabar, permite el acceso al micrófono y canta. Tu toma cae directo en la cadena de abajo.",
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
-      recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo. Unos audífonos con cable (o tu interfaz) son mucho más confiables mientras grabas.",
-      recordFxMonitorLabel:"🎧 Escuchar un toque de reverb mientras grabas",
+      recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo, y escucharte a ti mismo por un micrófono/altavoz Bluetooth puede filtrarse de vuelta a la grabación. Desactiva “Escúchate mientras grabas” arriba si eso pasa, o usa audífonos con cable (o tu interfaz) para grabar de forma más confiable. <a href=\"/help.html#bluetooth\" target=\"_blank\" rel=\"noopener\">Consejos de grabación →</a>",
+      recordFxMonitorLabel:"🎧 Escúchate mientras grabas",
       recordFxMonitorHint:"Activado de forma predeterminada para que te escuches mientras grabas. Solo con audífonos — apágalo si usas bocinas, o tendrás retroalimentación (feedback).",
+      recordFxReverbLabel:"✨ Agregar un toque de reverb a tu monitor",
+      recordFxReverbHint:"Desactivado de forma predeterminada — actívalo si quieres un poco de reverb mientras grabas. Nunca afecta tu toma grabada.",
       calibrateSyncBtn:"🎯 Calibra tu sincronización",
       calibrateSyncHint:"Toca esto y luego toca TOCAR (o la barra espaciadora) justo cuando escuches cada uno de los 6 clics. Mide tu retraso real y lo usa en cada voz que grabes de ahora en adelante.",
       calibrateSyncRunning:"Toca TOCAR al mismo tiempo que cada clic…",
@@ -5008,12 +5023,17 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
         // that quietly carries over.
         if (opts.fxMonitorCheckbox && opts.fxMonitorCheckbox.checked){
           monitorFxDry = ctx.createGain(); monitorFxDry.gain.value = 0.5;
-          monitorFxWet = ctx.createGain(); monitorFxWet.gain.value = 0.22;
-          monitorFxConv = ctx.createConvolver();
-          monitorFxConv.buffer = getReverbBuffer(0.9, 2.2, 1);
           monitorFxOut = ctx.createGain(); monitorFxOut.gain.value = 1;
           recordSrcNode.connect(monitorFxDry); monitorFxDry.connect(monitorFxOut);
-          recordSrcNode.connect(monitorFxConv); monitorFxConv.connect(monitorFxWet); monitorFxWet.connect(monitorFxOut);
+          // The reverb touch is its own opt-in on top of plain self-monitoring
+          // (off by default -- see opts.fxReverbCheckbox), not bundled into
+          // "can you hear yourself" anymore.
+          if (opts.fxReverbCheckbox && opts.fxReverbCheckbox.checked){
+            monitorFxWet = ctx.createGain(); monitorFxWet.gain.value = 0.22;
+            monitorFxConv = ctx.createConvolver();
+            monitorFxConv.buffer = getReverbBuffer(0.9, 2.2, 1);
+            recordSrcNode.connect(monitorFxConv); monitorFxConv.connect(monitorFxWet); monitorFxWet.connect(monitorFxOut);
+          }
           monitorFxOut.connect(ctx.destination);
         }
         if (captureNode.port){
@@ -5152,6 +5172,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     hintEl: document.getElementById("record-hint"),
     btWarnEl: document.getElementById("record-bt-warn"),
     fxMonitorCheckbox: document.getElementById("record-fx-monitor"),
+    fxReverbCheckbox: document.getElementById("record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
     onCaptured: function(file){
@@ -5812,6 +5833,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     hintEl: document.getElementById("extra-record-hint"),
     btWarnEl: document.getElementById("extra-record-bt-warn"),
     fxMonitorCheckbox: document.getElementById("extra-record-fx-monitor"),
+    fxReverbCheckbox: document.getElementById("extra-record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
     canStart: function(){
@@ -7210,13 +7232,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       stopSourceOnly();
       stopBeatSourceOnly();
       vocalSourceNodes = [];
-      var leadSrc = audioBuffer ? makeTimedSource(audioBuffer, 0, null, true) : null;
+      // Don't monitor the stale take that's actively being replaced right
+      // now -- otherwise re-record (lead or an extra vocal) plays the OLD
+      // version back in your headphones while you're singing the new one,
+      // which sounds exactly like it's recording on top of itself even
+      // though the captured take only ever replaces, never layers.
+      var leadSrc = (audioBuffer && !reRecordLeadActive) ? makeTimedSource(audioBuffer, 0, null, true) : null;
       if (leadSrc){
         var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.mixSum);
         leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
         vocalSourceNodes.push({src:leadSrc, gain:leadNodes.gain, pan:leadNodes.pan, ref:leadTrack});
       }
       extraVocals.forEach(function(t){
+        if (t === reRecordExtraTarget) return; // being replaced right now -- don't play the take you're about to overwrite
         var src = makeTimedSource(t.buffer, 0, null, true);
         if (!src) return;
         var nodes = wireTrackSource(src, t, chain.mixSum);
@@ -9643,6 +9671,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (noBtn) noBtn.addEventListener("click", function(){
         hide();
         idbDelete(PROJECT_KEY).catch(function(){});
+        // Discarding the saved take(s) should also drop the knob/fader
+        // state that was saved alongside them -- otherwise every EQ/FX
+        // knob, the output gain, and the key/scale just stay wherever the
+        // discarded session left them instead of going back to default.
+        try { window.localStorage.removeItem(SESSION_KEY); } catch(e){}
+        savedSession = null;
+        leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "lead") values = leadValues;
+        mainVocalLevel = 1; leadTrack.pan = 0; leadTrack.role = ""; leadTrack.nudgeSec = 0;
+        if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
+        renderAllKnobs();
+        outputGainDb = 3;
+        if (outputGainFader) outputGainFader.value = String(outputGainDb);
+        updateGainReadout();
+        tuneKey = "chromatic"; tuneScale = "major";
+        syncTuneKeyUI();
+        if (chain){ applyAllParams(); applyOutputGain(); }
       }, {once:true});
     }).catch(function(){});
   }
