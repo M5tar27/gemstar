@@ -1474,6 +1474,11 @@
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
           <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
+<div class="tl-zoom" id="trk-zoom">
+  <button class="icon-btn small" id="btn-trk-zoom-out" type="button" aria-label="Zoom out on vocal waveforms">−</button>
+  <span class="tl-zoom-level" id="trk-zoom-level">Zoom: Off</span>
+  <button class="icon-btn small" id="btn-trk-zoom-in" type="button" aria-label="Zoom in on vocal waveforms">+</button>
+</div>
           <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
             <div class="live-row" id="grid-live-row" hidden>
@@ -2605,6 +2610,65 @@
     return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
   }
   function trackNudgeSec(tr){ return tr ? clampNudge(tr.nudgeSec || 0) : 0; }
+
+// Zoom for the per-track waveform rows in "everything at once" (see
+// renderAllVocalsStrip()/addRow()) -- 0 is the original whole-song view
+// (unchanged default); each other level is a fixed window (in seconds)
+// centered on song-time 0, the anchor every track's nudge is measured
+// against, since a take always starts at the top of the song. Zooming in
+// both reveals the waveform in real detail AND makes the nudge-drag
+// precise, since drag sensitivity below is tied to this same window.
+var TRACK_ZOOM_LEVELS = [0, 6, 2, 0.6];
+var trackZoomIdx = 0;
+// How many seconds a full-width drag moves the nudge by when NOT zoomed
+// in (TRACK_ZOOM_LEVELS[0]) -- a fixed, song-length-independent range,
+// instead of the old (dx/rectW * whole-song-duration) formula, which
+// made a drag of just a couple of pixels blow straight through the
+// entire +/-250ms nudge range on anything longer than a minute or so.
+var NUDGE_DRAG_RANGE_SEC = 0.8;
+// Same idea as drawBufferWaveform() but draws a fixed window of
+// absolute song-time (centered on 0) instead of squeezing the WHOLE
+// buffer into the canvas -- lets you actually see fine waveform detail
+// and drag precisely once zoomed in. startSec shifts the buffer within
+// that window exactly like drawBufferWaveform's own startSec does.
+function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, startSec){
+  var w = cv.width, h = cv.height;
+  cx.clearRect(0,0,w,h);
+  if (!buffer || windowDuration <= 0) return;
+  var data = buffer.getChannelData(0);
+  var sr = buffer.sampleRate;
+  var winStart = -windowDuration/2;
+  var nudge = startSec || 0;
+  var step = windowDuration / w;
+  cx.strokeStyle = color; cx.lineWidth = 1;
+  cx.beginPath();
+  for (var x=0; x<w; x++){
+    var i0 = Math.floor((winStart + x*step - nudge) * sr);
+    var i1 = Math.ceil((winStart + (x+1)*step - nudge) * sr);
+    if (i1 <= i0) i1 = i0 + 1;
+    var min=1, max=-1, any=false;
+    for (var i=i0; i<i1; i++){
+      if (i < 0 || i >= data.length) continue;
+      any = true;
+      var v = data[i];
+      if (v < min) min = v; if (v > max) max = v;
+    }
+    if (!any) continue;
+    var y1 = (1+min)*h/2, y2 = (1+max)*h/2;
+    cx.moveTo(x, y1); cx.lineTo(x, y2);
+  }
+  cx.stroke();
+  // Thin marker at song-time 0 -- the beat-aligned point every track's
+  // nudge is measured against -- so you can see exactly how far a
+  // transient sits from true zero while dragging it into place.
+  var anchorX = (0 - winStart) / windowDuration * w;
+  if (anchorX >= 0 && anchorX <= w){
+    cx.strokeStyle = "rgba(255,255,255,0.28)";
+    cx.beginPath();
+    cx.moveTo(anchorX, 0); cx.lineTo(anchorX, h);
+    cx.stroke();
+  }
+}
 
   /* Silent, automatic input gain-staging — no user-facing knob. Every recorded
      or uploaded vocal comes in at wildly different levels (quiet phone mic
@@ -6221,7 +6285,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       });
       allVocalsRowsEl.appendChild(row);
       var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)";
-      drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0);
+      if (trackZoomIdx > 0){ drawBufferWaveformWindowed(canvas, canvas.getContext("2d"), buffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], opts.track ? trackNudgeSec(opts.track) : 0); } else { drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0); }
 
       // Drag this track's mini waveform left/right to hand-align its timing
       // against the beat and every other track -- see trackNudgeSec() and
@@ -6234,7 +6298,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
           var dragging = false, dragMoved = false, dragStartX = 0, dragStartNudge = 0;
           var DRAG_TOLERANCE = 4;
           function redraw(){
-            drawBufferWaveform(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, total, trackNudgeSec(nudgeTrack));
+            if (trackZoomIdx > 0){ drawBufferWaveformWindowed(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], trackNudgeSec(nudgeTrack)); } else { drawBufferWaveform(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, total, trackNudgeSec(nudgeTrack)); }
           }
           function updateTitle(){
             var ms = Math.round(trackNudgeSec(nudgeTrack) * 1000);
@@ -6255,8 +6319,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
             if (Math.abs(dx) > DRAG_TOLERANCE) dragMoved = true;
             if (!dragMoved) return;
             var rectW = nudgeCanvas.getBoundingClientRect().width;
-            if (rectW <= 0 || total <= 0) return;
-            nudgeTrack.nudgeSec = clampNudge(dragStartNudge + (dx / rectW) * total);
+            if (rectW <= 0) return;
+            var dragRange = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : NUDGE_DRAG_RANGE_SEC; nudgeTrack.nudgeSec = clampNudge(dragStartNudge + (dx / rectW) * dragRange);
             redraw();
             updateTitle();
           });
@@ -7310,6 +7374,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var btnTlZoomIn = document.getElementById("btn-tl-zoom-in");
   var btnTlZoomOut = document.getElementById("btn-tl-zoom-out");
   var tlZoomLevelEl = document.getElementById("tl-zoom-level");
+var btnTrkZoomIn = document.getElementById("btn-trk-zoom-in");
+var btnTrkZoomOut = document.getElementById("btn-trk-zoom-out");
+var trkZoomLevelEl = document.getElementById("trk-zoom-level");
+if (btnTrkZoomOut) btnTrkZoomOut.disabled = true;
+function trkZoomTo(idx){
+  trackZoomIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, idx));
+  if (trkZoomLevelEl){
+    var lvl = TRACK_ZOOM_LEVELS[trackZoomIdx];
+    trkZoomLevelEl.textContent = lvl > 0 ? ("Zoom: " + lvl + "s") : "Zoom: Off";
+  }
+  if (btnTrkZoomOut) btnTrkZoomOut.disabled = trackZoomIdx === 0;
+  if (btnTrkZoomIn) btnTrkZoomIn.disabled = trackZoomIdx === TRACK_ZOOM_LEVELS.length - 1;
+  if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+}
+if (btnTrkZoomIn) btnTrkZoomIn.addEventListener("click", function(){ trkZoomTo(trackZoomIdx + 1); });
+if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo(trackZoomIdx - 1); });
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
 
