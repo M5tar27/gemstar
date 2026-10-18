@@ -7642,6 +7642,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
   // button -- those keep their own normal space-bar behavior.
   document.addEventListener("keydown", function(e){
     if (e.code !== "Space" && e.key !== " " && e.key !== "Spacebar") return;
+if (isMicRecording) return; // never toggle the main transport while a take is being recorded -- a stray spacebar press here (e.g. after focus slips off the Record button) used to fire a second, overlapping playback of the beat on top of the one already running for the monitor
     var el = document.activeElement;
     var tag = el && el.tagName;
     var isFormEl = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || (el && el.isContentEditable);
