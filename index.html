@@ -2609,6 +2609,7 @@ recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Esc
   // lead-in startPlayback() and the export/auto-master render schedule
   // sources with, so a nudge can never require starting a source in the past.
   var TRACK_NUDGE_MAX = 2; // seconds (2 seconds either way) -- widened from the original 250ms cap so a take can be dragged far enough to correct real-world drift by ear
+var RECORD_MONITOR_PREROLL = 0.25; // seconds -- the lead-in before the recording monitor plays, kept independent of TRACK_NUDGE_MAX so a wider nudge range does not delay when you hear the beat after hitting Record
   function clampNudge(v){
     v = (typeof v === "number" && isFinite(v)) ? v : 0;
     return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
@@ -7341,7 +7342,7 @@ return;
         beatSourceNode = makeTimedSource(beatBuffer, 0, null, true);
         if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
-      var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
+      var startAt = ctx.currentTime + 0.03 + RECORD_MONITOR_PREROLL;
       vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       playStartCtxTime = startAt;
