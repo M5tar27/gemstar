@@ -2623,7 +2623,7 @@ var RECORD_MONITOR_PREROLL = 0.25; // seconds -- the lead-in before the recordin
 // against, since a take always starts at the top of the song. Zooming in
 // both reveals the waveform in real detail AND makes the nudge-drag
 // precise, since drag sensitivity below is tied to this same window.
-var TRACK_ZOOM_LEVELS = [0, 8, 2, 0.6];
+var TRACK_ZOOM_LEVELS = [0, 16, 8, 4, 2, 1, 0.6];
 var trackZoomIdx = 0;
 var trackZoomCenter = 0; // seconds -- absolute song-time center of the zoomed window; lets you pan the zoomed view to any part of the beat/vocal instead of always looking at song-time 0
 // How many seconds a full-width drag moves the nudge by when NOT zoomed
@@ -6289,20 +6289,17 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       // this one track's strip so you can seek right from whichever wave
       // you're looking at (including the beat's, with nothing else loaded).
       canvas.style.cursor = "pointer";
+      var suppressNextClick = false;
       canvas.addEventListener("click", function(e){
         e.stopPropagation(); // don't also fire the row's own setEditTarget click
-        if (total <= 0) return;
+        if (suppressNextClick){ suppressNextClick = false; return; }
+      if (total <= 0) return;
         var r = canvas.getBoundingClientRect();
         if (!r.width) return;
         var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-if (trackZoomIdx > 0){
-var winDur = TRACK_ZOOM_LEVELS[trackZoomIdx];
-var winStartSec = trackZoomCenter - winDur/2;
-trackZoomCenter = Math.max(0, Math.min(total, winStartSec + frac * winDur));
-renderAllVocalsStrip();
-return;
-}
-        tlCursor = frac * total;
+var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
+      var winStart = trackZoomIdx > 0 ? (trackZoomCenter - winDur/2) : 0;
+      tlCursor = winStart + frac * winDur;
         if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
         restartPlaybackFromCursor();
       });
@@ -6368,6 +6365,45 @@ return;
           });
         })(opts.track, canvas, buffer);
       }
+    if (opts.beat){
+      (function(panCanvas, panBuffer){
+        var panDragging = false, panMoved = false, panStartX = 0, panStartCenter = 0;
+        var PAN_DRAG_TOLERANCE = 4;
+        function panRedraw(){
+          if (trackZoomIdx > 0){ drawBufferWaveformWindowed(panCanvas, panCanvas.getContext("2d"), panBuffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], 0, trackZoomCenter); }
+        }
+        panCanvas.addEventListener("pointerdown", function(e){
+          if (trackZoomIdx <= 0) return;
+          panDragging = true; panMoved = false;
+          panStartX = e.clientX;
+          panStartCenter = trackZoomCenter;
+          try { panCanvas.setPointerCapture(e.pointerId); } catch(err){}
+        });
+        panCanvas.addEventListener("pointermove", function(e){
+          if (!panDragging) return;
+          var dx = e.clientX - panStartX;
+          if (Math.abs(dx) > PAN_DRAG_TOLERANCE) panMoved = true;
+          if (!panMoved) return;
+          var rectW = panCanvas.getBoundingClientRect().width;
+          if (rectW <= 0) return;
+          var winDur = TRACK_ZOOM_LEVELS[trackZoomIdx];
+          var deltaSec = -(dx / rectW) * winDur;
+          trackZoomCenter = Math.max(0, Math.min(total, panStartCenter + deltaSec));
+          panRedraw();
+        });
+        function endPanDrag(e){
+          if (!panDragging) return;
+          panDragging = false;
+          try { panCanvas.releasePointerCapture(e.pointerId); } catch(err){}
+          if (panMoved){
+            suppressNextClick = true;
+            renderAllVocalsStrip();
+          }
+        }
+        panCanvas.addEventListener("pointerup", endPanDrag);
+        panCanvas.addEventListener("pointercancel", endPanDrag);
+      })(canvas, buffer);
+    }
     }
 
     if (showBeatRow) addRow(STR[lang].wfLabelBeat || "Beat", beatBuffer, "beat", {beat:true});
@@ -7414,6 +7450,25 @@ if (trackZoomIdx === 0) trackZoomCenter = 0;
 }
 if (btnTrkZoomIn) btnTrkZoomIn.addEventListener("click", function(){ trkZoomTo(trackZoomIdx + 1); });
 if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo(trackZoomIdx - 1); });
+    if (allVocalsRowsEl){
+      allVocalsRowsEl.addEventListener("wheel", function(e){
+        var tgt = e.target && e.target.closest ? e.target.closest("canvas") : null;
+        if (!tgt) return;
+        var tot = currentTotalDuration();
+        if (tot <= 0) return;
+        e.preventDefault();
+        var r = tgt.getBoundingClientRect();
+        if (!r.width) return;
+        var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : tot;
+        var winStart = trackZoomIdx > 0 ? (trackZoomCenter - winDur/2) : 0;
+        var cursorSongTime = winStart + frac * winDur;
+        var dir = e.deltaY < 0 ? 1 : -1;
+        var newIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, trackZoomIdx + dir));
+        if (newIdx !== 0) trackZoomCenter = Math.max(0, Math.min(tot, cursorSongTime));
+        trkZoomTo(newIdx);
+      }, {passive:false});
+    }
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
 
