@@ -1366,6 +1366,7 @@
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
         <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+<p class="record-hint record-interface-tip" id="record-interface-tip" hidden data-i18n-html="recordInterfaceMonitorTip">🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record.</p>
       </div>
 
       <div id="beat-block" hidden>
@@ -1447,6 +1448,7 @@
           </div>
           <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
           <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+<p class="record-hint record-interface-tip" id="extra-record-interface-tip" hidden data-i18n-html="recordInterfaceMonitorTip">🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record.</p>
         </div>
 
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
@@ -1809,6 +1811,7 @@
       recordHintRecording:"Recording… tap Stop when you're done.",
       recordHintDone:"Take recorded — dial in the chain below. Not happy with it? Tap Re-record to redo this take.",
       recordBtWarn:"⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat, and hearing yourself through a Bluetooth mic/speaker can bleed back into the recording. Turn off “Hear yourself while tracking” above if that happens, or use wired headphones (or your interface) for the most reliable recording. <a href=\"/help.html#bluetooth\" target=\"_blank\" rel=\"noopener\">Recording setup tips →</a>",
+recordInterfaceMonitorTip:"🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record. Your interface already lets you hear yourself in real time, so Gemstar monitoring you too can be one more source of glitches on some setups. <a href=\"/help.html#wired\" target=\"_blank\" rel=\"noopener\">Recording setup tips →</a>",
       recordFxMonitorLabel:"🎧 Hear yourself while tracking",
       recordFxMonitorHint:"On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.",
       recordFxReverbLabel:"✨ Add a touch of reverb to your monitor",
@@ -2029,6 +2032,7 @@
       recordHintRecording:"Grabando… toca Detener cuando termines.",
       recordHintDone:"Toma grabada — ajusta la cadena abajo. ¿No te convence? Toca Grabar De Nuevo para rehacer esta toma.",
       recordBtWarn:"⚠️ Bluetooth detectado — el retraso que agrega puede desincronizar tu voz del ritmo, y escucharte a ti mismo por un micrófono/altavoz Bluetooth puede filtrarse de vuelta a la grabación. Desactiva “Escúchate mientras grabas” arriba si eso pasa, o usa audífonos con cable (o tu interfaz) para grabar de forma más confiable. <a href=\"/help.html#bluetooth\" target=\"_blank\" rel=\"noopener\">Consejos de grabación →</a>",
+recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Escúchate mientras grabas” arriba suele eliminar el crujido o la estática mientras grabas. Tu interfaz ya te deja escucharte en tiempo real, así que Gemstar escuchándote también puede ser una fuente más de fallos en algunos equipos. <a href=\"/help.html#wired\" target=\"_blank\" rel=\"noopener\">Consejos de grabación →</a>",
       recordFxMonitorLabel:"🎧 Escúchate mientras grabas",
       recordFxMonitorHint:"Activado de forma predeterminada para que te escuches mientras grabas. Solo con audífonos — apágalo si usas bocinas, o tendrás retroalimentación (feedback).",
       recordFxReverbLabel:"✨ Agregar un toque de reverb a tu monitor",
@@ -4778,6 +4782,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var recording = false;
     var capSeconds = 600;
     var detectedBluetooth = false;
+var detectedInterface = false; // set once mic access is granted and we can read the chosen device's label
+if (opts.fxMonitorCheckbox && opts.interfaceWarnEl){
+opts.fxMonitorCheckbox.addEventListener("change", function(){
+opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.checked);
+});
+}
 
     function stopTimer(){
       if (recordTimerInterval){ clearInterval(recordTimerInterval); recordTimerInterval = null; }
@@ -5033,6 +5043,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // this recorder instance has no opts.btWarnEl.
       var micTrack = stream.getAudioTracks()[0];
       detectedBluetooth = looksLikeBluetoothLabel(micTrack && micTrack.label);
+detectedInterface = !!(micTrack && micTrack.label) && !/built-?in|internal|default|macbook/i.test(micTrack.label);
+if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox && opts.fxMonitorCheckbox.checked);
       if (opts.btWarnEl) opts.btWarnEl.hidden = !detectedBluetooth;
       if (!detectedBluetooth){
         checkOutputBluetooth(function(outIsBt){
@@ -5236,6 +5248,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     waveformCanvas: document.getElementById("record-waveform"),
     hintEl: document.getElementById("record-hint"),
     btWarnEl: document.getElementById("record-bt-warn"),
+interfaceWarnEl: document.getElementById("record-interface-tip"),
     fxMonitorCheckbox: document.getElementById("record-fx-monitor"),
     fxReverbCheckbox: document.getElementById("record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
@@ -5897,6 +5910,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     waveformCanvas: document.getElementById("extra-record-waveform"),
     hintEl: document.getElementById("extra-record-hint"),
     btWarnEl: document.getElementById("extra-record-bt-warn"),
+interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     fxMonitorCheckbox: document.getElementById("extra-record-fx-monitor"),
     fxReverbCheckbox: document.getElementById("extra-record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
