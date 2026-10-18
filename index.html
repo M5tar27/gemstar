@@ -1478,8 +1478,6 @@
   <button class="icon-btn small" id="btn-trk-zoom-out" type="button" aria-label="Zoom out on vocal waveforms">−</button>
   <span class="tl-zoom-level" id="trk-zoom-level">Zoom: Off</span>
   <button class="icon-btn small" id="btn-trk-zoom-in" type="button" aria-label="Zoom in on vocal waveforms">+</button>
-<button class="icon-btn small" id="btn-trk-pan-left" type="button" aria-label="Pan view to an earlier part of the track">‹</button>
-<button class="icon-btn small" id="btn-trk-pan-right" type="button" aria-label="Pan view to a later part of the track">›</button>
 </div>
           <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
@@ -7387,11 +7385,7 @@ return;
 var btnTrkZoomIn = document.getElementById("btn-trk-zoom-in");
 var btnTrkZoomOut = document.getElementById("btn-trk-zoom-out");
 var trkZoomLevelEl = document.getElementById("trk-zoom-level");
-var btnTrkPanLeft = document.getElementById("btn-trk-pan-left");
-var btnTrkPanRight = document.getElementById("btn-trk-pan-right");
 if (btnTrkZoomOut) btnTrkZoomOut.disabled = true;
-if (btnTrkPanLeft) btnTrkPanLeft.disabled = true;
-if (btnTrkPanRight) btnTrkPanRight.disabled = true;
 function trkZoomTo(idx){
   trackZoomIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, idx));
 if (trackZoomIdx === 0) trackZoomCenter = 0;
@@ -7400,23 +7394,11 @@ if (trackZoomIdx === 0) trackZoomCenter = 0;
     trkZoomLevelEl.textContent = lvl > 0 ? ("Zoom: " + lvl + "s") : "Zoom: Off";
   }
   if (btnTrkZoomOut) btnTrkZoomOut.disabled = trackZoomIdx === 0;
-if (btnTrkPanLeft) btnTrkPanLeft.disabled = trackZoomIdx === 0;
-if (btnTrkPanRight) btnTrkPanRight.disabled = trackZoomIdx === 0;
   if (btnTrkZoomIn) btnTrkZoomIn.disabled = trackZoomIdx === TRACK_ZOOM_LEVELS.length - 1;
   if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
 }
 if (btnTrkZoomIn) btnTrkZoomIn.addEventListener("click", function(){ trkZoomTo(trackZoomIdx + 1); });
 if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo(trackZoomIdx - 1); });
-function trkPan(dir){
-if (trackZoomIdx <= 0) return;
-var winDur = TRACK_ZOOM_LEVELS[trackZoomIdx];
-var total = (typeof currentTotalDuration === "function") ? currentTotalDuration() : 0;
-var step = winDur * 0.5;
-trackZoomCenter = Math.max(0, Math.min(total, trackZoomCenter + dir * step));
-renderAllVocalsStrip();
-}
-if (btnTrkPanLeft) btnTrkPanLeft.addEventListener("click", function(){ trkPan(-1); });
-if (btnTrkPanRight) btnTrkPanRight.addEventListener("click", function(){ trkPan(1); });
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
 
