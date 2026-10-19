@@ -8,15 +8,22 @@
  * 2. Build a coarse "onset strength" envelope: peak-rectify in small
  *    windows (~12ms), then subtract a short moving average so sudden
  *    hits stand out from slow level swells.
- * 3. Autocorrelate that envelope against every candidate tempo from 60
- *    to 200 BPM and take the strongest periodic match.
+ * 3. Autocorrelate that envelope at every integer lag (one envelope
+ *    frame apart) across the 60-200 BPM range, rather than stepping
+ *    through BPM values and rounding each one to the nearest lag --
+ *    that rounding was collapsing many nearby BPM values onto the same
+ *    lag, which capped how precise a result this could ever report.
  * 4. Guard against octave errors: plain autocorrelation scores a true
  *    beat's harmonics (half tempo, a third tempo, ...) as strongly as --
  *    sometimes more strongly than -- the real tempo, since every hit at
  *    the real period also lines up at any multiple of it. The real
  *    tempo is the SHORTEST period that explains the beat, so candidates
- *    are walked from the highest BPM down and the first one close to
- *    the best score seen anywhere wins.
+ *    are walked from the shortest lag (highest BPM) down and the first
+ *    one close to the best score seen anywhere wins.
+ * 5. Refine that winning integer lag to sub-frame precision by fitting
+ *    a parabola through its score and its two neighbors -- the same
+ *    trick used to sharpen spectral peaks in pitch/key detection --
+ *    then convert the refined lag back to BPM.
  *
  * Only the first ANALYZE_SECONDS of audio are scanned -- tempo is
  * constant through almost every beat, so there's no need to walk a full
@@ -33,7 +40,7 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
-  var MIN_BPM = 60, MAX_BPM = 200, BPM_STEP = 0.5;
+  var MIN_BPM = 60, MAX_BPM = 200;
   var ANALYZE_SECONDS = 45;
   var ENV_HOP = 512; // samples per envelope frame (~11.6ms at 44.1kHz)
   var LOWPASS_HZ = 150;
@@ -80,21 +87,38 @@
     return out;
   }
 
-  // Autocorrelation across the BPM search range: {bpm, score} per
-  // candidate, highest score = strongest periodic match.
-  function scoreCandidates(env, envRate) {
+  // Autocorrelation at every integer lag (envelope frame) in the BPM
+  // search range: {lag, score} per candidate, highest score = strongest
+  // periodic match. Working in lag space directly -- instead of stepping
+  // through BPM values and rounding each to the nearest lag -- keeps the
+  // score curve smooth enough to refine afterwards.
+  function scoreLags(env, envRate) {
+    var minLag = Math.max(1, Math.round((60 / MAX_BPM) * envRate));
+    var maxLag = Math.min(env.length - 2, Math.round((60 / MIN_BPM) * envRate));
     var results = [];
-    for (var bpm = MIN_BPM; bpm <= MAX_BPM; bpm += BPM_STEP) {
-      var periodFrames = Math.round((60 / bpm) * envRate);
-      if (periodFrames < 1 || periodFrames >= env.length) continue;
+    for (var lag = minLag; lag <= maxLag; lag++) {
       var sum = 0, count = 0;
-      for (var i = 0; i + periodFrames < env.length; i++) {
-        sum += env[i] * env[i + periodFrames];
+      for (var i = 0; i + lag < env.length; i++) {
+        sum += env[i] * env[i + lag];
         count++;
       }
-      if (count > 0) results.push({ bpm: bpm, score: sum / count });
+      if (count > 0) results.push({ lag: lag, score: sum / count });
     }
     return results;
+  }
+
+  // Fits a parabola through a candidate's score and its two neighbors to
+  // estimate the true (sub-frame) peak lag, the same trick used to
+  // sharpen spectral peak estimates elsewhere in Gemstar.
+  function refineLag(results, idx) {
+    var y0 = idx > 0 ? results[idx - 1].score : results[idx].score;
+    var y1 = results[idx].score;
+    var y2 = idx < results.length - 1 ? results[idx + 1].score : results[idx].score;
+    var denom = y0 - 2 * y1 + y2;
+    var dx = denom !== 0 ? 0.5 * (y0 - y2) / denom : 0;
+    if (dx < -1) dx = -1;
+    if (dx > 1) dx = 1;
+    return results[idx].lag + dx;
   }
 
   function detect(buffer, opts) {
@@ -115,42 +139,44 @@
 
         if (isCancelled()) { resolve(null); return; }
 
-        var results = scoreCandidates(env, envRate);
+        var results = scoreLags(env, envRate);
         if (!results.length) { resolve(null); return; }
 
-        // Plain autocorrelation naturally scores a true beat's harmonics
-        // (half tempo, a third tempo, etc.) as strongly as -- sometimes
-        // more strongly than -- the real tempo itself, since every hit at
-        // the real period also lines up at any multiple of it. The fix
-        // is to not just take the global best score, but walk candidates
-        // from the shortest period (highest BPM) down and take the first
-        // one whose score is already close to the best score seen
-        // anywhere: the real tempo is the shortest period that explains
-        // the beat, and everything slower scoring well is just a
-        // harmonic of it.
+        // Same harmonic guard as before, now in lag space: walk from the
+        // shortest lag (highest BPM) outward and take the first candidate
+        // whose score is already close to the best score seen anywhere --
+        // everything slower that also scores well is just a harmonic of
+        // it. Then center on the actual local peak near that crossing
+        // (+/-5 lags) rather than the first step that happened to clear
+        // the bar.
         var globalMax = results.reduce(function (m, r) { return Math.max(m, r.score); }, 0);
-        var byBpmDesc = results.slice().sort(function (a, b) { return b.bpm - a.bpm; });
-        var best = byBpmDesc[0];
-        for (var k = 0; k < byBpmDesc.length; k++) {
-          if (byBpmDesc[k].score >= globalMax * HARMONIC_THRESHOLD) {
-            // Center on the actual local peak near this crossing (+/-5 BPM)
-            // rather than the first step that happened to clear the bar.
-            var lo = Math.max(0, k - 10), hi = Math.min(byBpmDesc.length - 1, k + 10);
-            var peak = byBpmDesc[k];
+        var bestIdx = 0;
+        for (var k = 0; k < results.length; k++) {
+          if (results[k].score >= globalMax * HARMONIC_THRESHOLD) {
+            var lo = Math.max(0, k - 5), hi = Math.min(results.length - 1, k + 5);
+            var peak = k;
             for (var j = lo; j <= hi; j++) {
-              if (byBpmDesc[j].score > peak.score) peak = byBpmDesc[j];
+              if (results[j].score > results[peak].score) peak = j;
             }
-            best = peak;
+            bestIdx = peak;
             break;
           }
         }
 
+        var refinedLag = refineLag(results, bestIdx);
+        var bpm = (60 * envRate) / refinedLag;
+
+        var best = results[bestIdx];
         var meanScore = results.reduce(function (s, r) { return s + r.score; }, 0) / results.length;
         var peakiness = meanScore > 0 ? best.score / meanScore : 0;
-        var confidence = peakiness > 3 ? "high" : peakiness > 1.8 ? "guess" : "low";
+        // "guess" is intentionally generous -- showing a rough number is
+        // more useful to a producer eyeballing tempo than staying silent,
+        // so only a genuinely flat/non-periodic signal falls through to
+        // "low" (shown as "couldn't confidently detect a tempo").
+        var confidence = peakiness > 3 ? "high" : peakiness > 1.3 ? "guess" : "low";
 
         if (isCancelled()) { resolve(null); return; }
-        resolve({ bpm: Math.round(best.bpm), confidence: confidence });
+        resolve({ bpm: Math.round(bpm), confidence: confidence });
       }, 0);
     });
   }
