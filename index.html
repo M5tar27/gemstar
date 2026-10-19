@@ -1498,6 +1498,9 @@
           <span class="kd-text" id="key-detect-text" role="status" aria-live="polite"></span>
           <button type="button" class="pill-btn pill-cyan kd-btn" id="key-detect-use" hidden></button>
         </div>
+        <div class="key-detect" id="bpm-detect" hidden>
+          <span class="kd-text" id="bpm-detect-text" role="status" aria-live="polite"></span>
+        </div>
         <div class="timeline-wrap" id="timeline-wrap">
           <div class="timeline-scroll" id="timeline-scroll">
             <div class="timeline" id="timeline" tabindex="0" role="slider" aria-label="Playback position" data-i18n-aria="tlAria" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0">
@@ -1791,6 +1794,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
 <script src="/key-detect.js"></script>
+<script src="/bpm-detect.js"></script>
 <script>
 (function(){
   "use strict";
@@ -1943,7 +1947,7 @@ recordInterfaceMonitorTip:"🎚️ Audio interface detected — turning off “H
       keyUnsure:"Couldn't pin down a clear key for this beat. Set it by ear above.",
       keyUse:"Use this key",
       keyUsing:"Auto-Tune is set to {k}.",
-      keyMajor:"major", keyMinor:"minor",
+      keyMajor:"major", keyMinor:"minor", bpmAnalyzing:"Finding BPM…", bpmFound:"Tempo: {bpm} BPM", bpmGuess:"Tempo: ~{bpm} BPM", bpmUnsure:"Couldn't confidently detect a tempo.",
       faqEyebrow:"Help", faqTitle:"Frequently asked questions", faqSub:"Quick answers to the questions we hear most.",
       faqContact:"Still have a question? Email <a href=\"mailto:Gemstaraudio@gmail.com\">Gemstaraudio@gmail.com</a> and we'll help.",
       faqQ1:"What is Gemstar?", faqA1:"A vocal processing studio that runs right in your browser, built by engineers M5tar and Jewels. Upload or record a vocal, dial in the knobs or pick a preset, then export an MP3 or 24-bit WAV.",
@@ -2164,7 +2168,7 @@ recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Esc
       keyUnsure:"No pude identificar un tono claro para este beat. Elígelo de oído arriba.",
       keyUse:"Usar este tono",
       keyUsing:"Auto-Tune está en {k}.",
-      keyMajor:"mayor", keyMinor:"menor",
+      keyMajor:"mayor", keyMinor:"menor", bpmAnalyzing:"Buscando BPM…", bpmFound:"Tempo: {bpm} BPM", bpmGuess:"Tempo: ~{bpm} BPM", bpmUnsure:"No se pudo detectar el tempo con confianza.",
       faqEyebrow:"Ayuda", faqTitle:"Preguntas frecuentes", faqSub:"Respuestas rápidas a las preguntas más comunes.",
       faqContact:"¿Todavía tienes una pregunta? Escribe a <a href=\"mailto:Gemstaraudio@gmail.com\">Gemstaraudio@gmail.com</a> y te ayudamos.",
       faqQ1:"¿Qué es Gemstar?", faqA1:"Un estudio de procesamiento vocal que funciona en tu navegador, creado por los ingenieros M5tar y Jewels. Sube o graba una voz, ajusta las perillas o elige un preset, y exporta un MP3 o WAV de 24 bits.",
@@ -2270,6 +2274,7 @@ recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Esc
       if (STR[l][key] !== undefined) el.setAttribute("placeholder", STR[l][key]);
     });
     if (window.gemstarKeyUI) window.gemstarKeyUI.render();
+if (window.gemstarBpmUI) window.gemstarBpmUI.render();
     KNOB_DEFS.forEach(function(k){
       var lbl = document.querySelector('.knob-label[data-key="'+k.id+'"]');
       if (lbl) lbl.textContent = STR[l].knobs[k.id];
@@ -5473,6 +5478,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
         updateBeatVisibility(); autoLevelBeatForDrop(buf); autoLevelVocalToBeat(); refreshLiveMix();
         applyBeatLevel();
         if (window.gemstarKeyUI) window.gemstarKeyUI.onBeat(buf);
+if (window.gemstarBpmUI) window.gemstarBpmUI.onBeat(buf);
         if (isPlaying) startPlayback(); // restart in sync now that a beat exists
       }, function(){
         alert(lang==="es" ? "No se pudo leer ese archivo de audio." : "Couldn't read that audio file.");
@@ -5539,6 +5545,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
   document.getElementById("btn-beat-remove").addEventListener("click", function(){
     beatBuffer = null;
     if (window.gemstarKeyUI) window.gemstarKeyUI.clear();
+if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     stopBeatSourceOnly();
     beatInput.value = "";
     updateBeatVisibility();
@@ -9219,6 +9226,37 @@ btnDeletePreset.style.display = "none";
     if (tuneScaleSel) tuneScaleSel.addEventListener("change", resetApplied);
     return {onBeat:onBeat, clear:clear, render:render};
   })();
+window.gemstarBpmUI = (function(){
+var box = document.getElementById("bpm-detect");
+var txt = document.getElementById("bpm-detect-text");
+var state = {kind:"none", res:null};
+var run = 0;
+function t(k){ return (STR[lang] && STR[lang][k]) || STR.en[k] || ""; }
+function render(){
+if (!box) return;
+if (state.kind === "none"){ box.hidden = true; return; }
+box.hidden = false;
+if (state.kind === "busy"){ txt.textContent = t("bpmAnalyzing"); return; }
+if (state.kind === "unsure"){ txt.textContent = t("bpmUnsure"); return; }
+var msg = t(state.kind === "found" ? "bpmFound" : "bpmGuess").replace("{bpm}", String(state.res.bpm));
+txt.textContent = msg;
+}
+function onBeat(buf){
+var my = ++run;
+if (!box || !window.GemstarBPM){ return; }
+state = {kind:"busy", res:null};
+render();
+window.GemstarBPM.detect(buf, {isCancelled: function(){ return my !== run; }}).then(function(res){
+if (my !== run) return;
+if (!res){ state = {kind:"none", res:null}; }
+else if (res.confidence === "low"){ state = {kind:"unsure", res:res}; }
+else state = {kind: res.confidence === "high" ? "found" : "guess", res:res};
+render();
+});
+}
+function clear(){ run++; state = {kind:"none", res:null}; render(); }
+return {onBeat:onBeat, clear:clear, render:render};
+})();
 
   /* ---------- Clean Silence (Mix / Unlimited) ---------- */
   // Mutes the dead air between phrases (hiss, room noise, stray breaths) on
