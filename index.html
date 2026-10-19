@@ -1577,7 +1577,9 @@
           <option value="AUTO_TUNED">Auto-Tuned</option>
           <option value="RNB_SMOOTH">R&amp;B Smooth</option>
         </select>
-        <button class="pill-btn pill-purple" id="btn-reset" type="button" data-i18n="reset">Reset to Default</button>
+        <button class="pill-btn pill-purple" id="btn-save-preset" type="button" data-i18n="savePresetBtn">💾 Save Preset</button>
+<button class="pill-btn pill-purple" id="btn-delete-preset" type="button" aria-label="Delete this preset" style="display:none">🗑</button>
+<button class="pill-btn pill-purple" id="btn-reset" type="button" data-i18n="reset">Reset to Default</button>
         <button class="pill-btn pill-cyan" id="btn-midi" type="button">
           <span data-i18n="midiBtnLabel">MIDI</span><span class="midi-dot" id="midi-status-dot"></span>
         </button>
@@ -1834,7 +1836,7 @@ recordInterfaceMonitorTip:"🎚️ Audio interface detected — turning off “H
       signatureNote:"M5tar & Jewels: each engineer's own signature touch — an Unlimited-plan feature (Mix subscribers from before this changed keep it too).",
       inputReady:"INPUT · FILE · READY", inputLive:"INPUT · FILE · LIVE",
       changeFile:"Change File", play:"▶ Play", pause:"⏸ Pause", ab:"A/B: After", abBefore:"A/B: Before",
-      preset:"Preset", reset:"Reset to Default", bypass:"Bypass",
+      preset:"Preset", reset:"Reset to Default", savePresetBtn:"💾 Save Preset", savePresetPrompt:"Name this preset:", savePresetDefault:"My Preset", myPresetsLabel:"My Presets", presetDeleteConfirm:"Delete preset \"{name}\"?", bypass:"Bypass",
       modeVocal:"Vocal Only", modeFull:"Full Song Mix",
       beatDzTitle:"Drop your beat here (MP3/WAV)", removeBeat:"Remove Beat", beatLevel:"Beat Level",
       beatLow:"Low", beatMid:"Mid", beatHigh:"High",
@@ -2055,7 +2057,7 @@ recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Esc
       signatureNote:"M5tar y Jewels: el toque de firma de cada ingeniero — una función del plan Ilimitado (los suscriptores de Mix desde antes de este cambio también la conservan).",
       inputReady:"ENTRADA · ARCHIVO · LISTO", inputLive:"ENTRADA · ARCHIVO · EN VIVO",
       changeFile:"Cambiar Archivo", play:"▶ Reproducir", pause:"⏸ Pausar", ab:"A/B: Después", abBefore:"A/B: Antes",
-      preset:"Preajuste", reset:"Restablecer", bypass:"Anular",
+      preset:"Preajuste", reset:"Restablecer", savePresetBtn:"💾 Guardar Preajuste", savePresetPrompt:"Nombra este preajuste:", savePresetDefault:"Mi Preajuste", myPresetsLabel:"Mis Preajustes", presetDeleteConfirm:"¿Eliminar el preajuste \"{name}\"?", bypass:"Anular",
       modeVocal:"Solo Voz", modeFull:"Mezcla De Canción Completa",
       beatDzTitle:"Suelta tu beat aquí (MP3/WAV)", removeBeat:"Quitar Beat", beatLevel:"Nivel Del Beat",
       beatLow:"Graves", beatMid:"Medios", beatHigh:"Agudos",
@@ -7744,19 +7746,89 @@ if (isMicRecording) return; // never toggle the main transport while a take is b
 
   /* ---------- presets / reset ---------- */
   document.getElementById("preset-select").addEventListener("change", function(e){
-    var key = e.target.value;
-    if (!key || !PRESETS[key]) return;
-    var p = PRESETS[key];
-    Object.keys(p).forEach(function(id){ setKnob(id, p[id], {silent:true}); });
-    onParamsChanged();
-  });
-  document.getElementById("btn-reset").addEventListener("click", function(){
+var key = e.target.value;
+var delBtn = document.getElementById("btn-delete-preset");
+if (key.indexOf("USER:") === 0){
+var up = loadUserPresets()[key.slice(5)];
+if (!up) return;
+Object.keys(up).forEach(function(id){ setKnob(id, up[id], {silent:true}); });
+onParamsChanged();
+if (delBtn) delBtn.style.display = "";
+return;
+}
+if (delBtn) delBtn.style.display = "none";
+if (!key || !PRESETS[key]) return;
+var p = PRESETS[key];
+Object.keys(p).forEach(function(id){ setKnob(id, p[id], {silent:true}); });
+onParamsChanged();
+});document.getElementById("btn-reset").addEventListener("click", function(){
     Object.keys(DEFAULT_VALUES).forEach(function(id){ setKnob(id, DEFAULT_VALUES[id], {silent:true}); });
-    document.getElementById("preset-select").value = "";
+document.getElementById("preset-select").value = "";
     onParamsChanged();
   });
 
-  /* ---------- waveform + meter ---------- */
+  /* ---------- custom vocal presets (user-saved, localStorage) ---------- */
+var USER_PRESETS_KEY = "gemstarUserPresets";
+function loadUserPresets(){
+try { return JSON.parse(localStorage.getItem(USER_PRESETS_KEY)) || {}; }
+catch(e){ return {}; }
+}
+function saveUserPresets(all){
+try { localStorage.setItem(USER_PRESETS_KEY, JSON.stringify(all)); }
+catch(e){}
+}
+function populateUserPresetOptions(){
+var sel = document.getElementById("preset-select");
+var prevVal = sel.value;
+var group = document.getElementById("user-preset-group");
+if (group) group.parentNode.removeChild(group);
+var all = loadUserPresets();
+var names = Object.keys(all);
+if (!names.length) return;
+group = document.createElement("optgroup");
+group.id = "user-preset-group";
+group.label = STR[lang].myPresetsLabel;
+names.sort().forEach(function(name){
+var opt = document.createElement("option");
+opt.value = "USER:" + name;
+opt.textContent = name;
+group.appendChild(opt);
+});
+sel.appendChild(group);
+if (prevVal.indexOf("USER:") === 0 && names.indexOf(prevVal.slice(5)) !== -1) sel.value = prevVal;
+}
+populateUserPresetOptions();
+var btnSavePreset = document.getElementById("btn-save-preset");
+if (btnSavePreset) btnSavePreset.addEventListener("click", function(){
+var name = window.prompt(STR[lang].savePresetPrompt, STR[lang].savePresetDefault);
+if (name === null) return;
+name = name.trim();
+if (!name) return;
+var all = loadUserPresets();
+all[name] = pickKnobs(values);
+saveUserPresets(all);
+populateUserPresetOptions();
+document.getElementById("preset-select").value = "USER:" + name;
+var delBtn = document.getElementById("btn-delete-preset");
+if (delBtn) delBtn.style.display = "";
+});
+var btnDeletePreset = document.getElementById("btn-delete-preset");
+if (btnDeletePreset) btnDeletePreset.addEventListener("click", function(){
+var sel = document.getElementById("preset-select");
+var key = sel.value;
+if (key.indexOf("USER:") !== 0) return;
+var name = key.slice(5);
+if (!window.confirm(STR[lang].presetDeleteConfirm.replace("{name}", name))) return;
+var all = loadUserPresets();
+delete all[name];
+saveUserPresets(all);
+populateUserPresetOptions();
+sel.value = "";
+btnDeletePreset.style.display = "none";
+});
+    
+
+/* ---------- waveform + meter ---------- */
   var canvas = document.getElementById("waveform");
   var cctx = canvas.getContext("2d");
   var beatCanvas = document.getElementById("beat-waveform");
