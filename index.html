@@ -1829,7 +1829,10 @@ recordInterfaceMonitorTip:"🎚️ Audio interface detected — turning off “H
       calibrateSyncRunning:"Tap TAP in time with each click…",
       calibrateSyncDone:"Calibrated — compensating {ms}ms from now on.",
       calibrateSyncFailed:"Didn't catch enough taps — tap TAP right when you hear each click, then try again.",
-      calibrateSyncTapBtn:"TAP",
+      calibrateSyncFirstRunRunning:"One-time setup: tap TAP in time with each click so your vocals line up perfectly…",
+calibrateSyncFirstRunDone:"All set — Gemstar’s tuned to your setup. Starting your recording…",
+calibrateSyncFirstRunFailed:"Couldn’t catch that — recording now with our best estimate. You can fine-tune anytime with 🎯 Calibrate your timing.",
+calibrateSyncTapBtn:"TAP",
       recordHintRetry:"Tap Start to record again.",
       recordUnsupported:"Your browser doesn't support microphone recording. Try uploading a file instead.",
       recordMicError:"Couldn't access your microphone. Check your browser's mic permission for this site and try again.",
@@ -2050,7 +2053,10 @@ recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Esc
       calibrateSyncRunning:"Toca TOCAR al mismo tiempo que cada clic…",
       calibrateSyncDone:"Calibrado — compensando {ms}ms de ahora en adelante.",
       calibrateSyncFailed:"No se detectaron suficientes toques — toca TOCAR justo cuando escuches cada clic, luego intenta de nuevo.",
-      calibrateSyncTapBtn:"TOCAR",
+      calibrateSyncFirstRunRunning:"Configuración única: toca TOCAR al mismo tiempo que cada clic para que tus voces queden perfectamente sincronizadas…",
+calibrateSyncFirstRunDone:"Listo — Gemstar está ajustado a tu equipo. Iniciando tu grabación…",
+calibrateSyncFirstRunFailed:"No se detectó bien — grabando ahora con nuestra mejor estimación. Puedes ajustar en cualquier momento con 🎯 Calibra tu sincronización.",
+calibrateSyncTapBtn:"TOCAR",
       recordHintRetry:"Toca Empezar para grabar de nuevo.",
       recordUnsupported:"Tu navegador no admite grabación con micrófono. Prueba subiendo un archivo en su lugar.",
       recordMicError:"No se pudo acceder a tu micrófono. Revisa el permiso de micrófono de tu navegador para este sitio e intenta de nuevo.",
@@ -4705,14 +4711,31 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var median = offsets.length % 2 ? offsets[mid] : (offsets[mid-1] + offsets[mid]) / 2;
     return Math.max(0, Math.min(0.5, median));
   }
-  function runSyncCalibration(){
+  var SYNC_CAL_OFFERED_KEY = "gemstarSyncCalOffered";
+// True the very first time anyone would hit Record with no measured
+// (or already-offered) delay on file -- lets the recorder run one
+// automatic calibration pass instead of leaning on the rougher
+// outputLatency/Bluetooth guess for someone who never finds the manual
+// "Calibrate your timing" button.
+function needsFirstRunSyncCal(){
+try {
+return getStoredSyncCal() === null && !localStorage.getItem(SYNC_CAL_OFFERED_KEY);
+} catch(e){ return false; }
+}
+function markSyncCalOffered(){
+try { localStorage.setItem(SYNC_CAL_OFFERED_KEY, "1"); } catch(e){}
+}
+var autoSyncCalActive = false;
+var autoSyncCalCallback = null;
+function runSyncCalibration(){
     var btn = document.getElementById("btn-calibrate-sync");
     var tapBtn = document.getElementById("btn-calibrate-tap");
     var resultEl = document.getElementById("calibrate-sync-result");
     if (!btn || !tapBtn || !resultEl) return;
+var isFirstRun = autoSyncCalActive;
 
     btn.disabled = true;
-    resultEl.textContent = STR[lang].calibrateSyncRunning;
+    resultEl.textContent = isFirstRun ? STR[lang].calibrateSyncFirstRunRunning : STR[lang].calibrateSyncRunning;
 
     withRunningContext(function(){
       var CLICK_COUNT = 6;
@@ -4758,11 +4781,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
         var median = computeSyncCalibration(clickTimes, taps, LEAD_SKIP);
         if (median === null){
-          resultEl.textContent = STR[lang].calibrateSyncFailed;
+          resultEl.textContent = isFirstRun ? STR[lang].calibrateSyncFirstRunFailed : STR[lang].calibrateSyncFailed;
+if (autoSyncCalCallback){ var failCb = autoSyncCalCallback; autoSyncCalCallback = null; autoSyncCalActive = false; failCb(false); }
           return;
         }
         setStoredSyncCal(median);
-        resultEl.textContent = STR[lang].calibrateSyncDone.replace("{ms}", Math.round(median * 1000));
+        resultEl.textContent = (isFirstRun ? STR[lang].calibrateSyncFirstRunDone : STR[lang].calibrateSyncDone).replace("{ms}", Math.round(median * 1000));
+if (autoSyncCalCallback){ var doneCb = autoSyncCalCallback; autoSyncCalCallback = null; autoSyncCalActive = false; doneCb(true); }
       }, totalMs);
     });
   }
@@ -4770,6 +4795,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var btn = document.getElementById("btn-calibrate-sync");
     if (btn) btn.addEventListener("click", runSyncCalibration);
   })();
+function runFirstRunSyncCalibration(onDone){
+var btn = document.getElementById("btn-calibrate-sync");
+var tapBtn = document.getElementById("btn-calibrate-tap");
+var resultEl = document.getElementById("calibrate-sync-result");
+if (!btn || !tapBtn || !resultEl || btn.disabled){ if (onDone) onDone(false); return; }
+autoSyncCalActive = true;
+autoSyncCalCallback = onDone;
+runSyncCalibration();
+}
+
 
   /* Reusable mic-recorder: wires one set of controls (start/stop/retry/dot/
      timer/meter/hint) to getUserMedia + a raw PCM capture node, and hands
@@ -5176,6 +5211,15 @@ if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && o
 
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
       if (opts.canStart && !opts.canStart()) return;
+if (needsFirstRunSyncCal()){
+markSyncCalOffered();
+opts.startBtn.disabled = true;
+runFirstRunSyncCalibration(function(){
+opts.startBtn.disabled = false;
+opts.startBtn.click();
+});
+return;
+}
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
         alert(STR[lang].recordUnsupported);
         return;
