@@ -225,6 +225,11 @@
     border-radius:999px; padding:6px 14px; font-size:0.76rem; cursor:pointer; white-space:nowrap; flex-shrink:0;
   }
   #undo-toast-btn:hover{opacity:0.88;}
+  #undo-toast-close{
+    background:none; border:none; color:var(--ink-dim); font-size:0.9rem; cursor:pointer;
+    padding:2px 4px; line-height:1; flex-shrink:0;
+  }
+  #undo-toast-close:hover{color:var(--ink);}
 
   /* "Need help?" idle nudge -- a small, dismissible corner prompt (never a
      blocking modal) that points back at the existing Need Help guide after
@@ -472,7 +477,7 @@
   }
   .waveform-shell canvas{display:block; width:100%; height:100%;}
   .waveform-shell .wf-label{
-    position:absolute; top:6px; left:8px; font-size:0.6rem; letter-spacing:0.12em;
+    position:absolute; top:6px; right:8px; font-size:0.6rem; letter-spacing:0.12em;
     text-transform:uppercase; color:var(--ink-dim); pointer-events:none;
   }
   .beat-waveform-shell{height:56px; margin-top:8px; border-color:var(--line-gem);}
@@ -1217,6 +1222,7 @@
   <div id="undo-toast">
     <span id="undo-toast-text"></span>
     <button type="button" id="undo-toast-btn" data-i18n="undoToastBtn">Undo</button>
+    <button type="button" id="undo-toast-close" aria-label="Dismiss">✕</button>
   </div>
 
   <div id="help-nudge" role="status" aria-live="polite">
@@ -5682,10 +5688,9 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
   var undoToastEl = document.getElementById("undo-toast");
   var undoToastTextEl = document.getElementById("undo-toast-text");
   var undoToastBtnEl = document.getElementById("undo-toast-btn");
-  var undoToastTimer = null;
+  var undoToastCloseEl = document.getElementById("undo-toast-close");
   var undoToastAction = null;
   function hideUndoToast(){
-    if (undoToastTimer){ clearTimeout(undoToastTimer); undoToastTimer = null; }
     if (undoToastEl) undoToastEl.classList.remove("show");
     undoToastAction = null;
   }
@@ -5695,13 +5700,18 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     undoToastAction = onUndo;
     if (undoToastTextEl) undoToastTextEl.textContent = message;
     undoToastEl.classList.add("show");
-    undoToastTimer = setTimeout(hideUndoToast, 8000);
+    // Used to auto-dismiss after 8s -- people are often still mid-edit
+    // (checking another track, tweaking something else) when a remove/
+    // re-record fires, and the Undo would disappear before they'd actually
+    // looked at it. It now stays up until they dismiss it (✕), use Undo, or
+    // the next remove/re-record replaces it with a new one.
   }
   if (undoToastBtnEl) undoToastBtnEl.addEventListener("click", function(){
     var action = undoToastAction;
     hideUndoToast();
     if (action) action();
   });
+  if (undoToastCloseEl) undoToastCloseEl.addEventListener("click", hideUndoToast);
 
   /* ---- Snapshot helpers: capture just enough of a track's state (lead or
      extra) to put it back exactly as it was, used by both the Remove and
@@ -6681,22 +6691,34 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   function applyRole(tr, role){
     tr.role = role || "";
     var r = ROLE_PRESETS[role];
+    var isLead = tr === leadTrack;
+    var vals = isLead ? leadValues : tr.values;
     if (r){
-      var isLead = tr === leadTrack;
-      var vals = isLead ? leadValues : tr.values;
       if (vals) Object.keys(r.knobs).forEach(function(k){ vals[k] = r.knobs[k]; });
+      var roleLevel = r.level * roleHeadroomScale();
       if (isLead){
-        mainVocalLevel = r.level;
-        if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(r.level*100));
+        mainVocalLevel = roleLevel;
+        if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(roleLevel*100));
         if (chain) applyParamsTo(chain, leadValues);
       } else {
-        tr.level = r.level;
+        tr.level = roleLevel;
         if (tr.chain && chain) applyParamsTo(tr.chain, tr.values);
       }
       tr.pan = r.pan;
-      if (values === vals) renderAllKnobs();
-      refreshLiveMix();
+    } else {
+      if (vals) Object.keys(DEFAULT_VALUES).forEach(function(k){ vals[k] = DEFAULT_VALUES[k]; });
+      if (isLead){
+        mainVocalLevel = 1;
+        if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
+        if (chain) applyParamsTo(chain, leadValues);
+      } else {
+        tr.level = 1;
+        if (tr.chain && chain) applyParamsTo(tr.chain, tr.values);
+      }
+      tr.pan = 0;
     }
+    if (values === vals) renderAllKnobs();
+    refreshLiveMix();
     renderExtraVocals();
     scheduleSave();
   }
@@ -6728,10 +6750,15 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   // take may still end up topped out rather than reaching the true target.
   var AI_MIX_REFERENCE_RMS = 0.12;
   var AI_MIX_MIN_LEVEL = 0.05, AI_MIX_MAX_LEVEL = 1.0;
+  function roleHeadroomScale(){
+    var n = totalVocalTrackCount();
+    return n > 1 ? 1 / Math.sqrt(n) : 1;
+  }
   function aiMixLevelFor(role, measuredActiveRms){
     var preset = ROLE_PRESETS[role] || ROLE_PRESETS.background;
-    if (!measuredActiveRms) return preset.level;
-    var raw = preset.level * (AI_MIX_REFERENCE_RMS / measuredActiveRms);
+    var target = preset.level * roleHeadroomScale();
+    if (!measuredActiveRms) return target;
+    var raw = target * (AI_MIX_REFERENCE_RMS / measuredActiveRms);
     return Math.max(AI_MIX_MIN_LEVEL, Math.min(AI_MIX_MAX_LEVEL, raw));
   }
 
@@ -7774,6 +7801,25 @@ if (isMicRecording) return; // never toggle the main transport while a take is b
     if (isFormEl) return;
     e.preventDefault();
     btnPlay.click();
+  });
+
+  // Enter jumps to the start (or the loop-start, if a loop region is set)
+  // and begins playback -- same destination btnTlStart jumps to, just
+  // reachable without aiming for that small button. Same focus guard as
+  // the spacebar handler above, so Enter still submits/activates whatever
+  // form control or button actually has focus.
+  document.addEventListener("keydown", function(e){
+    if (e.key !== "Enter") return;
+    if (isMicRecording) return;
+    var el2 = document.activeElement;
+    var tag2 = el2 && el2.tagName;
+    var isFormEl2 = tag2 === "INPUT" || tag2 === "TEXTAREA" || tag2 === "SELECT" || tag2 === "BUTTON" || (el2 && el2.isContentEditable);
+    if (isFormEl2) return;
+    if (currentTotalDuration() <= 0) return;
+    e.preventDefault();
+    tlCursor = (tlLoop && tlRegion) ? tlRegion.start : 0;
+    if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+    if (isPlaying) restartPlaybackFromCursor(); else startPlayback();
   });
   btnAb.addEventListener("click", function(){
     bypassed = !bypassed;
