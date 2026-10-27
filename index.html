@@ -493,7 +493,12 @@
     display:flex; align-items:center; gap:8px; margin:6px 0 10px;
     font-size:0.72rem; color:var(--ink-dim);
   }
-  .wf-cut-bar .wf-cut-label{flex:1 1 auto;}
+  .wf-cut-bar .wf-cut-label{flex:1 1 auto; color:var(--yellow);}
+  /* Bright, filled red for Cut -- it's the one truly destructive action on
+     this bar, so it should read louder than the usual outline btn-danger
+     style used elsewhere (Remove, etc.). */
+  #btn-wf-cut{background:var(--danger); border-color:var(--danger); color:#0A0A12; font-weight:600;}
+  #btn-wf-cut:hover{background:#ff3a5e; border-color:#ff3a5e; color:#0A0A12;}
   #btn-wf-cut:disabled{opacity:0.45; cursor:not-allowed;}
 
   .all-vocals-strip{margin-top:10px;}
