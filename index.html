@@ -1502,6 +1502,7 @@
           <span class="wf-cut-label" id="wf-cut-label" data-i18n="cutHint"></span>
           <button type="button" class="icon-btn small" id="btn-wf-cut-clear" hidden data-i18n="cutClearBtn">✕ Clear</button>
           <button type="button" class="icon-btn small btn-danger" id="btn-wf-cut" disabled data-i18n="cutBtn">✂ Cut</button>
+          <button type="button" class="icon-btn small" id="btn-wf-cut-undo" hidden data-i18n="cutUndoBtn">↺ Undo Cut</button>
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
           <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
@@ -1975,7 +1976,7 @@ calibrateSyncTapBtn:"TAP",
       cleanNone:"No dead air long enough to clean up. Your vocals were already tight.",
       cutHint:"Drag on the waveform to select a section, then cut it. Keeps everything locked to the beat -- it silences that part instead of shifting the rest of the track.",
       cutSelectedLabel:"{dur}s selected",
-      cutBtn:"✂ Cut", cutClearBtn:"✕ Clear",
+      cutBtn:"✂ Cut", cutClearBtn:"✕ Clear", cutUndoBtn:"↺ Undo Cut",
       cutDoneToast:'"{name}": section cut',
       tuneKeyLabel:"Auto-Tune Key", tuneChromatic:"Chromatic (all notes)", scaleMajor:"Major", scaleMinor:"Minor",
       tuneKeyHint:"Set your song's key so Tune only snaps to notes that fit it.",
@@ -2202,7 +2203,7 @@ calibrateSyncTapBtn:"TOCAR",
       cleanNone:"No hay silencios lo bastante largos para limpiar. Tus voces ya estaban limpias.",
       cutHint:"Arrastra sobre la onda para seleccionar una sección y cortarla. Todo se mantiene alineado con el beat -- silencia esa parte en vez de mover el resto de la pista.",
       cutSelectedLabel:"{dur}s seleccionados",
-      cutBtn:"✂ Cortar", cutClearBtn:"✕ Borrar",
+      cutBtn:"✂ Cortar", cutClearBtn:"✕ Borrar", cutUndoBtn:"↺ Deshacer corte",
       cutDoneToast:'"{name}": sección cortada',
       tuneKeyLabel:"Tono del Auto-Tune", tuneChromatic:"Cromático (todas las notas)", scaleMajor:"Mayor", scaleMinor:"Menor",
       tuneKeyHint:"Elige el tono de tu canción para que Tune solo se ajuste a notas que encajan.",
@@ -4357,6 +4358,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function afterVocalSetChanged(){
     if (typeof updateCleanUI === "function") updateCleanUI();
+    if (typeof updateCutUndoUI === "function") updateCutUndoUI();
     scheduleSave();
     applyPlanLimit();
     clampTimelineToDuration();
@@ -4378,6 +4380,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (wasPlaying) stopPlayback();
       audioBuffer = buf;
       leadTrack.originalBuffer = null;
+      leadTrack.cutUndoBuffer = null; // fresh take/file -- any pending Cut undo on the old audio no longer applies
       leadTrack._file = file;
       setLeadName(file.name);
       applySavedLeadSettings(file.name); if (beatBuffer) autoLevelVocalToBeat();
@@ -4424,6 +4427,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       clearExtraVocals();
       audioBuffer = loaded[0].buffer;
       leadTrack.originalBuffer = null;
+      leadTrack.cutUndoBuffer = null; // fresh file set -- any pending Cut undo on the old audio no longer applies
       leadTrack._file = loaded[0].file;
       leadTrack.pan = 0; leadTrack.muted = false; leadTrack.solo = false; leadTrack.role = "";
       setLeadName(loaded[0].name);
@@ -5666,7 +5670,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
      drifts even after the slot's buffer is reassigned. ---- */
   function snapshotLead(){
     return {
-      buffer: audioBuffer, originalBuffer: leadTrack.originalBuffer, file: leadTrack._file,
+      buffer: audioBuffer, originalBuffer: leadTrack.originalBuffer, cutUndoBuffer: leadTrack.cutUndoBuffer, file: leadTrack._file,
       name: trackNameEl.textContent, level: mainVocalLevel, values: Object.assign({}, leadValues),
       pan: leadTrack.pan, muted: leadTrack.muted, solo: leadTrack.solo, role: leadTrack.role
     };
@@ -5674,6 +5678,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
   function applyLeadSnapshot(s){
     audioBuffer = s.buffer;
     leadTrack.originalBuffer = s.originalBuffer;
+    leadTrack.cutUndoBuffer = s.cutUndoBuffer || null;
     leadTrack._file = s.file;
     setLeadName(s.name);
     mainVocalLevel = s.level;
@@ -5686,7 +5691,8 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
   function snapshotExtra(t){
     return {
       id: t.id, name: t.name, buffer: t.buffer, level: t.level, values: Object.assign({}, t.values),
-      pan: t.pan, muted: t.muted, solo: t.solo, role: t.role, file: t._file, originalBuffer: t.originalBuffer
+      pan: t.pan, muted: t.muted, solo: t.solo, role: t.role, file: t._file, originalBuffer: t.originalBuffer,
+      cutUndoBuffer: t.cutUndoBuffer
     };
   }
   // Rebuilds a fresh track object from a snapshot and splices it back into
@@ -5699,6 +5705,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
              pan: snap.pan, muted: snap.muted, solo: snap.solo, role: snap.role};
     t._file = snap.file;
     t.originalBuffer = snap.originalBuffer;
+    t.cutUndoBuffer = snap.cutUndoBuffer || null;
     extraVocals.splice(Math.max(0, Math.min(index, extraVocals.length)), 0, t);
     syncTrackChains();
     return t;
@@ -5750,6 +5757,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
       promoted.chain = null;
       audioBuffer = promotedSnap.buffer;
       leadTrack.originalBuffer = promotedSnap.originalBuffer || null;
+      leadTrack.cutUndoBuffer = promotedSnap.cutUndoBuffer || null;
       leadTrack._file = promotedSnap.file;
       setLeadName(promotedSnap.name);
       mainVocalLevel = promotedSnap.level;
@@ -5775,6 +5783,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     } else {
       audioBuffer = null;
       leadTrack.originalBuffer = null;
+      leadTrack.cutUndoBuffer = null;
       leadTrack._file = null;
       leadTrack.pan = 0; leadTrack.muted = false; leadTrack.solo = false; leadTrack.role = "";
       setLeadName("");
@@ -5809,6 +5818,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     leadTrack._file = t._file; t._file = old.file;
     ["pan","muted","solo","role"].forEach(function(k){ var tmp = leadTrack[k]; leadTrack[k] = t[k]; t[k] = tmp; });
     var ob = leadTrack.originalBuffer; leadTrack.originalBuffer = t.originalBuffer; t.originalBuffer = ob;
+    var cb = leadTrack.cutUndoBuffer; leadTrack.cutUndoBuffer = t.cutUndoBuffer; t.cutUndoBuffer = cb;
     if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
     setEditTarget("lead");
     applyAllParams();
@@ -5870,6 +5880,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     renderTrackEditTabs();
     renderExtraVocals();
     if (typeof clearCutSelection === "function") clearCutSelection(); // any waveform selection was for the track we just left
+    if (typeof updateCutUndoUI === "function") updateCutUndoUI(); // Undo Cut button reflects whichever track we're now on
     if (typeof drawStaticWaveform === "function") drawStaticWaveform(); // waveform follows whichever track you're on
   }
 
@@ -5952,6 +5963,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           target.buffer = buf;
           target._file = file;
           target.originalBuffer = null; // fresh take -- any pending "Clean Silence" undo on the old audio no longer applies
+          target.cutUndoBuffer = null; // fresh take -- any pending Cut undo on the old audio no longer applies
           renderExtraVocals();
           afterVocalSetChanged();
           if (wasPlaying) startPlayback();
@@ -9444,6 +9456,7 @@ return {onBeat:onBeat, clear:clear, render:render};
   var wfCutLabelEl = document.getElementById("wf-cut-label");
   var btnWfCutClear = document.getElementById("btn-wf-cut-clear");
   var btnWfCut = document.getElementById("btn-wf-cut");
+  var btnWfCutUndo = document.getElementById("btn-wf-cut-undo");
   var cutSelStart = null, cutSelEnd = null, cutDragging = false;
   var MIN_CUT_SEC = 0.05; // ignore a stray tap/click -- only a real drag counts
 
@@ -9454,6 +9467,24 @@ return {onBeat:onBeat, clear:clear, render:render};
   function setCutTargetBuffer(buf){
     var t = editTargetTrack();
     if (t) t.buffer = buf; else audioBuffer = buf;
+  }
+  // Separate from the showUndoToast() callback below -- that toast is a
+  // single shared slot (any other remove/re-record replaces it), so a Cut's
+  // undo could get silently clobbered by something else you do before you
+  // get to it. This keeps one pending "undo last cut" per track, as a
+  // persistent button, so it's still there whenever you come back to it --
+  // cleared out wherever a track's audio gets replaced wholesale (fresh
+  // file/take), same as "Clean Silence"'s pending-undo state just above.
+  function getCutUndoBuffer(){
+    var t = editTargetTrack();
+    return (t ? t.cutUndoBuffer : leadTrack.cutUndoBuffer) || null;
+  }
+  function setCutUndoBuffer(buf){
+    var t = editTargetTrack();
+    if (t) t.cutUndoBuffer = buf; else leadTrack.cutUndoBuffer = buf;
+  }
+  function updateCutUndoUI(){
+    if (btnWfCutUndo) btnWfCutUndo.hidden = !getCutUndoBuffer();
   }
   function cutTargetName(){
     var t = editTargetTrack();
@@ -9559,6 +9590,8 @@ return {onBeat:onBeat, clear:clear, render:render};
     var prevBuffer = buf; // AudioBuffers are immutable -- holding this costs nothing
     var name = cutTargetName();
     setCutTargetBuffer(silenceRegion(buf, a, b));
+    setCutUndoBuffer(prevBuffer);
+    updateCutUndoUI();
     clearCutSelection();
     drawStaticWaveform();
     if (wasPlaying) startPlayback();
@@ -9566,12 +9599,27 @@ return {onBeat:onBeat, clear:clear, render:render};
       var wasPlaying2 = isPlaying;
       if (wasPlaying2) stopPlayback();
       setCutTargetBuffer(prevBuffer);
+      setCutUndoBuffer(null);
+      updateCutUndoUI();
       drawStaticWaveform();
       if (wasPlaying2) startPlayback();
     });
   });
 
+  if (btnWfCutUndo) btnWfCutUndo.addEventListener("click", function(){
+    var buf = getCutUndoBuffer();
+    if (!buf) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    setCutTargetBuffer(buf);
+    setCutUndoBuffer(null);
+    updateCutUndoUI();
+    drawStaticWaveform();
+    if (wasPlaying) startPlayback();
+  });
+
   updateCutBar();
+  updateCutUndoUI();
 
   /* ---------- Save your session (this browser) ---------- */
   // Knob settings, output gain, Auto-Tune key, language, and each vocal
