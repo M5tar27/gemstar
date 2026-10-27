@@ -484,6 +484,18 @@
   .record-waveform-shell{height:80px; margin:10px 0; border-color:rgba(255,92,122,0.4);}
   .record-panel-compact .record-waveform-shell{height:60px;}
 
+  .wf-selection{
+    position:absolute; top:0; bottom:0; background:rgba(255,92,122,0.22);
+    border-left:1px solid var(--danger); border-right:1px solid var(--danger);
+    pointer-events:none;
+  }
+  .wf-cut-bar{
+    display:flex; align-items:center; gap:8px; margin:6px 0 10px;
+    font-size:0.72rem; color:var(--ink-dim);
+  }
+  .wf-cut-bar .wf-cut-label{flex:1 1 auto;}
+  #btn-wf-cut:disabled{opacity:0.45; cursor:not-allowed;}
+
   .all-vocals-strip{margin-top:10px;}
   .all-vocals-strip-label{
     font-size:0.68rem; letter-spacing:0.03em; color:var(--ink-dim); text-align:center; margin:0 0 6px;
@@ -1479,6 +1491,12 @@
         <div class="waveform-shell" id="lead-waveform-shell">
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
           <canvas id="waveform" width="900" height="110"></canvas>
+          <div class="wf-selection" id="wf-selection" hidden></div>
+        </div>
+        <div class="wf-cut-bar" id="wf-cut-bar">
+          <span class="wf-cut-label" id="wf-cut-label" data-i18n="cutHint"></span>
+          <button type="button" class="icon-btn small" id="btn-wf-cut-clear" hidden data-i18n="cutClearBtn">✕ Clear</button>
+          <button type="button" class="icon-btn small btn-danger" id="btn-wf-cut" disabled data-i18n="cutBtn">✂ Cut</button>
         </div>
         <div class="all-vocals-strip" id="all-vocals-strip" hidden>
           <p class="all-vocals-strip-label" data-i18n="allVocalsLabel">Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here</p>
@@ -1950,6 +1968,10 @@ calibrateSyncTapBtn:"TAP",
       cleanHint:"Mutes the dead air between phrases (hiss, room noise, stray breaths) on every vocal, without moving anything in time.",
       cleanDone:"Silenced {pct}% dead air across {n} track(s). Timing stays locked to your beat.",
       cleanNone:"No dead air long enough to clean up. Your vocals were already tight.",
+      cutHint:"Drag on the waveform to select a section, then cut it. Keeps everything locked to the beat -- it silences that part instead of shifting the rest of the track.",
+      cutSelectedLabel:"{dur}s selected",
+      cutBtn:"✂ Cut", cutClearBtn:"✕ Clear",
+      cutDoneToast:'"{name}": section cut',
       tuneKeyLabel:"Auto-Tune Key", tuneChromatic:"Chromatic (all notes)", scaleMajor:"Major", scaleMinor:"Minor",
       tuneKeyHint:"Set your song's key so Tune only snaps to notes that fit it.",
       keyAnalyzing:"Listening to your beat to find its key…",
@@ -2174,6 +2196,10 @@ calibrateSyncTapBtn:"TOCAR",
       cleanHint:"Silencia el aire muerto entre frases (siseo, ruido de cuarto, respiraciones) en cada voz, sin mover nada en el tiempo.",
       cleanDone:"Se silenció {pct}% de aire muerto en {n} pista(s). El tiempo sigue alineado con tu beat.",
       cleanNone:"No hay silencios lo bastante largos para limpiar. Tus voces ya estaban limpias.",
+      cutHint:"Arrastra sobre la onda para seleccionar una sección y cortarla. Todo se mantiene alineado con el beat -- silencia esa parte en vez de mover el resto de la pista.",
+      cutSelectedLabel:"{dur}s seleccionados",
+      cutBtn:"✂ Cortar", cutClearBtn:"✕ Borrar",
+      cutDoneToast:'"{name}": sección cortada',
       tuneKeyLabel:"Tono del Auto-Tune", tuneChromatic:"Cromático (todas las notas)", scaleMajor:"Mayor", scaleMinor:"Menor",
       tuneKeyHint:"Elige el tono de tu canción para que Tune solo se ajuste a notas que encajan.",
       keyAnalyzing:"Escuchando tu beat para encontrar su tono…",
@@ -5942,6 +5968,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     renderAllKnobs();
     renderTrackEditTabs();
     renderExtraVocals();
+    if (typeof clearCutSelection === "function") clearCutSelection(); // any waveform selection was for the track we just left
     if (typeof drawStaticWaveform === "function") drawStaticWaveform(); // waveform follows whichever track you're on
   }
 
@@ -9505,6 +9532,147 @@ return {onBeat:onBeat, clear:clear, render:render};
     drawStaticWaveform();
     if (wasPlaying) startPlayback();
   });
+
+  /* ---------- Manual Cut: drag-select a region on the waveform and silence
+     it. Same "never shift time" rule as Clean Silence above -- cutting out
+     audio would knock this track out of sync with the beat and every other
+     track, so Cut just mutes the selected window (with a short fade so
+     it's click-free) instead of removing it. Works on whichever track is
+     currently being edited (lead, or an extra/background track), same as
+     the main waveform view itself. ---- */
+  var wfSelectionEl = document.getElementById("wf-selection");
+  var wfCutBarEl = document.getElementById("wf-cut-bar");
+  var wfCutLabelEl = document.getElementById("wf-cut-label");
+  var btnWfCutClear = document.getElementById("btn-wf-cut-clear");
+  var btnWfCut = document.getElementById("btn-wf-cut");
+  var cutSelStart = null, cutSelEnd = null, cutDragging = false;
+  var MIN_CUT_SEC = 0.05; // ignore a stray tap/click -- only a real drag counts
+
+  function cutTargetBuffer(){
+    var t = editTargetTrack();
+    return t ? t.buffer : audioBuffer;
+  }
+  function setCutTargetBuffer(buf){
+    var t = editTargetTrack();
+    if (t) t.buffer = buf; else audioBuffer = buf;
+  }
+  function cutTargetName(){
+    var t = editTargetTrack();
+    return t ? t.name : trackNameEl.textContent;
+  }
+  function timeFromClientX(clientX){
+    var rect = canvas.getBoundingClientRect();
+    var total = currentTotalDuration();
+    if (!total || rect.width <= 0) return 0;
+    var frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return frac * total;
+  }
+  function clearCutSelection(){
+    cutSelStart = null; cutSelEnd = null;
+    if (wfSelectionEl) wfSelectionEl.hidden = true;
+    updateCutBar();
+  }
+  function updateSelectionOverlay(){
+    if (!wfSelectionEl) return;
+    if (cutSelStart == null || cutSelEnd == null){ wfSelectionEl.hidden = true; return; }
+    var total = currentTotalDuration();
+    if (!total){ wfSelectionEl.hidden = true; return; }
+    var a = Math.min(cutSelStart, cutSelEnd), b = Math.max(cutSelStart, cutSelEnd);
+    wfSelectionEl.hidden = false;
+    wfSelectionEl.style.left = (a/total*100) + "%";
+    wfSelectionEl.style.width = (Math.max(0, b-a)/total*100) + "%";
+  }
+  function updateCutBar(){
+    if (!wfCutBarEl) return;
+    var buf = cutTargetBuffer();
+    var hasSel = buf && cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) >= MIN_CUT_SEC;
+    if (btnWfCut) btnWfCut.disabled = !hasSel;
+    if (btnWfCutClear) btnWfCutClear.hidden = !hasSel;
+    if (wfCutLabelEl){
+      wfCutLabelEl.textContent = hasSel
+        ? STR[lang].cutSelectedLabel.replace("{dur}", Math.abs(cutSelEnd-cutSelStart).toFixed(2))
+        : STR[lang].cutHint;
+    }
+  }
+
+  if (canvas){
+    canvas.style.touchAction = "none";
+    canvas.addEventListener("pointerdown", function(e){
+      if (!cutTargetBuffer()) return;
+      cutDragging = true;
+      canvas.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      var t0 = timeFromClientX(e.clientX);
+      cutSelStart = t0; cutSelEnd = t0;
+      updateSelectionOverlay();
+      updateCutBar();
+    });
+    canvas.addEventListener("pointermove", function(e){
+      if (!cutDragging) return;
+      cutSelEnd = timeFromClientX(e.clientX);
+      updateSelectionOverlay();
+      updateCutBar();
+    });
+    function endCutDrag(){
+      if (!cutDragging) return;
+      cutDragging = false;
+      if (cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) < MIN_CUT_SEC){
+        clearCutSelection(); // too small to count -- treat as a stray tap
+      }
+    }
+    canvas.addEventListener("pointerup", endCutDrag);
+    canvas.addEventListener("pointercancel", endCutDrag);
+  }
+
+  if (btnWfCutClear) btnWfCutClear.addEventListener("click", clearCutSelection);
+
+  // Silences the region from startSec to endSec on a copy of buf, with a short fade at each
+  // edge so the cut is inaudible as a click -- same approach stripSilence()
+  // above uses for the gaps it finds automatically, just over a region the
+  // user picked instead of one detected from the audio.
+  function silenceRegion(buf, startSec, endSec){
+    ensureContext();
+    var sr = buf.sampleRate, n = buf.length, nch = buf.numberOfChannels;
+    var fade = Math.max(1, Math.round(sr * 0.02)); // 20ms, click-free
+    var a = Math.max(0, Math.min(n, Math.round(startSec * sr)));
+    var b = Math.max(a, Math.min(n, Math.round(endSec * sr)));
+    var out = ctx.createBuffer(nch, n, sr);
+    for (var c = 0; c < nch; c++){
+      var src = buf.getChannelData(c), dst = out.getChannelData(c);
+      dst.set(src);
+      var fs = Math.max(0, a - fade);
+      for (var i = fs; i < a; i++){ dst[i] = src[i] * ((a - i) / fade); }
+      for (i = a; i < b; i++) dst[i] = 0;
+      var fe = Math.min(n, b + fade);
+      for (i = b; i < fe; i++){ dst[i] = src[i] * ((i - b) / fade); }
+    }
+    return out;
+  }
+
+  if (btnWfCut) btnWfCut.addEventListener("click", function(){
+    var buf = cutTargetBuffer();
+    if (!buf || cutSelStart == null || cutSelEnd == null) return;
+    var a = Math.max(0, Math.min(cutSelStart, cutSelEnd));
+    var b = Math.min(buf.duration, Math.max(cutSelStart, cutSelEnd));
+    if (b - a < MIN_CUT_SEC) return;
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    var prevBuffer = buf; // AudioBuffers are immutable -- holding this costs nothing
+    var name = cutTargetName();
+    setCutTargetBuffer(silenceRegion(buf, a, b));
+    clearCutSelection();
+    drawStaticWaveform();
+    if (wasPlaying) startPlayback();
+    showUndoToast(STR[lang].cutDoneToast.replace("{name}", name), function(){
+      var wasPlaying2 = isPlaying;
+      if (wasPlaying2) stopPlayback();
+      setCutTargetBuffer(prevBuffer);
+      drawStaticWaveform();
+      if (wasPlaying2) startPlayback();
+    });
+  });
+
+  updateCutBar();
 
   /* ---------- Save your session (this browser) ---------- */
   // Knob settings, output gain, Auto-Tune key, language, and each vocal
