@@ -489,6 +489,18 @@
     border-left:1px solid var(--danger); border-right:1px solid var(--danger);
     pointer-events:none;
   }
+  /* Moving cursor over the Step 2 waveform while it plays. That canvas
+     used to get overwritten every frame by a live oscilloscope trace
+     during playback (see runVisualizer()), which flickered the whole
+     picture into a tiny zoomed-in squiggle right when you're trying to
+     follow along to line up a Cut. The canvas now always keeps showing
+     the full static waveform; this is just a thin marker sweeping across
+     it in sync with playback instead, same left% math as the timeline/
+     all-vocals playheads. */
+  .wf-playhead{
+    position:absolute; top:0; bottom:0; width:2px; margin-left:-1px;
+    background:#fff; opacity:0.85; pointer-events:none; left:0;
+  }
   .wf-cut-bar{
     display:flex; align-items:center; gap:8px; margin:6px 0 10px;
     font-size:0.72rem; color:var(--ink-dim);
@@ -1497,6 +1509,7 @@
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
           <canvas id="waveform" width="900" height="110"></canvas>
           <div class="wf-selection" id="wf-selection" hidden></div>
+          <div class="wf-playhead" id="wf-playhead" hidden></div>
         </div>
         <div class="wf-cut-bar" id="wf-cut-bar">
           <span class="wf-cut-label" id="wf-cut-label" data-i18n="cutHint"></span>
@@ -7586,6 +7599,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
         allVocalsPlayheadEl.style.left = (Math.min(1, pos / total) * 100) + "%";
       }
     }
+    if (typeof updateWfPlayheadUI === "function") updateWfPlayheadUI();
     tlAutoFollowPlayhead();
     updateMiniTransport();
   }
@@ -8044,8 +8058,6 @@ btnDeletePreset.style.display = "none";
 
   function runVisualizer(){
     if (!chain) return;
-    var bufferLen = chain.analyser.fftSize;
-    var data = new Uint8Array(bufferLen);
     var freqData = new Uint8Array(chain.analyser.frequencyBinCount);
     var binHz = ctx.sampleRate / chain.analyser.fftSize;
     var visFrameCount = 0;
@@ -8071,46 +8083,34 @@ btnDeletePreset.style.display = "none";
         chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, 0.1);
       }
 
-      // Everything below here is pure visual feedback (scope line, Hz
-      // spectrum, per-knob meters) -- none of it needs to run at a full
-      // 60fps to look smooth, and the canvas work (shadowBlur strokes,
-      // fillText, dozens of per-knob DOM style writes) is the actual
-      // per-frame cost that was crowding out the audio engine and causing
-      // the stutter/slowdown reported during ordinary playback, not just
-      // while recording. Throttling it to ~30fps (scope) and ~20fps
-      // (spectrum + knob meters) is visually indistinguishable but cuts
-      // that main-thread cost by roughly half to two-thirds on every single
-      // playback, not only during a mic recording.
+      // This used to also redraw the Step 2 "waveform" canvas every frame
+      // here with a live oscilloscope trace (clearRect + a scrolling scope
+      // line), reusing the exact same canvas/context the static
+      // Cut-editing waveform is drawn on (drawStaticWaveform()). That
+      // meant the picture you're trying to follow along to cut flickered
+      // into a tiny zoomed-in squiggle -- one analyser buffer's worth of
+      // samples, a few milliseconds -- the instant playback started.
+      // Removed per user feedback: the waveform should stay whole while it
+      // plays. The canvas now keeps showing the full static waveform the
+      // entire time; updatePlayheadUI() above moves a thin DOM cursor
+      // (#wf-playhead) across it instead, so nothing competes with it and
+      // there's no extra per-frame canvas cost either.
+      //
+      // Everything below here is pure visual feedback (Hz spectrum,
+      // per-knob meters) -- none of it needs to run at a full 60fps to
+      // look smooth, and this canvas/DOM work was part of what was
+      // crowding out the audio engine and causing the stutter/slowdown
+      // reported during ordinary playback, not just while recording.
+      // Throttling it to ~20fps is visually indistinguishable but cuts
+      // that main-thread cost noticeably, on every single playback, not
+      // only during a mic recording.
       visFrameCount++;
-      if (visFrameCount % 2 === 0){
-        chain.analyser.getByteTimeDomainData(data);
-        var w = canvas.width, h = canvas.height;
-        cctx.clearRect(0,0,w,h);
-        cctx.strokeStyle = "#00F5FF";
-        cctx.shadowColor = "#00F5FF";
-        cctx.shadowBlur = 6;
-        cctx.lineWidth = 2;
-        cctx.beginPath();
-        var slice = w / bufferLen;
-        var peak = 0;
-        for (var i=0;i<bufferLen;i++){
-          var v = data[i]/128 - 1;
-          peak = Math.max(peak, Math.abs(v));
-          var x = i*slice, y = (v+1)*h/2;
-          if (i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
-        }
-        cctx.stroke();
-        cctx.shadowBlur = 0;
-      }
-
-      // Skip the Hz spectrum + per-knob mini-meters entirely while a mic
-      // recording is in progress (e.g. singing an extra take along to the
-      // beat) -- this is the single biggest chunk of the extra per-frame
-      // work those features added, and freeing it up during exactly the
-      // recording window is what fixes the lag/latency reported while
-      // recording. The meters just freeze at their last value and pick
-      // back up once recording stops. Outside of recording, they still run,
-      // just throttled (see above) instead of on every frame.
+      // Skip it entirely while a mic recording is in progress (e.g.
+      // singing an extra take along to the beat) -- this is the single
+      // biggest chunk of the extra per-frame work this adds, and freeing
+      // it up during exactly the recording window is what fixes the lag/
+      // latency reported while recording. The meters just freeze at their
+      // last value and pick back up once recording stops.
       if (!isMicRecording && visFrameCount % 3 === 0){
         chain.analyser.getByteFrequencyData(freqData);
         drawSpectrum(freqData, binHz);
@@ -9459,6 +9459,7 @@ return {onBeat:onBeat, clear:clear, render:render};
      currently being edited (lead, or an extra/background track), same as
      the main waveform view itself. ---- */
   var wfSelectionEl = document.getElementById("wf-selection");
+  var wfPlayheadEl = document.getElementById("wf-playhead");
   var wfCutBarEl = document.getElementById("wf-cut-bar");
   var wfCutLabelEl = document.getElementById("wf-cut-label");
   var btnWfCutClear = document.getElementById("btn-wf-cut-clear");
@@ -9474,6 +9475,24 @@ return {onBeat:onBeat, clear:clear, render:render};
   function setCutTargetBuffer(buf){
     var t = editTargetTrack();
     if (t) t.buffer = buf; else audioBuffer = buf;
+  }
+  // Keeps a thin cursor sweeping across the Step 2 waveform in sync with
+  // playback -- the canvas itself no longer redraws during playback (see
+  // runVisualizer()), so this is the only on-canvas indicator of where
+  // you are. Uses the SAME per-track duration basis as the waveform's own
+  // scaling (this track's own buffer, not currentTotalDuration()) so the
+  // cursor still lines up correctly when a shorter vocal is playing
+  // alongside a longer beat. Hides once this track's own audio has
+  // finished, even if the beat/other tracks play on past it.
+  function updateWfPlayheadUI(){
+    if (!wfPlayheadEl) return;
+    var buf = cutTargetBuffer();
+    var dur = buf ? buf.duration : 0;
+    if (!isPlaying || !dur){ wfPlayheadEl.hidden = true; return; }
+    var pos = currentPlayPosition();
+    if (pos >= dur){ wfPlayheadEl.hidden = true; return; }
+    wfPlayheadEl.hidden = false;
+    wfPlayheadEl.style.left = (Math.min(1, pos / dur) * 100) + "%";
   }
   // Separate from the showUndoToast() callback below -- that toast is a
   // single shared slot (any other remove/re-record replaces it), so a Cut's
