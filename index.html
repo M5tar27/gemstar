@@ -8026,7 +8026,14 @@ btnDeletePreset.style.display = "none";
     var t = (typeof editTargetTrack === "function") ? editTargetTrack() : null;
     var shownBuffer = (t && t.buffer) ? t.buffer : audioBuffer;
     if (!shownBuffer) return;
-    drawBufferWaveform(canvas, cctx, shownBuffer, "rgba(0,245,255,0.35)", currentTotalDuration());
+    // Scaled to THIS track's own length, not currentTotalDuration() (the
+    // longest of the beat + every loaded track) -- a vocal shorter than the
+    // beat used to get crammed into a sliver of the canvas with the rest
+    // left blank, which made it look "zoomed in" and next to impossible to
+    // see word-level detail or drag out a precise Cut selection. This is a
+    // single-track editing view, so it always fills the full width with
+    // just the track you're working on, regardless of what else is loaded.
+    drawBufferWaveform(canvas, cctx, shownBuffer, "rgba(0,245,255,0.35)", shownBuffer.duration);
   }
 
   function drawBeatWaveformStatic(){
@@ -9492,7 +9499,12 @@ return {onBeat:onBeat, clear:clear, render:render};
   }
   function timeFromClientX(clientX){
     var rect = canvas.getBoundingClientRect();
-    var total = currentTotalDuration();
+    // Matches drawStaticWaveform()'s scale -- the canvas now always shows
+    // this track's own full length, not the whole session's, so dragging a
+    // selection has to map against that same span or the selection would
+    // land on the wrong part of the (or past the end of the) waveform.
+    var buf = cutTargetBuffer();
+    var total = buf ? buf.duration : 0;
     if (!total || rect.width <= 0) return 0;
     var frac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     return frac * total;
