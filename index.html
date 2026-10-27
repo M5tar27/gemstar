@@ -9600,7 +9600,7 @@ return {onBeat:onBeat, clear:clear, render:render};
     canvas.addEventListener("pointerdown", function(e){
       if (!cutTargetBuffer()) return;
       cutDragging = true;
-      canvas.setPointerCapture(e.pointerId);
+      try { canvas.setPointerCapture(e.pointerId); } catch(err){}
       e.preventDefault();
       var t0 = timeFromClientX(e.clientX);
       cutSelStart = t0; cutSelEnd = t0;
