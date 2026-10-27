@@ -2549,6 +2549,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.render();
       dragging = true; startY = e.clientY; startVal = values[id];
       knob.setPointerCapture(e.pointerId);
       e.preventDefault();
+      knob.focus(); // so wheel-scroll right after a click/tap fine-tunes this knob
 
       downX = e.clientX; downY = e.clientY;
       moved = false; longPressFired = false;
@@ -2592,6 +2593,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.render();
     // native dblclick as a harmless fallback (fires for real mouse double-clicks)
     knob.addEventListener("dblclick", function(){ showKnobInfo(id, knob); });
     knob.addEventListener("wheel", function(e){
+      if (document.activeElement !== knob) return; // don't hijack page scroll unless this knob is focused
       e.preventDefault();
       if (isKnobLocked(id)){ openTierGate("knob:" + id); return; }
       setKnob(id, values[id] + (e.deltaY < 0 ? 2 : -2));
@@ -2899,17 +2901,20 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
 
   function ensureContext(){
     if (ctx) return;
-    // latencyHint "playback" asks the browser for a larger output buffer
-    // than the "interactive" default, which gives the audio render thread
-    // more slack per callback before a CPU spike (several tracks' worth of
-    // processing at once) causes an audible underrun/crackle. Nothing here
-    // depends on the lowest possible round-trip latency: the mic is never
-    // monitored live through the engine (captured silently only, see
-    // createVocalRecorder), and the beat/backing track you hear while
-    // recording is scheduled playback (AudioBufferSourceNode.start at a
-    // computed time), not a real-time passthrough -- so the extra ~20-40ms
-    // buffer this adds is not felt as lag, only gained as headroom.
-    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "playback"});
+    // latencyHint "interactive" asks the browser for the smallest safe
+    // output buffer, which keeps round-trip latency as low as the audio
+    // backend allows. We need that: turning an effect knob applies the
+    // new value through setTargetAtTime() on live AudioParams, and with
+    // "playback" the resulting output buffer added ~60ms+ of delay before
+    // the change was audible -- clearly "not real time" to a user turning
+    // a knob while listening. "playback" was previously chosen for extra
+    // CPU headroom against underrun/crackle under heavy multi-track FX
+    // load, but nothing here needs that trade against responsiveness: the
+    // mic is never monitored live through the engine (captured silently
+    // only, see createVocalRecorder), and the beat/backing track you hear
+    // while recording is scheduled playback (AudioBufferSourceNode.start
+    // at a computed time), not a real-time passthrough.
+    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "interactive"});
     buildChain();
   }
 
@@ -3609,6 +3614,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.rumbleHPF.frequency.value = 30;
     g.rumbleHPF.Q.value = 0.707;
 
+    // A gentle, broad dip around 300Hz -- the classic "boxy/muddy" low-mid
+    // buildup that a sub-rumble high-pass alone doesn't touch (that range
+    // sits well above where the high-pass rolls off, and is often where a
+    // mic's proximity effect or room tone piles up). This is the second
+    // half of what makes "Clean" actually read as clean instead of just
+    // rumble-free: the high-pass clears the basement, this clears the mud
+    // right above it.
+    g.muddyCut = ctx.createBiquadFilter();
+    g.muddyCut.type = "peaking";
+    g.muddyCut.frequency.value = 300;
+    g.muddyCut.Q.value = 1.1;
+
     g.gateShaper = ctx.createWaveShaper();
 
     // Presence: a modest mid-high lift (~3.5kHz) so speech reads as crisp
@@ -3827,7 +3844,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.dryBus.connect(g.finalMix);
 
     g.input.connect(g.rumbleHPF);
-    g.rumbleHPF.connect(g.gateShaper);
+    g.rumbleHPF.connect(g.muddyCut);
+    g.muddyCut.connect(g.gateShaper);
     g.gateShaper.connect(g.cleanPresence);
 
     // Clean's own de-esser: dry + inverted sibilant band, same technique as
@@ -4269,6 +4287,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var effJewels = v.jewels;
 
     chain.rumbleHPF.frequency.setTargetAtTime(lerp(v.clean,0,100,30,120), now, 0.02);
+    chain.muddyCut.gain.setTargetAtTime(lerp(v.clean,0,100,0,-4), now, 0.02);
     var newGateCurve = getGateShaperCurve(v.clean/100);
     if (chain.gateShaper.curve !== newGateCurve) chain.gateShaper.curve = newGateCurve;
     chain.cleanPresence.gain.setTargetAtTime(lerp(v.clean,0,100,0,3), now, 0.02);
@@ -6550,6 +6569,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       downY=e.clientY; moved=false;
       knob.setPointerCapture(e.pointerId);
       e.preventDefault();
+      knob.focus(); // so wheel-scroll right after a click/tap fine-tunes this knob
       clearLP();
       longPressTimer=setTimeout(function(){
         longPressTimer=null; dragging=false;
@@ -6567,6 +6587,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     knob.addEventListener("pointerup", endDrag);
     knob.addEventListener("pointercancel", endDrag);
     knob.addEventListener("wheel", function(e){
+      if (document.activeElement !== knob) return; // don't hijack page scroll unless this knob is focused
       e.preventDefault();
       setVal(Math.round((track.level==null?1:track.level)*100) + (e.deltaY < 0 ? 2 : -2));
     }, {passive:false});
