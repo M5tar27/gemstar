@@ -2696,6 +2696,19 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.render();
       }
     });
     knob.addEventListener("pointercancel", function(){ dragging = false; clearLongPress(); });
+    // focus() on pointerdown above exists only so a wheel-scroll RIGHT
+    // AFTER clicking/tapping can fine-tune this knob without a second
+    // click. It was never meant to keep this knob listening to the wheel
+    // indefinitely afterward -- but without this, the knob stayed focused
+    // forever, so later just scrolling the page while the cursor happened
+    // to pass back over this same knob (no click, no intent to touch it)
+    // still passed the wheel handler's "is this knob focused" check and
+    // silently nudged the value, messing up the mix. Dropping focus once
+    // the pointer actually leaves the knob (and we're not mid-drag) closes
+    // that gap while keeping the immediate-after-click fine-tune working.
+    knob.addEventListener("pointerleave", function(){
+      if (!dragging && document.activeElement === knob) knob.blur();
+    });
     // native dblclick as a harmless fallback (fires for real mouse double-clicks)
     knob.addEventListener("dblclick", function(){ showKnobInfo(id, knob); });
     knob.addEventListener("wheel", function(e){
@@ -6629,6 +6642,10 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     function endDrag(){ dragging=false; clearLP(); }
     knob.addEventListener("pointerup", endDrag);
     knob.addEventListener("pointercancel", endDrag);
+    // Same fix as the main effect knobs above -- see that comment.
+    knob.addEventListener("pointerleave", function(){
+      if (!dragging && document.activeElement === knob) knob.blur();
+    });
     knob.addEventListener("wheel", function(e){
       if (document.activeElement !== knob) return; // don't hijack page scroll unless this knob is focused
       e.preventDefault();
