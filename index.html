@@ -10700,6 +10700,18 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   applyGateStaticStrings();
   showEmailStep();
   verifyStoredToken();
+
+  // Warm up the audio engine right away instead of waiting for the user's
+  // first Play press to pay for all of it. ensureContext() constructs the
+  // AudioContext (allowed without a user gesture -- only resume()/actually
+  // starting output needs one, and nothing here calls resume()) and runs
+  // buildChain(), which compiles the three AudioWorklet modules via
+  // addModule() and generates the convolution-reverb impulse buffers.
+  // That setup used to happen lazily on the first startPlayback() call,
+  // which is exactly what showed up as "Play takes a second to start."
+  // Deferred one tick (setTimeout 0) so it never competes with the
+  // initial page render.
+  setTimeout(function(){ try { ensureContext(); } catch(e){} }, 0);
 })();
 </script>
 
