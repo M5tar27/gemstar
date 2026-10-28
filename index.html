@@ -354,6 +354,11 @@
     font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.28em;
     color:var(--ink-muted); text-transform:uppercase; margin:0 0 14px;
   }
+  .ba-artist{
+    font-family:var(--font-display); font-weight:700; font-size:0.82rem; letter-spacing:0.06em;
+    color:var(--ink); margin:22px 0 10px; text-align:left;
+  }
+  .before-after .ba-artist:first-of-type{margin-top:0;}
   .ba-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   @media (max-width:520px){ .ba-row{grid-template-columns:1fr;} }
   .ba-card{
@@ -1320,6 +1325,7 @@
 
   <section class="before-after" aria-label="Before and after example">
     <p class="ba-label">Hear the difference</p>
+    <p class="ba-artist">Jewels</p>
     <div class="ba-row">
       <div class="ba-card">
         <span class="ba-tag ba-tag-before">Before</span>
@@ -1328,6 +1334,17 @@
       <div class="ba-card">
         <span class="ba-tag ba-tag-after">After</span>
         <audio controls preload="none" src="demo/gemstar_after_v2.mp3">Your browser doesn't support the audio element.</audio>
+      </div>
+    </div>
+    <p class="ba-artist">M5tar</p>
+    <div class="ba-row">
+      <div class="ba-card">
+        <span class="ba-tag ba-tag-before">Before</span>
+        <audio controls preload="none" src="demo/m5tar_before_v1.mp3">Your browser doesn't support the audio element.</audio>
+      </div>
+      <div class="ba-card">
+        <span class="ba-tag ba-tag-after">After</span>
+        <audio controls preload="none" src="demo/m5tar_after_v1.mp3">Your browser doesn't support the audio element.</audio>
       </div>
     </div>
   </section>
