@@ -343,6 +343,31 @@
   }
   .sub-headline{color:var(--ink-muted); max-width:44ch; margin:0 auto; font-size:1rem;}
 
+  /* ---------------- before/after demo ---------------- */
+  /* A quick "hear the difference" proof point, placed right under the
+     hero headline and above the app itself so it's the first thing a
+     visitor sees -- before they've touched anything, they can hear what
+     the chain actually does to a vocal. Two native <audio> players, no
+     JS needed. */
+  .before-after{max-width:640px; margin:0 auto 32px; text-align:center;}
+  .ba-label{
+    font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.28em;
+    color:var(--ink-muted); text-transform:uppercase; margin:0 0 14px;
+  }
+  .ba-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:520px){ .ba-row{grid-template-columns:1fr;} }
+  .ba-card{
+    background:var(--bg-panel); border:1px solid var(--line); border-radius:12px;
+    padding:16px; display:flex; flex-direction:column; gap:10px; align-items:center;
+  }
+  .ba-tag{
+    font-family:var(--font-display); font-weight:700; font-size:0.72rem;
+    letter-spacing:0.14em; text-transform:uppercase; padding:4px 12px; border-radius:999px;
+  }
+  .ba-tag-before{color:var(--ink-muted); border:1px solid var(--line-strong);}
+  .ba-tag-after{color:#03191b; background:linear-gradient(90deg, var(--cyan), var(--gem));}
+  .ba-card audio{width:100%; color-scheme:dark;}
+
   /* ---------------- console panel ---------------- */
   .console{
     background:radial-gradient(120% 140% at 50% -10%, #1a1a2c 0%, var(--bg-panel) 55%, #0d0d16 100%);
@@ -1292,6 +1317,20 @@
     <h1 class="headline" data-i18n-html="headline">One booth. <em>Two engineers.</em></h1>
     <p class="sub-headline" data-i18n="subheadline">Two engineers behind the chain — drop in a vocal, dial it in, hear it change instantly. No sessions, no waiting.</p>
   </header>
+
+  <section class="before-after" aria-label="Before and after example">
+    <p class="ba-label">Hear the difference</p>
+    <div class="ba-row">
+      <div class="ba-card">
+        <span class="ba-tag ba-tag-before">Before</span>
+        <audio controls preload="none" src="demo/gemstar_before_1.mp3">Your browser doesn't support the audio element.</audio>
+      </div>
+      <div class="ba-card">
+        <span class="ba-tag ba-tag-after">After</span>
+        <audio controls preload="none" src="demo/gemstar_after_1.mp3">Your browser doesn't support the audio element.</audio>
+      </div>
+    </div>
+  </section>
 
   <div class="console" id="gemstar-console">
     <div id="gate-overlay">
