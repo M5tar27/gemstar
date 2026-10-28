@@ -2956,7 +2956,26 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     // only, see createVocalRecorder), and the beat/backing track you hear
     // while recording is scheduled playback (AudioBufferSourceNode.start
     // at a computed time), not a real-time passthrough.
-    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "interactive"});
+    // Pin the engine's own processing rate instead of leaving it to
+    // whatever the connected output device happens to report. This is
+    // exactly what caused one user's playback delay/crackle: their USB
+    // audio interface was set to 192,000 Hz in macOS, so every node in
+    // the chain -- compressor, convolver reverb, analysers, the pitch/
+    // record worklets -- was processing over 4x the normal number of
+    // samples per second, every second, on every single playback.
+    // sampleRate here is a request, not a guarantee, but every major
+    // browser honors it for a realtime context by resampling between
+    // the declared rate and the output device's actual rate at the
+    // native audio-backend level (cheap, optimized driver code) instead
+    // of running the whole DSP graph at whatever the device happens to
+    // be set to. That makes this automatic for every user, not something
+    // they have to go find and fix in their OS audio settings.
+    // This is a different path from the getUserMedia sampleRate note
+    // near the Record Vocal button below -- that one is about resampling
+    // a captured MIC stream, which this project already found causes its
+    // own crackle on interfaces. Pinning the OUTPUT/processing context
+    // here doesn't touch mic capture at all.
+    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "interactive", sampleRate: 48000});
     buildChain();
   }
 
