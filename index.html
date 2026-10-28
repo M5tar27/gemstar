@@ -1008,6 +1008,13 @@
   #btn-master:disabled, select#lufs-target:disabled{opacity:0.5; cursor:default;}
 
   .export-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:18px;}
+  .export-name-input{
+    background:var(--bg-panel-2); border:1px solid var(--line); border-radius:999px;
+    padding:12px 18px; font-size:0.8rem; font-family:var(--font-body); color:var(--ink);
+    flex:1 1 160px; min-width:0;
+  }
+  .export-name-input::placeholder{color:var(--ink-dim);}
+  .export-name-input:focus{outline:none; border-color:var(--cyan);}
   .export-note{font-size:0.74rem; color:var(--ink-dim); margin-top:8px;}
   .export-status{font-size:0.78rem; margin-top:8px; min-height:1.2em;}
   .export-status.ok{color:var(--ok);}
@@ -1714,6 +1721,7 @@
     </div>
 
     <div class="export-row">
+      <input type="text" id="export-name" class="export-name-input" placeholder="Track name (optional)" maxlength="60" aria-label="Export file name" autocomplete="off" />
       <select id="export-format" class="pill-btn pill-cyan" aria-label="Export format">
         <option value="mp3" id="export-fmt-mp3" selected>MP3</option>
         <option value="wav" id="export-fmt-wav">WAV (24-bit)</option>
@@ -4435,6 +4443,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     trackNameEl.textContent = name;
     var leadNameEl = document.getElementById("lead-track-name");
     if (leadNameEl) leadNameEl.textContent = name;
+    // Pre-fill the export name field from the loaded file's name so there's
+    // a sensible default, but only if the user hasn't already typed their
+    // own export name -- never stomp on something they already set.
+    var exportNameElInit = document.getElementById("export-name");
+    if (exportNameElInit && !exportNameElInit.value && name){
+      exportNameElInit.value = String(name).replace(/\.[a-z0-9]{2,4}$/i, "").slice(0, 60);
+    }
   }
 
   function showPlayerForLoadedVocal(){
@@ -8399,6 +8414,7 @@ btnDeletePreset.style.display = "none";
   var btnExport = document.getElementById("btn-export");
   var exportFormatEl = document.getElementById("export-format");
   var exportStatus = document.getElementById("export-status");
+  var exportNameEl = document.getElementById("export-name");
   var exporting = false;
 
   function triggerBrowserDownload(blob, filename){
@@ -8506,6 +8522,13 @@ btnDeletePreset.style.display = "none";
 
     var dur = currentTotalDuration();
     var baseName = (mode === "full" && beatBuffer) ? "gemstar-full-mix" : "gemstar-vocal";
+    var customExportName = exportNameEl ? exportNameEl.value.trim() : "";
+    if (customExportName){
+      // Same sanitize-for-filesystem pattern already used for stem names
+      // below (stemFileNames) -- strip characters a filename can't hold,
+      // cap length, keep it simple.
+      baseName = customExportName.replace(/[\\\/:*?"<>|]+/g, "_").slice(0, 60);
+    }
     var fmt = exportFormatEl ? exportFormatEl.value : "mp3";
 
     try {
