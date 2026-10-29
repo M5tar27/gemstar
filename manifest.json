@@ -1,0 +1,15 @@
+{
+  "name": "Gemstar — M5tar Studio x Gemsquad Production",
+  "short_name": "Gemstar",
+  "description": "Browser-based vocal mixing and mastering. Drop in a vocal, dial the chain, hear it change instantly.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0A0A12",
+  "theme_color": "#0A0A12",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
