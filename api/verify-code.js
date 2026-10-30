@@ -2,12 +2,15 @@
 // Step 2 of email verification. Takes the {challenge} handed back by
 // /api/check-access plus the 6-digit code the user got by email, and checks
 // the code without ever having stored it anywhere — the challenge carries an
-// HMAC signature of email+tier+code+expiry, so only the correct code
-// reproduces a matching signature. The tier travels inside that challenge
-// (set by /api/check-access from the real Stripe lookup), so it's baked into
-// the final access token here without a second Stripe call. On success,
-// issues the same long-lived signed access token /api/check-access already
-// issues for allowlisted founders.
+// HMAC signature of email+tier+legacyKnobs+code+expiry, so only the correct
+// code reproduces a matching signature. The tier and legacyKnobs flag travel
+// inside that challenge (set by /api/check-access from the real Stripe
+// lookup), so they're baked into the final access token / response here
+// without a second Stripe call. On success, issues the same long-lived
+// signed access token /api/check-access already issues for allowlisted
+// founders, and also returns legacyKnobs as a plain field so the browser can
+// remember it locally (it is NOT baked into the access token itself, since
+// unlike tier it never needs re-checking on later page loads).
 //
 // Also enforces a per-account device cap: this is where tokens actually get
 // minted, so it's where a brand-new device either gets recorded (if the
@@ -133,13 +136,14 @@ module.exports = async (req, res) => {
   }
 
   const parts = challenge.split(".");
-  if (parts.length !== 4) {
+  if (parts.length !== 5) {
     res.status(200).json({ access: false, error: "Invalid or expired code" });
     return;
   }
 
-  const [b64email, tierRaw, expiryStr, sig] = parts;
+  const [b64email, tierRaw, legacyFlagRaw, expiryStr, sig] = parts;
   const tier = normalizeTier(tierRaw);
+  const legacyKnobs = legacyFlagRaw === "1";
   const expiry = parseInt(expiryStr, 10);
   const notExpired = Number.isFinite(expiry) && expiry > Math.floor(Date.now() / 1000);
   if (!notExpired) {
@@ -155,7 +159,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const expectedPayload = `otp.${email}.${tier}.${code}.${expiryStr}`;
+  const expectedPayload = `otp.${email}.${tier}.${legacyFlagRaw}.${code}.${expiryStr}`;
   const expected = crypto.createHmac("sha256", secret).update(expectedPayload).digest("hex");
 
   const sigBuf = Buffer.from(sig, "hex");
@@ -179,5 +183,5 @@ module.exports = async (req, res) => {
   }
 
   const token = signToken(email, tier, deviceId);
-  res.status(200).json({ access: true, token: token, tier: tier });
+  res.status(200).json({ access: true, token: token, tier: tier, legacyKnobs: legacyKnobs });
 };

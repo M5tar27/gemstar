@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.gemstaraudio.twa",
+    "sha256_cert_fingerprints": ["CA:F1:32:87:94:29:DA:9D:E1:18:AB:94:45:71:68:24:EB:19:41:44:E1:53:43:D4:5B:53:1D:3F:9A:11:22:9D"]
+  }
+}]

@@ -54,6 +54,9 @@
   .nudge{margin:14px 0 4px;text-align:left;font-size:.85rem;color:var(--ink-muted)}
   .nudge input{width:100%;accent-color:var(--cyan);margin-top:6px}
   .stage-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem;margin-bottom:10px}
+  .label-field{margin:14px 0 4px;text-align:left;font-size:.85rem;color:var(--ink-muted)}
+  .label-field input{width:100%;margin-top:6px;padding:12px;border-radius:10px;border:1px solid var(--line-strong);
+    background:#0d0d16;color:var(--ink);font-family:var(--font-body);font-size:.95rem}
   .hidden{display:none}
 </style>
 </head>
@@ -98,6 +101,10 @@
         <div class="nudge">
           <label for="nudge">Line it up: <b id="nudgeVal">0 ms</b> <span>(drag if your layer sounds early or late)</span></label>
           <input type="range" id="nudge" min="-500" max="500" step="5" value="0">
+        </div>
+        <div class="label-field">
+          <label for="layerLabel">Label this take (optional) <span>-- e.g. lead, ad lib, harmony</span></label>
+          <input type="text" id="layerLabel" maxlength="40" placeholder="lead, ad lib...">
         </div>
         <button class="cta" id="save" type="button" style="margin-top:14px">Save layer</button>
         <button class="btn2" id="rerec" type="button">Re-record</button>
@@ -306,9 +313,9 @@
     $("save").addEventListener("click", function () {
       stopPreview();
       $("save").disabled = true; $("rerec").disabled = true; say("Saving your layer…");
-      fetch("/api/submit-layer", {
+      fetch("/api/layer", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ invite: invite, guestToken: guestToken, ext: "wav", offsetMs: offset })
+        body: JSON.stringify({ action: "submit", invite: invite, guestToken: guestToken, ext: "wav", offsetMs: offset, label: ($("layerLabel").value || "").trim().slice(0, 40) })
       }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
           if (!res.ok) throw new Error(res.d.error || "Could not save your layer.");
@@ -332,9 +339,9 @@
   var invite = new URLSearchParams(location.search).get("t") || "";
   if (!invite) { fail("This invite link isn't valid."); return; }
 
-  fetch("/api/resolve-invite", {
+  fetch("/api/invite", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ invite: invite })
+    body: JSON.stringify({ action: "resolve", invite: invite })
   }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
     .then(function (res) {
       if (!res.ok) { fail(res.d.error || "This invite link isn't valid."); return; }
