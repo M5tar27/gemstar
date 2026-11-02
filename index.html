@@ -1135,6 +1135,14 @@
     margin:0 0 14px; letter-spacing:0.02em;
   }
   .free-tier-note strong{color:var(--cyan); font-weight:600;}
+  .inline-subscribe-cta{
+    display:block; width:fit-content; margin:0 auto 18px;
+    background:linear-gradient(90deg, var(--cyan), var(--gem)); color:#050508;
+    padding:13px 34px; border-radius:999px; font-weight:700; font-size:0.95rem;
+    letter-spacing:0.03em; text-decoration:none; font-family:var(--font-body);
+    text-align:center; transition:transform .15s ease, box-shadow .2s ease;
+  }
+  .inline-subscribe-cta:hover{transform:translateY(-1px); box-shadow:0 10px 28px -8px rgba(0,245,255,0.5);}
   #gate-overlay{
     display:none; position:fixed; inset:0; z-index:400;
     align-items:center; justify-content:center; padding:20px;
@@ -1383,8 +1391,9 @@
       </div>
     </div>
     <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock Full Song Mix (Unlimited also unlocks the M5tar &amp; Jewels signature knobs); any plan unlocks export.</p>
+    <a href="#pricing" id="inline-subscribe-btn" class="inline-subscribe-cta" data-i18n="join">Subscribe Now</a>
     <div class="transport">
-      <div class="mode-toggle" role="tablist" aria-label="Mix mode">
+      <div class="mode-toggle" role="tablist" aria-label="Mix mode" hidden>
         <button type="button" class="mode-btn" id="mode-full" role="tab" aria-selected="false">
           <span data-i18n="modeFull">Full Song Mix</span>
           <span class="mix-badge">$49</span>
@@ -2914,7 +2923,7 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
   var beatMuted = false, beatSolo = false;
   var vocalGroupMuted = false, vocalGroupSolo = false;
   var mixEnabled = false;    // true when mode === "full" (Full Song Mix)
-  var mode = "vocal";        // "vocal" | "full"
+  var mode = "vocal";        // "vocal" | "full" -- forced to "full" once setMode("full") runs at init (see the retired mode-toggle below); this initial value never actually shows, it's just what the var holds before that first call
   var outputGainDb = 3;      // Loud is now this fader, not a knob
   var isPlaying = false;
   var bypassed = false;
@@ -5535,17 +5544,14 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
       chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   }
-  var userPickedMode = false;   // once they choose a tab themselves, never override it
-  modeVocalBtn.addEventListener("click", function(){ userPickedMode = true; setMode("vocal"); });
-  modeFullBtn.addEventListener("click", function(){
-    if (!isTierAtLeast("mix")){ openTierGate("fullMix"); return; }
-    userPickedMode = true;
-    setMode("full");
-  });
-  // Landing view: straight to recording. Mix / Unlimited members start in Full Song Mix.
-  window.gemstarLandingMode = function(){
-    if (!userPickedMode && isTierAtLeast("mix") && mode !== "full") setMode("full");
-  };
+  // The Vocal Only / Full Song Mix tab toggle is retired -- there's only one
+  // view now (see the hidden .mode-toggle in the markup): the beat-drop area
+  // sits right alongside vocal recording at all times, and recording
+  // vocal-only is simply never adding a beat. The actual Mix/Unlimited gate
+  // moved to the real point it matters -- handleBeatFile() -- instead of a
+  // tab you had to pick before finding out it was locked.
+  setMode("full");
+  window.gemstarLandingMode = function(){}; // kept as a harmless no-op -- window.gemstarApplyTier (tier verification) still calls this
   setInputMode("record", true);
 
   // The beat's actual output level, after the Mute/Solo Beat buttons and
@@ -5587,6 +5593,12 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
 
   function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_REFERENCE_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file){
     if (!file) return;
+    // The Mix/Unlimited gate used to live on the Vocal Only/Full Song Mix
+    // tab switch itself -- now that there's only one view (vocal recording
+    // with the beat-drop area always right there beside it), this is the
+    // actual point a free/Starter account would otherwise get a beat mixed
+    // in for free, so the gate moved here.
+    if (!isTierAtLeast("mix")){ openTierGate("fullMix"); return; }
     ensureContext();
     var reader = new FileReader();
     reader.onload = function(e){
@@ -10494,6 +10506,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   var gateTitleEl = document.getElementById("gate-title");
   var gateDescEl = document.getElementById("gate-desc");
   var manageSubLink = document.getElementById("manage-sub-link");
+  var inlineSubscribeBtn = document.getElementById("inline-subscribe-btn");
   var STORE_KEY = "gemstar_access_token";
   var DEVICE_KEY = "gemstar_device_id";
   var pendingAction = "export";
@@ -10638,6 +10651,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     window.gemstarTier = tier || "starter";
     if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier, legacyKnobs);
     if (manageSubLink) manageSubLink.hidden = false;
+    if (inlineSubscribeBtn) inlineSubscribeBtn.hidden = true;
     setTimeout(function(){
       hideGate();
       setStatus(""); setCodeStatus("");
@@ -10662,6 +10676,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
         window.gemstarTier = data.tier || "starter";
         if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier);
         if (manageSubLink) manageSubLink.hidden = false;
+        if (inlineSubscribeBtn) inlineSubscribeBtn.hidden = true;
       }
       else{ try{ localStorage.removeItem(STORE_KEY); }catch(e){} }
     }).catch(function(){});
