@@ -7251,8 +7251,22 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   // straight-through playback (no region, Loop not toggled on). Ignored if
   // this source has already been superseded by a newer play/stop/pause so a
   // stale 'ended' event from a prior take can't stomp on current state.
-  function onLeadSourceEnded(srcRef){
+  function onLeadSourceEnded(srcRef, expectedEndCtxTime){
     if (srcRef !== primaryEndedSrc) return; // stale handler from a superseded take
+    // A genuine natural end only ever fires at/after the track's actual
+    // length. Anything arriving meaningfully earlier than that is a
+    // spurious 'ended' from the browser's audio pipeline hiccuping -- e.g.
+    // a long main-thread stall while redrawing the zoomed vocal waveforms
+    // (full-buffer min/max scans on every zoom step) can make WebKit/Chrome
+    // misreport a still-playing source as ended. Treating that as a real
+    // end used to reset the whole transport back to 0 and silently stop
+    // everything mid-song, which is exactly what showed up as "zooming
+    // makes playback stop and start over." A normal on-time (or late)
+    // 'ended' always clears this check untouched.
+    var EARLY_TOLERANCE_SEC = 0.25;
+    if (ctx && typeof expectedEndCtxTime === "number" && ctx.currentTime < expectedEndCtxTime - EARLY_TOLERANCE_SEC){
+      return;
+    }
     stopSourceOnly();
     stopBeatSourceOnly();
     if (isPlaying) releaseMixWiring();
@@ -7345,7 +7359,18 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       }
       primaryEndedSrc = thisPrimarySrc;
       if (thisPrimarySrc){
-        thisPrimarySrc.onended = function(){ onLeadSourceEnded(thisPrimarySrc); };
+        // Captured here (not read fresh inside the callback) so a later,
+        // unrelated startPlayback() call reassigning the outer "startAt"/
+        // "longestDur"/"offset" variables before this source's 'ended'
+        // actually fires can never shift what "on time" means for THIS take.
+        var thisLongestDur = longestDur, thisOffset = offset;
+        thisPrimarySrc.onended = function(){
+          // startAt itself is assigned a few lines below this one, but
+          // onended can only ever fire after .start() has already been
+          // called on the node, so it's always settled by the time this
+          // callback actually runs.
+          onLeadSourceEnded(thisPrimarySrc, startAt + (thisLongestDur - thisOffset));
+        };
       }
 
       // start everything together, slightly in the future, so all vocal tracks and the beat stay in sync.
@@ -7627,7 +7652,14 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
         var dir = e.deltaY < 0 ? 1 : -1;
         var newIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, trackZoomIdx + dir));
         if (newIdx !== 0) trackZoomCenter = Math.max(0, Math.min(tot, cursorSongTime));
-        trkZoomTo(newIdx);
+        // A trackpad/mouse-wheel gesture fires many 'wheel' events in quick
+        // succession, and each one used to force a full rebuild+redraw of
+        // every waveform row even after already hitting the min/max zoom
+        // clamp (newIdx === trackZoomIdx, nothing actually changes on
+        // screen) -- pure wasted main-thread work piling up right in the
+        // middle of an active zoom gesture, the kind of stall that can make
+        // playback stutter. Skip the no-op redraws entirely.
+        if (newIdx !== trackZoomIdx) trkZoomTo(newIdx);
       }, {passive:false});
     }
 
@@ -10752,6 +10784,27 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   // Deferred one tick (setTimeout 0) so it never competes with the
   // initial page render.
   setTimeout(function(){ try { ensureContext(); } catch(e){} }, 0);
+
+  // Browsers only allow ctx.resume() to be called from inside a real user
+  // gesture, and resume() is itself async -- so the FIRST time anything
+  // actually tries to play, withRunningContext() has to await that async
+  // round-trip before a single sample comes out, which is exactly the
+  // delay behind "the space button should stop and play ASAP, no delay."
+  // Piggyback on whatever the person touches FIRST on the page (dragging a
+  // knob, picking a file, tapping the timeline) rather than waiting for
+  // them to specifically hit Play/space -- that first touch almost always
+  // happens before they're ready to actually listen, so by the time they
+  // do press Play, resume() has normally already settled and startPlayback
+  // runs its synchronous path immediately. Left listening for the rest of
+  // the session (not removed after firing once) as a cheap safety net in
+  // case the browser suspends the context again later, e.g. after the tab
+  // sits backgrounded for a while -- ctx.resume() on an already-running
+  // context is a harmless no-op.
+  function resumeAudioIfSuspended(){
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(function(){});
+  }
+  document.addEventListener("pointerdown", resumeAudioIfSuspended, {passive:true});
+  document.addEventListener("keydown", resumeAudioIfSuspended);
 })();
 </script>
 
