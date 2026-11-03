@@ -5550,7 +5550,15 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
   // vocal-only is simply never adding a beat. The actual Mix/Unlimited gate
   // moved to the real point it matters -- handleBeatFile() -- instead of a
   // tab you had to pick before finding out it was locked.
-  setMode("full");
+  // setMode("full") used to only ever run later (via gemstarLandingMode(),
+  // called from window.gemstarApplyTier during async tier verification) or
+  // from a user click, by which point the whole script -- including
+  // beatCctx a couple thousand lines further down -- had already finished
+  // running. Calling it unconditionally at init, synchronously, right here,
+  // is new, and it runs before that later var is assigned, so defer it one
+  // tick (same trick as the ensureContext() warm-up above) rather than
+  // reaching into drawBeatWaveformStatic() to patch around it.
+  setTimeout(function(){ setMode("full"); }, 0);
   window.gemstarLandingMode = function(){}; // kept as a harmless no-op -- window.gemstarApplyTier (tier verification) still calls this
   setInputMode("record", true);
 
