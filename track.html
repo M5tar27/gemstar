@@ -567,7 +567,7 @@
   $("t-del").addEventListener("click", function () {
     if (!confirm("Delete \"" + (S.title || "this track") + "\" and every layer on it? This can't be undone.")) return;
     stopAll(); $("t-del").disabled = true; say("t-note", "Deleting…");
-    api("delete-track", { trackId: S.trackId }).then(function (res) {
+    api("track", { trackId: S.trackId, action: "delete" }).then(function (res) {
       if (!res.ok) throw new Error(res.d.error || "Could not delete the track.");
       location.href = "/track.html";
     }).catch(function (e) { $("t-del").disabled = false; say("t-note", e.message || "Something went wrong.", "bad"); });
@@ -664,7 +664,7 @@
 
   // ---- Boot ----------------------------------------------------------------
   function loadTrack(id) {
-    return api("get-track", { trackId: id }).then(function (res) {
+    return api("track", { trackId: id, action: "get" }).then(function (res) {
       if (res.status === 404) { blocked("Track not found", "This track doesn't exist, or it belongs to another account.", "See your tracks", "/track.html"); return; }
       if (!res.ok) throw new Error(res.d.error);
       var d = res.d;
