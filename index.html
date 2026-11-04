@@ -1914,6 +1914,51 @@
 <script src="/key-detect.js"></script>
 <script src="/bpm-detect.js"></script>
 <script>
+// Lightweight crash/error reporter -- deliberately its own tiny, standalone
+// IIFE, registered before the main app script below even starts, so it
+// catches errors thrown during the rest of this page's own init too, not
+// just ones after everything's loaded. Posts to /api/log-error (Supabase),
+// which is the only way anyone finds out about a real crash on a real
+// user's device without that person emailing support about it first.
+(function(){
+  "use strict";
+  var ENDPOINT = "/api/log-error";
+  var sent = 0, MAX_REPORTS = 8; // a loop of the same error shouldn't flood the table
+  function report(payload){
+    if (sent >= MAX_REPORTS) return;
+    sent++;
+    try {
+      var body = JSON.stringify(payload);
+      if (navigator.sendBeacon && navigator.sendBeacon(ENDPOINT, new Blob([body], {type:"application/json"}))) return;
+      fetch(ENDPOINT, { method:"POST", headers:{"Content-Type":"application/json"}, body: body, keepalive:true }).catch(function(){});
+    } catch (e) {}
+  }
+  window.addEventListener("error", function(e){
+    report({
+      message: (e && e.message) ? String(e.message) : "Unknown error",
+      stack: (e && e.error && e.error.stack) ? String(e.error.stack) : "",
+      sourceUrl: (e && e.filename) ? String(e.filename) : location.href,
+      line: (e && e.lineno) || null,
+      col: (e && e.colno) || null,
+      userAgent: navigator.userAgent,
+      tier: window.gemstarTier || null,
+      pageUrl: location.href,
+    });
+  });
+  window.addEventListener("unhandledrejection", function(e){
+    var reason = e && e.reason;
+    var reasonMsg = (reason && reason.message) ? reason.message : String(reason);
+    report({
+      message: "Unhandled promise rejection: " + reasonMsg,
+      stack: (reason && reason.stack) ? String(reason.stack) : "",
+      sourceUrl: location.href,
+      line: null, col: null,
+      userAgent: navigator.userAgent,
+      tier: window.gemstarTier || null,
+      pageUrl: location.href,
+    });
+  });
+})();
 (function(){
   "use strict";
 
