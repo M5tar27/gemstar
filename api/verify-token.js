@@ -20,10 +20,22 @@
 // STRIPE_SECRET_KEY -- no new env var beyond the portal configuration ID
 // below, which was created once via the Stripe API.
 //
+// Also handles { action: "single-export" }: the no-subscription-required
+// escape hatch -- someone pays $3.99 once (via a Stripe Payment Link, same
+// pattern as the three plan buttons) for one song's export, and Stripe
+// redirects back here with the Checkout Session id. This call confirms with
+// Stripe that the session actually paid for the Single Export price, then
+// marks that session as redeemed in Supabase so the same success URL can't
+// be bookmarked and reused for a free export later. Deliberately not tied
+// to a Gemstar account/token -- the Stripe payment itself is the proof.
+//
 // Requires env var: ACCESS_TOKEN_SECRET
 // Optional (for action:"portal"): STRIPE_SECRET_KEY, SITE_URL
+// Optional (for action:"single-export"): STRIPE_SECRET_KEY, SUPABASE_URL,
+//   SUPABASE_SERVICE_ROLE_KEY
 
 const crypto = require("crypto");
+const C = require("./_lib/common");
 const TIER_RANK = { starter: 1, mix: 2, unlimited: 3 };
 const VALID_TIERS = Object.keys(TIER_RANK);
 
@@ -32,6 +44,11 @@ const VALID_TIERS = Object.keys(TIER_RANK);
 // history. Created once via the API -- see Stripe dashboard > Settings >
 // Billing > Customer portal for the live config.
 const PORTAL_CONFIGURATION_ID = "bpc_1UQcQuAJB6rfYz7KqBiRZB4x";
+
+// The one-time $3.99 "export this one song" Stripe Price -- created once
+// via the API. Checked against the Checkout Session's line items so a
+// session that paid for something else can't be replayed here.
+const SINGLE_EXPORT_PRICE_ID = "price_1UYbErAJB6rfYz7KYUPSno8T";
 
 function b64urlDecode(input) {
   var s = input.replace(/-/g, "+").replace(/_/g, "/");
@@ -117,6 +134,55 @@ async function createPortalSession(email) {
   return { ok: true, url: session.url };
 }
 
+// Confirms a Checkout Session really paid for the Single Export price, then
+// atomically claims it in Supabase (session_id is the primary key, so a
+// second attempt to insert the same session fails and the export stays
+// locked). Fails closed on any error -- no export without a clean redeem.
+async function redeemSingleExport(sessionId) {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) return { ok: false, error: "Payments aren't configured yet." };
+  if (!/^cs_[a-zA-Z0-9_]+$/.test(String(sessionId || ""))) {
+    return { ok: false, error: "Invalid payment session." };
+  }
+
+  let session;
+  try {
+    const resp = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=line_items`,
+      { headers: { Authorization: `Bearer ${secretKey}` } }
+    );
+    session = await resp.json();
+    if (!resp.ok || !session) return { ok: false, error: "Could not verify that payment." };
+  } catch (e) {
+    return { ok: false, error: "Could not verify that payment." };
+  }
+
+  if (session.payment_status !== "paid") {
+    return { ok: false, error: "That payment hasn't completed yet." };
+  }
+  const items = (session.line_items && session.line_items.data) || [];
+  const paidForExport = items.some((li) => li.price && li.price.id === SINGLE_EXPORT_PRICE_ID);
+  if (!paidForExport) {
+    return { ok: false, error: "That payment doesn't match the single-export price." };
+  }
+
+  const cfg = C.sbConfig();
+  if (!cfg) return { ok: false, error: "Server not configured" };
+  try {
+    await C.sbRest(cfg, "gemstar_single_export_redemptions", {
+      method: "POST",
+      headers: Object.assign({}, cfg.headers, { Prefer: "return=minimal" }),
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+  } catch (err) {
+    // Supabase rejects the duplicate primary key -- this session already
+    // unlocked an export once.
+    return { ok: false, error: "This export link has already been used." };
+  }
+
+  return { ok: true };
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.status(405).json({ valid: false });
@@ -130,6 +196,16 @@ module.exports = async (req, res) => {
     } catch (e) {
       body = {};
     }
+  }
+
+  if (body.action === "single-export") {
+    try {
+      const result = await redeemSingleExport(body.sessionId);
+      res.status(200).json(result);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: "Could not verify that payment. Try again shortly." });
+    }
+    return;
   }
 
   const token = body.token || "";
