@@ -1143,6 +1143,11 @@
     text-align:center; transition:transform .15s ease, box-shadow .2s ease;
   }
   .inline-subscribe-cta:hover{transform:translateY(-1px); box-shadow:0 10px 28px -8px rgba(0,245,255,0.5);}
+  .single-export-link{
+    display:block; width:fit-content; margin:-10px auto 18px; font-size:0.8rem;
+    color:var(--ink-muted); text-decoration:none; text-align:center;
+  }
+  .single-export-link:hover{color:var(--cyan);}
   #gate-overlay{
     display:none; position:fixed; inset:0; z-index:400;
     align-items:center; justify-content:center; padding:20px;
@@ -1376,6 +1381,7 @@
           </form>
           <p class="gate-status" id="gate-status"></p>
           <a class="gate-sub-link" href="#pricing">Not subscribed yet? See plans &rarr;</a>
+          <a class="gate-sub-link" id="gate-single-export-link" href="https://buy.stripe.com/aFa6oGgze0ov1gSgcz1RC04" target="_blank" rel="noopener" hidden>Just want this one song? Export for $3.99</a>
         </div>
         <div id="gate-step-code" hidden>
           <h3>Check Your Email</h3>
@@ -1392,6 +1398,7 @@
     </div>
     <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock Full Song Mix (Unlimited also unlocks the M5tar &amp; Jewels signature knobs); any plan unlocks export.</p>
     <a href="#pricing" id="inline-subscribe-btn" class="inline-subscribe-cta" data-i18n="join">Subscribe Now</a>
+    <a href="https://buy.stripe.com/aFa6oGgze0ov1gSgcz1RC04" id="single-export-btn" class="single-export-link" target="_blank" rel="noopener" data-i18n="singleExportBtn">Just want this one song? Export for $3.99</a>
     <div class="transport">
       <div class="mode-toggle" role="tablist" aria-label="Mix mode" hidden>
         <button type="button" class="mode-btn" id="mode-full" role="tab" aria-selected="false">
@@ -2057,6 +2064,7 @@ calibrateSyncTapBtn:"TAP",
       studioPitch:"Most producers pick this — the M5tar & Jewels signature knobs, more tracks than Mix, and full stem export for your DAW.",
       studioDiscount:"10% off your first 3 months — applied automatically, no code needed",
       bestSeller:"BEST SELLER", join:"Subscribe Now",
+      singleExportBtn:"Just want this one song? Export for $3.99",
       wlTitle:"Not ready to subscribe?", wlSub:"Join the list and we'll email you about new features, plans, and updates.",
       emailLabel:"Email", planLabel:"Plan you're interested in", wlSubmit:"Notify Me",
       wlOk:"You're on the list — we'll keep you posted.",
@@ -2284,6 +2292,7 @@ calibrateSyncTapBtn:"TOCAR",
       studioPitch:"La mayoría de los productores elige este — las perillas de firma M5tar y Jewels, más pistas que Mix, y exportación completa de stems.",
       studioDiscount:"10% de descuento tus primeros 3 meses — se aplica automáticamente, sin código",
       bestSeller:"MÁS VENDIDO", join:"Suscribirme Ahora",
+      singleExportBtn:"¿Solo quieres esta canción? Expórtala por $3.99",
       wlTitle:"¿Aún no te suscribes?", wlSub:"Únete a la lista y te avisaremos sobre nuevas funciones, planes y novedades.",
       emailLabel:"Correo", planLabel:"Plan de tu interés", wlSubmit:"Avísenme",
       wlOk:"Estás en la lista — te mantendremos al tanto.",
@@ -10560,7 +10569,18 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   var gateDescEl = document.getElementById("gate-desc");
   var manageSubLink = document.getElementById("manage-sub-link");
   var inlineSubscribeBtn = document.getElementById("inline-subscribe-btn");
+  var gateSingleExportLink = document.getElementById("gate-single-export-link");
+  var exportStatusEl = document.getElementById("export-status");
   var STORE_KEY = "gemstar_access_token";
+  // Written by the confirmation tab once a $3.99 Single Export payment is
+  // verified (see checkSingleExportRedirect below), so the ORIGINAL tab --
+  // the one that actually has the song loaded -- picks the unlock up via
+  // the "storage" event even though the payment happened in a different
+  // tab. Plain localStorage rather than window.opener/postMessage because
+  // Stripe's own checkout page can sever the opener relationship; a same-
+  // origin storage write has no such dependency.
+  var SINGLE_EXPORT_UNLOCK_KEY = "gemstar_single_export_unlock";
+  var SINGLE_EXPORT_UNLOCK_FRESH_MS = 2 * 60 * 1000;
   var DEVICE_KEY = "gemstar_device_id";
   var pendingAction = "export";
   var currentChallenge = null;
@@ -10604,6 +10624,8 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
         plan: { t:"Verify Your Plan", d:"Enter the email you used to subscribe so this browser reflects your actual plan." }
       },
       sendCode:"Send Code", verifyCode:"Verify Code",
+      singleExportLink:"Just want this one song? Export for $3.99",
+      singleExportConfirmed:"Payment confirmed — you can export this song now.",
       backLink:"← Use a different email", resendLink:"Resend code",
       codeSub:"We sent a 6-digit code to {email} — enter it below to unlock export.",
       checkingSub:"Checking your subscription…",
@@ -10630,6 +10652,8 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
         plan: { t:"Verifica Tu Plan", d:"Ingresa el correo con el que te suscribiste para que este navegador refleje tu plan actual." }
       },
       sendCode:"Enviar Código", verifyCode:"Verificar Código",
+      singleExportLink:"¿Solo quieres esta canción? Expórtala por $3.99",
+      singleExportConfirmed:"Pago confirmado — ya puedes exportar esta canción.",
       backLink:"← Usar otro correo", resendLink:"Reenviar código",
       codeSub:"Te enviamos un código de 6 dígitos a {email} — ingrésalo abajo para desbloquear la exportación.",
       checkingSub:"Verificando tu suscripción…",
@@ -10656,6 +10680,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     if (codeSubmitBtn) codeSubmitBtn.textContent = T().verifyCode;
     if (backLink) backLink.textContent = T().backLink;
     if (resendLink) resendLink.textContent = T().resendLink;
+    if (gateSingleExportLink) gateSingleExportLink.textContent = T().singleExportLink;
   }
 
   var GATE_COPY_FALLBACK = "export";
@@ -10664,6 +10689,10 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     var c = T().copy[key] || T().copy[GATE_COPY_FALLBACK];
     if (gateTitleEl) gateTitleEl.textContent = c.t;
     if (gateDescEl) gateDescEl.textContent = c.d;
+    // The $3.99 one-off only makes sense as an alternative to subscribing
+    // to unlock plain export -- not for a knob/stems/fullMix/etc upsell,
+    // where paying once wouldn't actually unlock the feature being gated.
+    if (gateSingleExportLink) gateSingleExportLink.hidden = (key !== "export");
   }
 
   function showGate(){ overlay.classList.add("show"); }
@@ -10733,6 +10762,83 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
       }
       else{ try{ localStorage.removeItem(STORE_KEY); }catch(e){} }
     }).catch(function(){});
+  }
+
+  // ---- $3.99 Single Export (no subscription) --------------------------
+  // Unlocks plain MP3/WAV export only -- window.gemstarHasAccess is exactly
+  // what btnExport's click handler checks (see index.html's main script),
+  // and nothing else keys off it alone (stems/knobs/fullMix/etc also check
+  // a tier, which this never sets), so this can't leak into gated features
+  // beyond the one the button advertises.
+  function applySingleExportUnlock(){
+    window.gemstarHasAccess = true;
+    hideGate();
+    setStatus(""); setCodeStatus("");
+    if (exportStatusEl){
+      exportStatusEl.textContent = T().singleExportConfirmed;
+      exportStatusEl.className = "export-status ok";
+    }
+    if (pendingAction === "export"){
+      var btn = document.getElementById("btn-export");
+      if (btn) btn.click();
+    }
+    pendingAction = "export";
+  }
+
+  // Reads (and immediately clears, so it can't fire twice) the flag a
+  // confirmation tab wrote after Stripe confirmed payment. Ignores a stale
+  // flag left over from an old tab/visit.
+  function consumeSingleExportFlag(){
+    var raw;
+    try{ raw = localStorage.getItem(SINGLE_EXPORT_UNLOCK_KEY); }catch(e){ raw = null; }
+    if (!raw) return;
+    try{ localStorage.removeItem(SINGLE_EXPORT_UNLOCK_KEY); }catch(e){}
+    var data;
+    try{ data = JSON.parse(raw); }catch(e){ data = null; }
+    if (!data || !data.ts || (Date.now() - data.ts) > SINGLE_EXPORT_UNLOCK_FRESH_MS) return;
+    applySingleExportUnlock();
+  }
+
+  // Fires in any OTHER tab of this origin the instant the confirmation tab
+  // writes the flag -- this is what lets the tab where the song is actually
+  // loaded unlock itself without ever navigating away from Stripe and back.
+  window.addEventListener("storage", function(e){
+    if (e.key === SINGLE_EXPORT_UNLOCK_KEY && e.newValue) consumeSingleExportFlag();
+  });
+
+  // Runs once on boot. If this page load is the Stripe redirect back from a
+  // $3.99 Single Export payment (?single_export=<checkout session id>),
+  // verifies it server-side, then both unlocks THIS tab (in case someone
+  // paid and is working in the same tab/on mobile) and flags the unlock for
+  // any other tab via localStorage (see consumeSingleExportFlag above).
+  function checkSingleExportRedirect(){
+    var params;
+    try{ params = new URLSearchParams(location.search); }catch(e){ return; }
+    var sessionId = params.get("single_export");
+    if (!sessionId) return;
+    try{
+      params.delete("single_export");
+      var qs = params.toString();
+      history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+    }catch(e){}
+
+    fetch("/api/verify-token", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ action:"single-export", sessionId: sessionId })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if (data && data.ok){
+        try{ localStorage.setItem(SINGLE_EXPORT_UNLOCK_KEY, JSON.stringify({ ts: Date.now() })); }catch(e){}
+        applySingleExportUnlock();
+      } else if (exportStatusEl){
+        exportStatusEl.textContent = (data && data.error) || T().genericErrorRetry;
+        exportStatusEl.className = "export-status err";
+      }
+    }).catch(function(){
+      if (exportStatusEl){
+        exportStatusEl.textContent = T().genericErrorRetryMoment;
+        exportStatusEl.className = "export-status err";
+      }
+    });
   }
 
   function requestCode(email, statusEl, btnEl){
@@ -10840,6 +10946,8 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   applyGateStaticStrings();
   showEmailStep();
   verifyStoredToken();
+  consumeSingleExportFlag();   // pick up an unlock a sibling tab already wrote
+  checkSingleExportRedirect(); // or handle it directly if THIS is that redirect
 
   // Warm up the audio engine right away instead of waiting for the user's
   // first Play press to pay for all of it. ensureContext() constructs the
