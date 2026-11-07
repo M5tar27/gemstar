@@ -9,7 +9,7 @@
 //
 // POST { token, deviceId, action, ...action-specific fields }
 //
-// action: "save"   { projectId?, name, settings, lead?, extras? }
+// action: "save"   { projectId?, name, settings, lead?, extras?, beat? }
 //         "list"   {}
 //         "get"    { projectId }
 //         "delete" { projectId }
@@ -39,6 +39,12 @@ async function handleSave(body, who, cfg, res) {
   const lead = cleanFileMeta(body.lead);
   const extrasIn = Array.isArray(body.extras) ? body.extras.slice(0, MAX_EXTRAS) : [];
   const extras = extrasIn.map(cleanFileMeta).filter(Boolean);
+  // The beat was never accepted here at all -- lead and extras (vocal
+  // tracks) had their own upload path, but the backing track just wasn't
+  // part of the payload, so even an account-verified "My Projects" cloud
+  // save/sync dropped it. Same file-meta + signed-upload-URL treatment as
+  // lead, since it's the same shape (one audio file).
+  const beat = cleanFileMeta(body.beat);
 
   let projectId = String(body.projectId || "");
   const isUpdate = C.UUID_RE.test(projectId);
@@ -54,15 +60,18 @@ async function handleSave(body, who, cfg, res) {
 
     const leadPath = lead ? `${projectId}/lead.${lead.ext}` : null;
     const extraPaths = extras.map(function (e, i) { return `${projectId}/extra-${i}.${e.ext}`; });
+    const beatPath = beat ? `${projectId}/beat.${beat.ext}` : null;
 
-    const [leadUploadUrl, extraUploadUrls] = await Promise.all([
+    const [leadUploadUrl, extraUploadUrls, beatUploadUrl] = await Promise.all([
       leadPath ? C.signedUploadUrl(cfg, leadPath, C.PROJECTS_BUCKET) : Promise.resolve(null),
       Promise.all(extraPaths.map(function (p) { return C.signedUploadUrl(cfg, p, C.PROJECTS_BUCKET); })),
+      beatPath ? C.signedUploadUrl(cfg, beatPath, C.PROJECTS_BUCKET) : Promise.resolve(null),
     ]);
     if (lead && !leadUploadUrl) return res.status(502).json({ error: "Could not prepare upload. Try again." });
     if (extraPaths.length && extraUploadUrls.indexOf(null) !== -1) {
       return res.status(502).json({ error: "Could not prepare upload. Try again." });
     }
+    if (beat && !beatUploadUrl) return res.status(502).json({ error: "Could not prepare upload. Try again." });
 
     const updatedAt = new Date().toISOString();
     const row = {
@@ -72,6 +81,7 @@ async function handleSave(body, who, cfg, res) {
       settings: settings,
       lead: lead ? { name: lead.name, path: leadPath } : null,
       extras: extras.map(function (e, i) { return { name: e.name, path: extraPaths[i] }; }),
+      beat: beat ? { name: beat.name, path: beatPath } : null,
       updated_at: updatedAt,
     };
 
@@ -83,7 +93,7 @@ async function handleSave(body, who, cfg, res) {
 
     return res.status(200).json({
       projectId: projectId, name: name, updatedAt: updatedAt,
-      leadUploadUrl: leadUploadUrl, extraUploadUrls: extraUploadUrls,
+      leadUploadUrl: leadUploadUrl, extraUploadUrls: extraUploadUrls, beatUploadUrl: beatUploadUrl,
     });
   } catch (err) {
     return res.status(500).json({ error: "Could not save this project" });
@@ -119,7 +129,7 @@ async function handleGet(body, who, cfg, res) {
 
   try {
     const rows = await C.sbRest(cfg,
-      `gemstar_user_projects?id=eq.${projectId}&select=id,owner_email,name,settings,lead,extras,shared_with`);
+      `gemstar_user_projects?id=eq.${projectId}&select=id,owner_email,name,settings,lead,extras,beat,shared_with`);
     const row = Array.isArray(rows) && rows[0];
     if (!row) return res.status(404).json({ error: "Project not found" });
 
@@ -130,11 +140,12 @@ async function handleGet(body, who, cfg, res) {
     }
 
     const extras = Array.isArray(row.extras) ? row.extras : [];
-    const [leadUrl, extraUrls] = await Promise.all([
+    const [leadUrl, extraUrls, beatUrl] = await Promise.all([
       row.lead && row.lead.path ? C.signedDownloadUrl(cfg, row.lead.path, 3600, C.PROJECTS_BUCKET) : Promise.resolve(null),
       Promise.all(extras.map(function (e) {
         return e && e.path ? C.signedDownloadUrl(cfg, e.path, 3600, C.PROJECTS_BUCKET) : Promise.resolve(null);
       })),
+      row.beat && row.beat.path ? C.signedDownloadUrl(cfg, row.beat.path, 3600, C.PROJECTS_BUCKET) : Promise.resolve(null),
     ]);
 
     return res.status(200).json({
@@ -142,6 +153,7 @@ async function handleGet(body, who, cfg, res) {
       ownerEmail: row.owner_email, isOwner: isOwner, sharedWith: sharedWith,
       lead: row.lead ? { name: row.lead.name, url: leadUrl } : null,
       extras: extras.map(function (e, i) { return { name: e.name, url: extraUrls[i] }; }),
+      beat: row.beat ? { name: row.beat.name, url: beatUrl } : null,
     });
   } catch (err) {
     return res.status(500).json({ error: "Could not load this project" });
@@ -155,13 +167,14 @@ async function handleDelete(body, who, cfg, res) {
 
   try {
     const rows = await C.sbRest(cfg,
-      `gemstar_user_projects?id=eq.${projectId}&owner_email=eq.${encodeURIComponent(who.email)}&select=id,lead,extras`);
+      `gemstar_user_projects?id=eq.${projectId}&owner_email=eq.${encodeURIComponent(who.email)}&select=id,lead,extras,beat`);
     const row = Array.isArray(rows) && rows[0];
     if (!row) return res.status(404).json({ error: "Project not found" });
 
     const paths = [];
     if (row.lead && row.lead.path) paths.push(row.lead.path);
-    (Array.isArray(row.extras) ? row.extras : []).forEach(function (e) { if (e && e.path) paths.push(e.path); });
+    (Array.isArray(row.extras) ? row.extras : []).forEach(function (e) { if (!e && e.path) paths.push(e.path); });
+    if (row.beat && row.beat.path) paths.push(row.beat.path);
 
     await C.sbRest(cfg, `gemstar_user_projects?id=eq.${projectId}`, {
       method: "DELETE",
