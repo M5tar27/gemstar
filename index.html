@@ -11228,4 +11228,189 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   });
 })();
 </script>
+<style>
+  .gem-tour-bubble{
+    position:fixed; z-index:9000; max-width:260px;
+    background:var(--bg-panel); border:1px solid var(--cyan); border-radius:10px;
+    padding:10px 28px 10px 12px; box-shadow:0 8px 24px rgba(0,0,0,0.45);
+    font-family:var(--font-body); font-size:0.82rem; color:var(--ink); line-height:1.35;
+    animation:gemTourIn 0.18s ease-out;
+  }
+  @keyframes gemTourIn{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+  .gem-tour-close{
+    position:absolute; top:2px; right:4px; background:none; border:none; color:var(--ink-muted);
+    font-size:1rem; line-height:1; cursor:pointer; padding:6px;
+  }
+  .gem-tour-close:hover{ color:var(--ink); }
+  .gem-tour-arrow{ position:absolute; width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; }
+  .gem-tour-arrow-up{ top:-7px; border-bottom:7px solid var(--cyan); }
+  .gem-tour-arrow-down{ bottom:-7px; border-top:7px solid var(--cyan); }
+</style>
+<script>
+(function(){
+  "use strict";
+  // Short-lived callout bubbles that point at a few key controls the first
+  // time someone actually reaches them, so there's a little guidance along
+  // the way instead of only the one upfront welcome modal (#welcome-overlay,
+  // elsewhere in this file). Deliberately self-contained and polling-based
+  // -- it only reads DOM state (hidden/visibility/classList) that the rest
+  // of the app already maintains for its own reasons, and never touches any
+  // existing handler, so it can't regress anything else on the page.
+  var TOUR_INTRO_SEEN_KEY = "gemstarTourIntroSeen";
+  var TOUR_MIX_SEEN_KEY = "gemstarTourMixSeen";
+  var STEP_MS = 4800;
+
+  var TOUR_STR = {
+    en: {
+      introStep1: "Record straight from your mic, or switch to Upload a file.",
+      introStep2: "Drop your beat here â vocals sync right to it.",
+      mixStep1: "One tap balances levels, pan and tone across every track.",
+      mixStep2: "Happy with it? Export your finished track here."
+    },
+    es: {
+      introStep1: "Graba directo desde tu micrÃ³fono, o cambia a Subir un archivo.",
+      introStep2: "Suelta tu beat aquÃ­ â las voces se sincronizan con Ã©l.",
+      mixStep1: "Un toque equilibra niveles, panorama y tono en cada pista.",
+      mixStep2: "Â¿Listo? Exporta tu pista terminada aquÃ­."
+    }
+  };
+  function t(key){
+    var l = (window.gemstarLang === "es") ? "es" : "en";
+    return TOUR_STR[l][key] || "";
+  }
+
+  function seen(key){
+    // Fails closed (treats storage as "seen") rather than nagging forever
+    // if localStorage is unavailable (private browsing, etc.).
+    try { return localStorage.getItem(key) === "1"; } catch(e){ return true; }
+  }
+  function markSeen(key){
+    try { localStorage.setItem(key, "1"); } catch(e){}
+  }
+
+  var activeBubble = null, activeCleanup = null, currentGen = 0;
+  function hideActive(){
+    currentGen++;
+    if (activeCleanup) { activeCleanup(); activeCleanup = null; }
+    if (activeBubble && activeBubble.parentNode) activeBubble.parentNode.removeChild(activeBubble);
+    activeBubble = null;
+  }
+
+  function showStep(targetEl, text, onDone){
+    if (!targetEl) { onDone(); return; }
+    hideActive();
+    var gen = ++currentGen;
+    try { targetEl.scrollIntoView({behavior:"smooth", block:"center"}); } catch(e){}
+
+    var bubble = document.createElement("div");
+    bubble.className = "gem-tour-bubble";
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "gem-tour-close";
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.textContent = "Ã";
+    var msg = document.createElement("div");
+    msg.textContent = text;
+    var arrow = document.createElement("div");
+    arrow.className = "gem-tour-arrow";
+    bubble.appendChild(closeBtn);
+    bubble.appendChild(msg);
+    bubble.appendChild(arrow);
+    document.body.appendChild(bubble);
+    activeBubble = bubble;
+
+    var timer = null;
+    function finish(){
+      if (gen !== currentGen) return; // this step was already superseded/cleared
+      clearTimeout(timer);
+      hideActive();
+      onDone();
+    }
+
+    function position(){
+      if (gen !== currentGen) return;
+      var r = targetEl.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) { finish(); return; } // target went hidden mid-step
+      var bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+      var cx = r.left + r.width / 2;
+      var spaceBelow = window.innerHeight - r.bottom;
+      var above = spaceBelow < (bh + 20) && r.top > (bh + 20);
+      var top = above ? (r.top - bh - 12) : (r.bottom + 12);
+      var left = Math.min(Math.max(8, cx - bw / 2), window.innerWidth - bw - 8);
+      bubble.style.top = top + "px";
+      bubble.style.left = left + "px";
+      arrow.className = "gem-tour-arrow " + (above ? "gem-tour-arrow-down" : "gem-tour-arrow-up");
+      arrow.style.left = (cx - left - 7) + "px";
+    }
+    position();
+    window.addEventListener("scroll", position, true);
+    window.addEventListener("resize", position);
+    targetEl.addEventListener("click", finish);
+    closeBtn.addEventListener("click", finish);
+    timer = setTimeout(finish, STEP_MS);
+
+    activeCleanup = function(){
+      window.removeEventListener("scroll", position, true);
+      window.removeEventListener("resize", position);
+      targetEl.removeEventListener("click", finish);
+    };
+  }
+
+  function runSteps(steps, doneKey){
+    var i = 0;
+    function next(){
+      if (i >= steps.length){ markSeen(doneKey); return; }
+      var step = steps[i++];
+      setTimeout(function(){
+        showStep(document.getElementById(step.id), t(step.key), next);
+      }, i === 1 ? 0 : 260);
+    }
+    next();
+  }
+
+  function startIntroTour(){
+    if (seen(TOUR_INTRO_SEEN_KEY)) return;
+    runSteps([
+      {id:"input-mode-row", key:"introStep1"},
+      {id:"beat-drop", key:"introStep2"}
+    ], TOUR_INTRO_SEEN_KEY);
+  }
+  function startMixTour(){
+    if (seen(TOUR_MIX_SEEN_KEY)) return;
+    runSteps([
+      {id:"btn-ai-mix", key:"mixStep1"},
+      {id:"btn-export", key:"mixStep2"}
+    ], TOUR_MIX_SEEN_KEY);
+  }
+
+  // ---- Group 1: once the first-visit welcome modal (if any) is done ----
+  if (!seen(TOUR_INTRO_SEEN_KEY)){
+    var welcomeOverlayEl = document.getElementById("welcome-overlay");
+    if (welcomeOverlayEl && welcomeOverlayEl.classList.contains("show")){
+      var waitWelcome = setInterval(function(){
+        if (!welcomeOverlayEl.classList.contains("show")){
+          clearInterval(waitWelcome);
+          setTimeout(startIntroTour, 400);
+        }
+      }, 300);
+    } else {
+      setTimeout(startIntroTour, 900);
+    }
+  }
+
+  // ---- Group 2: the first time the vocal mixer actually becomes visible ----
+  if (!seen(TOUR_MIX_SEEN_KEY)){
+    var mixerEl = document.getElementById("vocal-mixer");
+    if (mixerEl){
+      var watchMixer = setInterval(function(){
+        if (seen(TOUR_MIX_SEEN_KEY)){ clearInterval(watchMixer); return; }
+        if (!mixerEl.hidden && mixerEl.getBoundingClientRect().height > 0){
+          clearInterval(watchMixer);
+          setTimeout(startMixTour, 500);
+        }
+      }, 400);
+    }
+  }
+})();
+</script>
 </body></html>
