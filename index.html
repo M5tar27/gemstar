@@ -2979,6 +2979,11 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
   // leaving the UI stuck showing "Pause" forever with no audio left.
   var primaryEndedSrc = null;
   var beatBuffer = null;
+  // The raw File behind beatBuffer, kept around purely so Save Project /
+  // Save As Project / cloud save can re-upload it -- beatBuffer alone is a
+  // decoded AudioBuffer with no bytes left to persist. Mirrors leadTrack
+  // ._file and extraVocals[i]._file, which exist for the same reason.
+  var beatFile = null;
   // Simple beat-vs-vocal audition controls -- independent of (and on top
   // of) the existing per-extra-track mute/solo, which is for balancing
   // vocal tracks against EACH OTHER. These two are specifically for
@@ -5684,6 +5689,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     reader.onload = function(e){
       ctx.decodeAudioData(e.target.result.slice(0), function(buf){
         beatBuffer = buf;
+        beatFile = file;
         beatNameEl.textContent = file.name;
         updateBeatVisibility(); autoLevelBeatForDrop(buf); autoLevelVocalToBeat(); refreshLiveMix();
         applyBeatLevel();
@@ -5754,6 +5760,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.onBeat(buf);
 
   document.getElementById("btn-beat-remove").addEventListener("click", function(){
     beatBuffer = null;
+    beatFile = null;
     if (window.gemstarKeyUI) window.gemstarKeyUI.clear();
 if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     stopBeatSourceOnly();
@@ -10057,14 +10064,24 @@ return {onBeat:onBeat, clear:clear, render:render};
     projectSaveTimer = setTimeout(function(){ saveProjectNow(); }, 1200);
   }
   function saveProjectNow(){
-    if (!audioBuffer) return idbDelete(PROJECT_KEY).catch(function(){});
+    // A beat with no lead vocal yet is a supported state (see
+    // renderAllVocalsStrip), so losing the lead shouldn't also wipe out an
+    // autosaved beat -- only clear the saved session once BOTH are gone.
+    if (!audioBuffer && !beatBuffer) return idbDelete(PROJECT_KEY).catch(function(){});
     if (projectSaveInFlight){ projectSavePending = true; return Promise.resolve(); }
     projectSaveInFlight = true;
     var record = {
       v: 1, at: Date.now(),
       lead: leadTrack._file ? {name: leadTrack._file.name, type: leadTrack._file.type, blob: leadTrack._file} : null,
       extras: extraVocals.filter(function(t){ return t._file; })
-        .map(function(t){ return {name: t._file.name, type: t._file.type, blob: t._file}; })
+        .map(function(t){ return {name: t._file.name, type: t._file.type, blob: t._file}; }),
+      // The beat used to be left out here entirely -- decoded into
+      // beatBuffer for playback, but never written to the saved record, so
+      // reopening (or even just reloading) a saved project silently dropped
+      // it. beatFile is the raw File captured alongside beatBuffer for
+      // exactly this.
+      beat: beatFile ? {name: beatFile.name, type: beatFile.type, blob: beatFile} : null,
+      beatSettings: beatBuffer ? captureBeatSettings() : null
     };
     return idbPut(PROJECT_KEY, record).then(
       function(){ updateSaveStatus(true); },
@@ -10081,7 +10098,7 @@ return {onBeat:onBeat, clear:clear, render:render};
   }
   var btnSaveProject = document.getElementById("btn-save-project");
   if (btnSaveProject) btnSaveProject.addEventListener("click", function(){
-    if (!audioBuffer){
+    if (!audioBuffer && !beatBuffer){
       exportStatus.textContent = STR[lang].exportErr;
       exportStatus.className = "export-status err";
       return;
@@ -10099,18 +10116,56 @@ return {onBeat:onBeat, clear:clear, render:render};
      recent session. Each record carries its own snapshot of every knob/
      level/pan/role so reopening it puts things back exactly as they were,
      even if another project happens to reuse the same filename. */
+  // Beat level/EQ/mute/solo, snapshotted and restored the same way lead/
+  // extra-vocal knobs already are -- otherwise a reopened project would get
+  // the beat audio back but at default level/EQ/mute, which just trades one
+  // "where did my beat go" bug for a quieter version of it.
+  function captureBeatSettings(){
+    return {
+      level: beatLevelSlider ? parseFloat(beatLevelSlider.value) : null,
+      eqLow: (document.getElementById("beat-eq-low") || {}).value,
+      eqMid: (document.getElementById("beat-eq-mid") || {}).value,
+      eqHigh: (document.getElementById("beat-eq-high") || {}).value,
+      muted: beatMuted, solo: beatSolo
+    };
+  }
+  function applyBeatSettings(settings){
+    if (!settings) return;
+    if (beatLevelSlider && typeof settings.level === "number" && isFinite(settings.level)){
+      beatLevelSlider.value = String(settings.level);
+    }
+    var lowEl = document.getElementById("beat-eq-low");
+    var midEl = document.getElementById("beat-eq-mid");
+    var highEl = document.getElementById("beat-eq-high");
+    if (lowEl && settings.eqLow != null) lowEl.value = settings.eqLow;
+    if (midEl && settings.eqMid != null) midEl.value = settings.eqMid;
+    if (highEl && settings.eqHigh != null) highEl.value = settings.eqHigh;
+    beatMuted = !!settings.muted;
+    beatSolo = !!settings.solo;
+    updateBeatMuteSoloButtons();
+    applyBeatEQ();
+    applyBeatLevel();
+    refreshLiveMix();
+  }
+
   function captureNamedProjectRecord(id, name){
     return {
       id: id, name: name, at: Date.now(),
       lead: leadTrack._file ? {name: leadTrack._file.name, type: leadTrack._file.type, blob: leadTrack._file} : null,
       extras: extraVocals.filter(function(t){ return t._file; })
         .map(function(t){ return {name: t._file.name, type: t._file.type, blob: t._file}; }),
+      // See the comment on the beat field in saveProjectNow -- same gap,
+      // same fix: capture the raw file (beatFile) alongside the decoded
+      // buffer, instead of only the decoded buffer that has no bytes left
+      // to save.
+      beat: beatFile ? {name: beatFile.name, type: beatFile.type, blob: beatFile} : null,
       settings: {
         outputGainDb: outputGainDb, tuneKey: tuneKey, tuneScale: tuneScale,
         lead: {values: pickKnobs(leadValues), level: mainVocalLevel, pan: leadTrack.pan || 0, role: leadTrack.role || ""},
         extras: extraVocals.map(function(t){
           return {name: t.name, values: pickKnobs(t.values), level: t.level, pan: t.pan || 0, role: t.role || ""};
-        })
+        }),
+        beat: beatBuffer ? captureBeatSettings() : null
       }
     };
   }
@@ -10131,6 +10186,7 @@ return {onBeat:onBeat, clear:clear, render:render};
       leadTrack.pan = typeof settings.lead.pan === "number" ? Math.max(-1, Math.min(1, settings.lead.pan)) : 0;
       leadTrack.role = settings.lead.role || "";
     }
+    if (settings.beat) applyBeatSettings(settings.beat);
     (settings.extras || []).forEach(function(es){
       var t = extraVocals.filter(function(x){ return x.name === es.name; }).pop();
       if (!t) return;
@@ -10234,6 +10290,12 @@ return {onBeat:onBeat, clear:clear, render:render};
       });
       return Promise.all(extraPromises);
     }).then(function(){
+      // Re-drop the beat the same way a user would, through handleBeatFile --
+      // it decodes, re-levels for drop, and wires up key/BPM detection, all
+      // of which applyNamedProjectSettings below then fine-tunes back to the
+      // saved level/EQ/mute/solo.
+      if (rec.beat) handleBeatFile(new File([rec.beat.blob], rec.beat.name, {type: rec.beat.blob.type || rec.beat.type || ""}));
+    }).then(function(){
       applyNamedProjectSettings(rec.settings);
       exportStatus.textContent = STR[lang].savedProjectOk;
       exportStatus.className = "export-status ok";
@@ -10292,11 +10354,16 @@ return {onBeat:onBeat, clear:clear, render:render};
     if (!hasCloudToken()) return Promise.resolve();
     var leadFile = rec.lead ? rec.lead.blob : null;
     var extraFiles = (rec.extras || []).map(function(e){ return e.blob; });
+    // Same gap this had locally: the beat was never part of the payload
+    // sent to /api/projects, so a cloud "My Projects" save/reopen dropped
+    // it too, on top of (not instead of) the local-save bug.
+    var beatFileToUpload = rec.beat ? rec.beat.blob : null;
     return cloudApi("projects", {action: "save",
       name: rec.name,
       settings: rec.settings,
       lead: leadFile ? {name: leadFile.name, ext: cloudExtOf(leadFile)} : null,
       extras: extraFiles.map(function(f){ return {name: f.name, ext: cloudExtOf(f)}; }),
+      beat: beatFileToUpload ? {name: beatFileToUpload.name, ext: cloudExtOf(beatFileToUpload)} : null,
     }).then(function(res){
       if (!res.ok || !res.d || !res.d.projectId) return;
       var uploads = [];
@@ -10304,6 +10371,7 @@ return {onBeat:onBeat, clear:clear, render:render};
       (res.d.extraUploadUrls || []).forEach(function(u, i){
         if (u && extraFiles[i]) uploads.push(cloudPutFile(u, extraFiles[i]));
       });
+      if (beatFileToUpload && res.d.beatUploadUrl) uploads.push(cloudPutFile(res.d.beatUploadUrl, beatFileToUpload));
       return Promise.all(uploads);
     }).then(function(){
       renderCloudProjectsList();
@@ -10407,9 +10475,18 @@ return {onBeat:onBeat, clear:clear, render:render};
           return fetch(e.url).then(function(r){ return r.blob(); }).then(function(blob){
             return addExtraVocalFromFile(new File([blob], e.name || "vocal", {type: blob.type}));
           });
-        })).then(function(){
-          applyNamedProjectSettings(data.settings);
-        });
+        }));
+      }).then(function(){
+        // Same beat drop as the local reopen path (openNamedProject) --
+        // this cloud fetch used to stop at lead+extras, which is the other
+        // half of why the beat vanished for a verified/synced account.
+        if (data.beat && data.beat.url){
+          return fetch(data.beat.url).then(function(r){ return r.blob(); }).then(function(blob){
+            return handleBeatFile(new File([blob], data.beat.name || "beat", {type: blob.type}));
+          });
+        }
+      }).then(function(){
+        applyNamedProjectSettings(data.settings);
       });
     }).then(function(){
       exportStatus.textContent = STR[lang].savedProjectOk;
@@ -10427,7 +10504,7 @@ return {onBeat:onBeat, clear:clear, render:render};
   // levels/pan/role for a file of that name, so nothing extra is needed here.
   function offerProjectResume(){
     idbGet(PROJECT_KEY).then(function(rec){
-      if (!rec || (!rec.lead && (!rec.extras || !rec.extras.length))) return;
+      if (!rec || (!rec.lead && !rec.beat && (!rec.extras || !rec.extras.length))) return;
       var banner = document.getElementById("resume-project-banner");
       var yesBtn = document.getElementById("resume-project-yes");
       var noBtn = document.getElementById("resume-project-no");
@@ -10440,6 +10517,10 @@ return {onBeat:onBeat, clear:clear, render:render};
         (rec.extras || []).forEach(function(e){
           addExtraVocalFromFile(new File([e.blob], e.name, {type: e.blob.type || e.type || ""}));
         });
+        // The beat used to be silently dropped by this autosave/resume path
+        // entirely -- see the comment on the beat field in saveProjectNow.
+        if (rec.beat) handleBeatFile(new File([rec.beat.blob], rec.beat.name, {type: rec.beat.blob.type || rec.beat.type || ""}));
+        if (rec.beatSettings) applyBeatSettings(rec.beatSettings);
       }, {once:true});
       if (noBtn) noBtn.addEventListener("click", function(){
         hide();
