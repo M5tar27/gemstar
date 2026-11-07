@@ -547,25 +547,28 @@
   .all-vocals-strip-label{
     font-size:0.68rem; letter-spacing:0.03em; color:var(--ink-dim); text-align:center; margin:0 0 6px;
   }
-  /* BandLab-style grid: a left "sidebar" cell (track name + mute/solo/undo)
-     and a right "lane" cell (the waveform) sitting side by side in the same
-     row -- built with flex `order` rather than DOM order so every existing
-     selector that targets `.all-vocals-row`, its direct children, and
-     `.row-controls` keeps working unchanged; only the visual arrangement
-     changed, not the structure. */
+  /* Waveform-on-top, controls-below grid: the waveform lane spans the full
+     row width -- nothing sits beside it shrinking the view -- with the
+     track name and mute/solo/re-record/remove controls on their own strip
+     underneath. Built with CSS grid-area rather than DOM order, same trick
+     the previous flex-order layout used, so every existing selector that
+     targets `.all-vocals-row`, its direct children, and `.row-controls`
+     keeps working unchanged; only the visual arrangement changed, not the
+     structure. */
   .all-vocals-row{
     position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden;
-    background:#07070d; height:42px; margin-bottom:6px; cursor:pointer;
+    background:#07070d; margin-bottom:6px; cursor:pointer;
     transition:border-color .15s ease, box-shadow .15s ease;
-    display:flex; align-items:stretch;
+    display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto;
+    grid-template-areas:"wave wave" "label controls";
   }
   .all-vocals-row canvas{
-    display:block; width:100%; height:100%; min-width:0;
-    order:3; flex:1 1 auto; border-left:1px solid var(--line);
+    display:block; width:100%; height:76px; min-width:0;
+    grid-area:wave; border-bottom:1px solid var(--line);
   }
   .all-vocals-row .wf-label{
-    order:1; flex:0 0 auto; display:flex; align-items:center;
-    width:92px; padding:0 8px; font-size:0.6rem; letter-spacing:0.05em;
+    grid-area:label; display:flex; align-items:center;
+    padding:0 8px; font-size:0.6rem; letter-spacing:0.05em;
     color:#fff; pointer-events:none; background:rgba(255,255,255,0.03);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
@@ -577,13 +580,13 @@
   .all-vocals-row.beat-row{cursor:default; border-color:var(--line-gem);}
   .all-vocals-row.beat-row .wf-label{color:var(--gem);}
   .all-vocals-row .row-controls{
-    order:2; flex:0 0 auto; display:flex; align-items:center; gap:5px;
-    padding:0 6px; background:rgba(255,255,255,0.03);
+    grid-area:controls; display:flex; align-items:center; gap:5px;
+    padding:4px 6px; background:rgba(255,255,255,0.03);
   }
   /* Bumped up from 19x19 -- users (especially on mobile) reported these were
      too small to reliably tap, particularly for the destructive/re-record
      actions below. 28px matches a comfortable touch target while still
-     fitting four buttons (mute/solo/re-record/remove) in the 42px row. */
+     fitting four buttons (mute/solo/re-record/remove) in the controls strip. */
   .all-vocals-row .row-controls .trk-btn{width:28px; height:28px; font-size:0.68rem; border-radius:6px;}
   .all-vocals-row .row-controls .trk-remove{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
@@ -1607,7 +1610,7 @@
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
             <div class="live-row" id="grid-live-row" hidden>
               <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
-              <canvas id="grid-live-waveform" width="600" height="42"></canvas>
+              <canvas id="grid-live-waveform" width="900" height="76"></canvas>
             </div>
             <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
           </div>
@@ -4921,6 +4924,10 @@ if (autoSyncCalCallback){ var failCb = autoSyncCalCallback; autoSyncCalCallback 
           return;
         }
         setStoredSyncCal(median);
+        // Only consider the first-run offer "used up" once it actually
+        // produces a stored calibration -- see the comment at the Record
+        // click handler for why this moved off of needsFirstRunSyncCal().
+        if (isFirstRun) markSyncCalOffered();
         resultEl.textContent = (isFirstRun ? STR[lang].calibrateSyncFirstRunDone : STR[lang].calibrateSyncDone).replace("{ms}", Math.round(median * 1000));
 if (autoSyncCalCallback){ var doneCb = autoSyncCalCallback; autoSyncCalCallback = null; autoSyncCalActive = false; doneCb(true); }
       }, totalMs);
@@ -5347,7 +5354,12 @@ if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && o
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
       if (opts.canStart && !opts.canStart()) return;
 if (needsFirstRunSyncCal()){
-markSyncCalOffered();
+// markSyncCalOffered() now happens only on a SUCCESSFUL calibration (see
+// runSyncCalibration) -- marking it here, unconditionally, meant a
+// failed/skipped first attempt (taps didn't land, window lost focus,
+// etc.) permanently used up the one auto-prompt, silently stranding that
+// device on the rougher outputLatency/Bluetooth guess forever with no
+// further retry.
 opts.startBtn.disabled = true;
 runFirstRunSyncCalibration(function(){
 opts.startBtn.disabled = false;
@@ -6398,7 +6410,12 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     // require a lead vocal to already be loaded before the grid would show
     // at all, which hid the beat's own waveform (and any in-progress
     // recording) for exactly the "just dropped a beat in" moment.
-    var show = showBeatRow || showLiveRow || (!!audioBuffer && extraVocals.length > 0);
+    // A lone lead vocal (no beat loaded yet, no extra tracks added yet)
+    // deserves to show too -- this used to require a second vocal track
+    // before the grid appeared, which hid the only place a vocal's timing
+    // can be dragged/nudged for exactly the single-take, no-beat case,
+    // leaving cutting the start as the only way left to shift it.
+    var show = showBeatRow || showLiveRow || !!audioBuffer;
     // #player-block (the shell holding this grid, the beat waveform, and
     // the timeline) only ever got unhidden once a lead vocal loaded
     // (showPlayerForLoadedVocal()) -- so a beat dropped in on its own, or a
@@ -6437,7 +6454,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       label.className = "wf-label";
       label.textContent = name;
       var canvas = document.createElement("canvas");
-      canvas.width = 600; canvas.height = 42;
+      canvas.width = 900; canvas.height = 76;
       row.appendChild(label);
       row.appendChild(canvas);
 
