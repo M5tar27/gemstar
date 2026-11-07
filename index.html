@@ -10112,6 +10112,7 @@ return {onBeat:onBeat, clear:clear, render:render};
     exportStatus.textContent = STR[lang].savingProject;
     exportStatus.className = "export-status";
     saveProjectNow();
+    syncQuickSaveToCloud();
   });
 
   /* ---------- Save As Project / My Projects (named, reopenable saves) ----
@@ -10382,6 +10383,56 @@ return {onBeat:onBeat, clear:clear, render:render};
     }).then(function(){
       renderCloudProjectsList();
     }).catch(function(){ /* best-effort -- the local save already succeeded */ });
+  }
+
+  function getQuickSaveCloudId(){
+    try { return localStorage.getItem(QUICK_SAVE_CLOUD_ID_KEY) || ""; } catch(e){ return ""; }
+  }
+  function setQuickSaveCloudId(id){
+    try { if (id) localStorage.setItem(QUICK_SAVE_CLOUD_ID_KEY, id); } catch(e){}
+  }
+  // The plain "Save Project" button (btn-save-project) only ever wrote to
+  // this browser's local IndexedDB (saveProjectNow) -- it never reached the
+  // cloud, unlike "Save Project As...". That's fine on one device, but it
+  // meant a verified user working across two devices (e.g. a laptop at home
+  // and a phone) would save on one and simply not find it on the other,
+  // because nothing was ever uploaded for the cross-device "My Projects"
+  // list to serve back. This mirrors saveProjectToCloud's upload flow but
+  // (a) only runs for users who are actually verified, since there's no
+  // account to sync to otherwise, (b) names the record after the current
+  // track (falling back the same way "Save Project As..." does), and (c)
+  // reuses the same cloud project id on every call (persisted locally) so
+  // repeat quick-saves update that one row instead of piling up duplicates.
+  function syncQuickSaveToCloud(){
+    if (!hasCloudToken()) return Promise.resolve();
+    if (!audioBuffer && !beatBuffer) return Promise.resolve();
+    var name = (trackNameEl && trackNameEl.textContent) || STR[lang].saveAsProjectDefault;
+    var rec = captureNamedProjectRecord("quicksave", name);
+    var existingId = getQuickSaveCloudId();
+    var leadFile = rec.lead ? rec.lead.blob : null;
+    var extraFiles = (rec.extras || []).map(function(e){ return e.blob; });
+    var beatFileToUpload = rec.beat ? rec.beat.blob : null;
+    var payload = {action: "save",
+      name: rec.name,
+      settings: rec.settings,
+      lead: leadFile ? {name: leadFile.name, ext: cloudExtOf(leadFile)} : null,
+      extras: extraFiles.map(function(f){ return {name: f.name, ext: cloudExtOf(f)}; }),
+      beat: beatFileToUpload ? {name: beatFileToUpload.name, ext: cloudExtOf(beatFileToUpload)} : null,
+    };
+    if (existingId) payload.projectId = existingId;
+    return cloudApi("projects", payload).then(function(res){
+      if (!res.ok || !res.d || !res.d.projectId) return;
+      setQuickSaveCloudId(res.d.projectId);
+      var uploads = [];
+      if (leadFile && res.d.leadUploadUrl) uploads.push(cloudPutFile(res.d.leadUploadUrl, leadFile));
+      (res.d.extraUploadUrls || []).forEach(function(u, i){
+        if (u && extraFiles[i]) uploads.push(cloudPutFile(u, extraFiles[i]));
+      });
+      if (beatFileToUpload && res.d.beatUploadUrl) uploads.push(cloudPutFile(res.d.beatUploadUrl, beatFileToUpload));
+      return Promise.all(uploads);
+    }).then(function(){
+      renderCloudProjectsList();
+    }).catch(function(){ /* best-effort -- the local quick-save already succeeded */ });
   }
 
   var cloudProjectsListEl = document.getElementById("cloud-projects-list");
@@ -10692,6 +10743,12 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   var SINGLE_EXPORT_UNLOCK_KEY = "gemstar_single_export_unlock";
   var SINGLE_EXPORT_UNLOCK_FRESH_MS = 2 * 60 * 1000;
   var DEVICE_KEY = "gemstar_device_id";
+  // The cloud-project id for this browser's plain "Save Project" (quick
+  // autosave) record, once it has been synced to the cloud at least once.
+  // Keeping it means every later quick-save updates that same cloud row
+  // (via the save endpoint's projectId-is-a-UUID update path) instead of
+  // creating a new one each time -- see syncQuickSaveToCloud below.
+  var QUICK_SAVE_CLOUD_ID_KEY = "gemstar_quicksave_cloud_id";
   var pendingAction = "export";
   var currentChallenge = null;
   var currentEmail = "";
