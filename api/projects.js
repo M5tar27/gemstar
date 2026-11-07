@@ -173,7 +173,7 @@ async function handleDelete(body, who, cfg, res) {
 
     const paths = [];
     if (row.lead && row.lead.path) paths.push(row.lead.path);
-    (Array.isArray(row.extras) ? row.extras : []).forEach(function (e) { if (!e && e.path) paths.push(e.path); });
+    (Array.isArray(row.extras) ? row.extras : []).forEach(function (e) { if (e && e.path) paths.push(e.path); });
     if (row.beat && row.beat.path) paths.push(row.beat.path);
 
     await C.sbRest(cfg, `gemstar_user_projects?id=eq.${projectId}`, {
