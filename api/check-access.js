@@ -6,10 +6,20 @@
 // address (proves the requester actually owns the inbox, not just that
 // they typed a valid customer's email) and returns a signed, stateless
 // "challenge" — NOT the code itself — for /api/verify-code to check the
-// code against. The tier travels inside that signed challenge so
-// /api/verify-code can bake it into the final access token without a
-// second Stripe lookup. No database: the code is never stored server-side,
-// only its HMAC signature travels back to the browser.
+// code against. The tier (and a legacyKnobs flag, see below) travel inside
+// that signed challenge so /api/verify-code can bake them into the final
+// access token without a second Stripe lookup. No database: the code is
+// never stored server-side, only its HMAC signature travels back to the
+// browser.
+//
+// M5tar/Jewels knob grandfathering: as of MIX_KNOBS_GRANDFATHER_CUTOFF, the
+// signature knobs became an Unlimited-only feature (previously Mix also got
+// them). Anyone whose Mix subscription already existed before that cutoff
+// keeps the knobs ("grandfathered in") so Gemstar isn't pulling a feature
+// away from an existing paying subscriber without notice. We approximate
+// "already a Mix subscriber before the cutoff" by checking the Stripe
+// `created` timestamp of their active/trialing Mix subscription(s) — no new
+// database table needed for this.
 //
 // Requires env vars: STRIPE_SECRET_KEY, ACCESS_TOKEN_SECRET, RESEND_API_KEY
 // Optional env var: EMAIL_FROM (defaults to Gemstar <onboarding@resend.dev>)
@@ -18,6 +28,11 @@ const crypto = require("crypto");
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days — long-lived access token
 const CODE_TTL_SECONDS = 60 * 10;            // 10 minutes — one-time code window
+
+// Unix timestamp (seconds) this pricing change shipped. Deliberately a fixed
+// constant, not computed at request time, so the cutoff doesn't move.
+// 2026-10-15T00:25:42Z
+const MIX_KNOBS_GRANDFATHER_CUTOFF = 1792023942;
 
 // Owners/founders get permanent free access at the top tier — no Stripe
 // subscription or email verification required.
@@ -61,12 +76,19 @@ function signToken(email, tier, deviceId) {
   return `${payload}.${sig}`;
 }
 
-function signCodeChallenge(email, tier, code, expiry) {
+// legacyKnobs travels inside the challenge (signed) rather than the final
+// access token -- it's a point-in-time fact resolved from Stripe at
+// check-access time, not something that needs to keep being re-verified on
+// every page load the way tier does. /api/verify-code reads it back out of
+// the challenge and hands it to the browser once, as a plain response
+// field, for the browser to remember locally.
+function signCodeChallenge(email, tier, legacyKnobs, code, expiry) {
   const secret = process.env.ACCESS_TOKEN_SECRET;
   const t = normalizeTier(tier);
-  const payload = `otp.${email}.${t}.${code}.${expiry}`;
+  const legacyFlag = legacyKnobs ? "1" : "0";
+  const payload = `otp.${email}.${t}.${legacyFlag}.${code}.${expiry}`;
   const sig = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-  return `${b64url(email)}.${t}.${expiry}.${sig}`;
+  return `${b64url(email)}.${t}.${legacyFlag}.${expiry}.${sig}`;
 }
 
 // Given a Stripe subscription object, returns the highest-ranked Gemstar
@@ -162,9 +184,20 @@ module.exports = async (req, res) => {
     }
 
     // 2. Check each matching customer for an active or trialing subscription,
-    //    and figure out the highest tier among them.
+    //    figure out the highest tier among them, and (for grandfathering)
+    //    the earliest `created` timestamp among any Mix subscription found.
     let hasActiveSub = false;
     let bestTier = null;
+    let earliestMixCreated = null;
+    function trackSub(sub) {
+      const t = bestTierFromSubscription(sub);
+      if (t && (!bestTier || TIER_RANK[t] > TIER_RANK[bestTier])) bestTier = t;
+      if (t === "mix" && typeof sub.created === "number") {
+        if (earliestMixCreated === null || sub.created < earliestMixCreated) {
+          earliestMixCreated = sub.created;
+        }
+      }
+    }
     for (const customer of custData.data) {
       const subResp = await fetch(
         `https://api.stripe.com/v1/subscriptions?customer=${customer.id}&status=active&limit=10`,
@@ -173,10 +206,7 @@ module.exports = async (req, res) => {
       const subData = await subResp.json();
       if (subData.data && subData.data.length > 0) {
         hasActiveSub = true;
-        subData.data.forEach(function (sub) {
-          const t = bestTierFromSubscription(sub);
-          if (t && (!bestTier || TIER_RANK[t] > TIER_RANK[bestTier])) bestTier = t;
-        });
+        subData.data.forEach(trackSub);
       }
       const trialResp = await fetch(
         `https://api.stripe.com/v1/subscriptions?customer=${customer.id}&status=trialing&limit=10`,
@@ -185,10 +215,7 @@ module.exports = async (req, res) => {
       const trialData = await trialResp.json();
       if (trialData.data && trialData.data.length > 0) {
         hasActiveSub = true;
-        trialData.data.forEach(function (sub) {
-          const t = bestTierFromSubscription(sub);
-          if (t && (!bestTier || TIER_RANK[t] > TIER_RANK[bestTier])) bestTier = t;
-        });
+        trialData.data.forEach(trackSub);
       }
     }
 
@@ -202,6 +229,11 @@ module.exports = async (req, res) => {
     // rather than silently granting Mix/Unlimited features.
     const tier = normalizeTier(bestTier);
 
+    // Grandfathering only applies to Mix (Unlimited always has the knobs
+    // regardless of this flag — the client checks tier directly for that).
+    const legacyKnobs =
+      tier === "mix" && earliestMixCreated !== null && earliestMixCreated < MIX_KNOBS_GRANDFATHER_CUTOFF;
+
     // 3. Subscribed — verify they actually own this inbox before unlocking.
     if (!process.env.RESEND_API_KEY) {
       res.status(500).json({ access: false, error: "Email delivery not configured" });
@@ -210,7 +242,7 @@ module.exports = async (req, res) => {
 
     const code = String(crypto.randomInt(100000, 1000000)); // 6 digits
     const expiry = Math.floor(Date.now() / 1000) + CODE_TTL_SECONDS;
-    const challenge = signCodeChallenge(email, tier, code, expiry);
+    const challenge = signCodeChallenge(email, tier, legacyKnobs, code, expiry);
 
     await sendCodeEmail(email, code);
 

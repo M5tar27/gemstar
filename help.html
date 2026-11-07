@@ -1,0 +1,185 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gemstar &middot; Recording Setup &amp; Troubleshooting</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@300;400;500;600;700&display=swap');
+
+  :root{
+    --bg:#0A0A12;
+    --bg-panel:#101018;
+    --cyan:#00F5FF;
+    --gem:#FF2E88;
+    --ink:#EAF6FF;
+    --ink-muted:#8B93A8;
+    --ink-dim:#565D72;
+    --line:rgba(0,245,255,0.16);
+    --font-display:'Chakra Petch','Segoe UI',sans-serif;
+    --font-body:'Manrope',-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{background:var(--bg);}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--font-body); font-weight:400; line-height:1.7;
+    padding-inline:18px; -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--cyan);}
+  .wrap{max-width:760px; margin-inline:auto;}
+
+  nav.top{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding-block:20px; border-bottom:1px solid var(--line);
+  }
+  .brand{
+    font-family:var(--font-display); font-weight:700; font-size:1rem;
+    letter-spacing:0.14em; text-transform:uppercase; text-decoration:none;
+    background:linear-gradient(90deg, var(--cyan), var(--gem));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .back{font-size:0.82rem; color:var(--ink-muted); text-decoration:none;}
+  .back:hover{color:var(--cyan);}
+
+  .jump{
+    display:flex; flex-wrap:wrap; gap:10px; padding-block:26px;
+    border-bottom:1px solid var(--line); margin-bottom:10px;
+  }
+  .jump a{
+    font-family:var(--font-display); font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink-muted); text-decoration:none; border:1px solid var(--line); border-radius:20px; padding:7px 14px;
+  }
+  .jump a:hover{color:var(--cyan); border-color:var(--cyan);}
+
+  section{padding-block:44px; border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  .eyebrow{
+    font-family:var(--font-display); font-size:0.7rem; letter-spacing:0.32em;
+    color:var(--cyan); text-transform:uppercase; margin:0 0 10px;
+  }
+  h1{font-family:var(--font-display); font-size:clamp(1.5rem,4vw,2rem); margin:0 0 6px;}
+  .updated{color:var(--ink-dim); font-size:0.82rem; margin:0 0 28px;}
+  h2{font-family:var(--font-display); font-size:1.05rem; letter-spacing:0.02em; margin:28px 0 10px; color:var(--ink);}
+  p, li{color:var(--ink-muted); font-size:0.94rem;}
+  li{margin-bottom:6px;}
+  strong{color:var(--ink);}
+
+  .tip{
+    border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:18px 0;
+    background:var(--bg-panel); font-size:0.9rem;
+  }
+  .tip.good{border-color:rgba(0,245,255,0.35);}
+  .tip.warn{border-color:rgba(255,46,136,0.35);}
+  .tip p{margin:0; color:var(--ink);}
+  .tip p + p{margin-top:8px; color:var(--ink-muted);}
+
+  footer{
+    border-top:1px solid var(--line); padding-block:30px 50px;
+    display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between;
+    color:var(--ink-dim); font-size:0.8rem;
+  }
+  footer a{color:var(--ink-muted); text-decoration:none;}
+  footer a:hover{color:var(--cyan);}
+</style>
+</head><body>
+<div class="wrap">
+
+  <nav class="top">
+    <a class="brand" href="/">GEMSTAR</a>
+    <a class="back" href="/">&larr; Back to Gemstar</a>
+  </nav>
+
+  <div class="jump">
+    <a href="#bluetooth">Bluetooth Headphones</a>
+    <a href="#wired">Wired &amp; Interfaces</a>
+    <a href="#monitor">Hearing Yourself</a>
+    <a href="#static">Popping / Static</a>
+    <a href="#devices">Recommended Devices</a>
+  </div>
+
+  <section id="bluetooth">
+    <p class="eyebrow">Recording Setup</p>
+    <h1>Bluetooth Headphones &amp; Recording</h1>
+    <p class="updated">Last updated: October 16, 2026</p>
+
+    <div class="tip warn">
+      <p><strong>Short version: don't record over Bluetooth.</strong></p>
+      <p>Use wired headphones, earbuds with a cable, or an audio interface instead. This isn't a Gemstar limitation &mdash; it's true of every recording app, including BandLab, which tells users the same thing in its own help docs.</p>
+    </div>
+
+    <p>Bluetooth headphones and earbuds are great for listening, but they cause two separate problems the moment you try to record vocals through them:</p>
+
+    <h2>1. Latency (delay)</h2>
+    <p>Bluetooth audio has to be compressed, transmitted over radio, and decoded on the other end &mdash; that takes time. Typical Bluetooth latency runs anywhere from about 34ms up to 300ms, compared to roughly 5&ndash;10ms for a wired connection. That delay is enough to throw your vocal noticeably out of time with the beat, especially the longer you record. There's no setting that fixes this &mdash; it's a property of Bluetooth itself.</p>
+
+    <h2>2. Bleed-through / feedback</h2>
+    <p>Most Bluetooth headsets share one small chip for both the speaker and the mic, with no real hardware echo cancellation between them. When Gemstar plays your own voice back to you while you're tracking (so you can hear yourself), some of that sound can leak straight back into the Bluetooth mic sitting right next to the speaker &mdash; and that leaked audio ends up audible in your actual recording. This is a hardware limitation of the headset itself, not something a website can filter out after the fact.</p>
+
+    <div class="tip">
+      <p>If you have to use Bluetooth:</p>
+      <p>Fully charge both devices, keep your phone/computer and headphones close together, turn off Power Saver mode, and restart both before recording. If you hear bleed-through, turn off "Hear yourself while tracking" in the record panel &mdash; you'll lose the live monitor, but your take will be clean.</p>
+    </div>
+  </section>
+
+  <section id="wired">
+    <p class="eyebrow">Recording Setup</p>
+    <h1>Wired Headphones &amp; Audio Interfaces</h1>
+
+    <p>Wired headphones (plugged into your phone, laptop, or an interface) and real audio interfaces give you a direct electrical connection with no compression and no radio delay &mdash; output and mic input stay completely separate paths, so there's nothing to leak and nothing to desync.</p>
+    <ul>
+      <li><strong>Built-in mic + wired headphones:</strong> the most reliable combo for most people, no extra gear needed.</li>
+      <li><strong>USB audio interface:</strong> best quality, and lets you monitor yourself through the interface's own headphone output with effectively zero latency.</li>
+    </ul>
+    <p>If you're hearing pops, crackle, or dropouts specifically through an interface, it's usually a buffer-size or sample-rate setting on the interface or your computer's sound control panel, not Gemstar itself &mdash; check your interface's control panel (or your OS sound settings) for a buffer size option and try a larger one if you're getting glitches, or a smaller one if you need less delay and your system can handle it.</p>
+
+    <div class="tip good">
+      <p><strong>Check your interface's sample rate, too.</strong></p>
+      <p>A lot of interfaces default to (or get accidentally switched to) a very high rate like 176.4kHz or 192kHz &mdash; your browser's audio engine expects 44.1kHz or 48kHz, so a mismatch forces constant real-time resampling, which is a common cause of popping/crackle that has nothing to do with buffer size.<br>
+      On Mac: open <strong>Audio MIDI Setup</strong> (Spotlight search for it), select your interface in the left list, and check the "Format" dropdown.<br>
+      On Windows: right-click the speaker icon &rarr; <strong>Sound settings</strong> &rarr; your interface &rarr; <strong>Properties</strong> &rarr; <strong>Advanced</strong>, and check the default format.<br>
+      Set it to 44100 Hz or 48000 Hz, whichever your interface supports.</p>
+    </div>
+  </section>
+
+  <section id="monitor">
+    <p class="eyebrow">Recording Setup</p>
+    <h1>Hearing Yourself While Tracking</h1>
+
+    <p>Gemstar's record panel has a <strong>"Hear yourself while tracking"</strong> toggle, on by default, that plays your live mic signal back to your headphones while you record &mdash; so you can actually hear yourself instead of singing into silence. This is headphones-only: if you're on speakers, leave it off, or the mic will pick the speaker output back up and feed back.</p>
+    <p>There's a separate, optional <strong>"Add a touch of reverb to your monitor"</strong> toggle, off by default, that adds a light reverb just to what you hear while tracking &mdash; it never touches your actual recorded take either way, so it's purely about what's more comfortable to sing against.</p>
+  </section>
+
+  <section id="static">
+    <p class="eyebrow">Recording Setup</p>
+    <h1>Popping or Static While Recording</h1>
+
+    <p>A few things to try if your recordings sound staticky, poppy, or like they're "fighting to play through":</p>
+    <ul>
+      <li>Close other browser tabs and apps running in the background &mdash; real-time audio recording is CPU-intensive, and anything else competing for processing power can cause glitches.</li>
+      <li>If you're on an audio interface, check its buffer size in your OS sound settings or the interface's own control panel (see "Wired Headphones &amp; Audio Interfaces" above).</li>
+      <li>Try a different USB port or cable if you're on an interface &mdash; a flaky connection is a common, easy-to-miss cause of crackle.</li>
+      <li>On an older or lower-powered device, some slowdown during recording/playback may just be the hardware's ceiling rather than something fixable in-browser (see "Recommended Devices" below).</li>
+    </ul>
+
+    <div class="tip good">
+      <p><strong>Long playback sessions getting staticky on Safari through an external interface?</strong></p>
+      <p>If it's specifically long, continuous playback (not a loop, not recording) that starts to crackle while you're on Safari with an external audio interface (like a Focusrite) plugged in, that's a known Safari + external-interface limitation, not a Gemstar bug. Switching to Chrome, or just playing through your device's built-in speakers, clears it right up.</p>
+    </div>
+  </section>
+
+  <section id="devices">
+    <p class="eyebrow">Recording Setup</p>
+    <h1>Recommended Devices &amp; Browsers</h1>
+
+    <p>Gemstar runs entirely in your browser using real-time audio processing, which is demanding work. For the smoothest experience:</p>
+    <ul>
+      <li><strong>Phones/tablets:</strong> a device from roughly the last 5&ndash;6 years, running a current version of its browser.</li>
+      <li><strong>Computers:</strong> any laptop or desktop from the last several years running an up-to-date Chrome, Safari, or Edge.</li>
+      <li><strong>Browser:</strong> keep it updated &mdash; older browser versions are missing audio-performance improvements newer ones have.</li>
+    </ul>
+    <p>Older or lower-powered devices (older tablets especially) may feel sluggish during recording or playback simply because they don't have the processing headroom for real-time audio &mdash; closing other apps/tabs helps, but a newer device will always feel noticeably smoother.</p>
+  </section>
+
+  <footer>
+    <span>Gemstar &middot; M5tar Studio x Gemsquad Production</span>
+    <a href="mailto:Gemstaraudio@gmail.com">Gemstaraudio@gmail.com</a>
+  </footer>
+</div>
+</body></html>

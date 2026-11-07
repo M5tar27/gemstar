@@ -7,6 +7,11 @@
 const crypto = require("crypto");
 
 const BUCKET = "gemstar-tracks";
+// Separate private bucket for account-tied "My Projects" cloud saves (see
+// /api/save-project etc.) -- kept apart from the Collab bucket above since
+// it's a different feature with its own lifecycle (one project can hold
+// several audio files: lead + extras).
+const PROJECTS_BUCKET = "gemstar-user-projects";
 const GUEST_TTL_SECONDS = 60 * 60 * 24; // guest session lasts 24h
 const VALID_TIERS = ["starter", "mix", "unlimited"];
 const TIER_RANK = { starter: 1, mix: 2, unlimited: 3 };
@@ -101,9 +106,10 @@ async function sbRest(cfg, path, opts) {
   return data;
 }
 
-// Short-lived URL to download a private file.
-async function signedDownloadUrl(cfg, path, expiresIn) {
-  const resp = await fetch(`${cfg.url}/storage/v1/object/sign/${BUCKET}/${path}`, {
+// Short-lived URL to download a private file. `bucket` defaults to the
+// Collab bucket for existing callers; pass PROJECTS_BUCKET for project files.
+async function signedDownloadUrl(cfg, path, expiresIn, bucket) {
+  const resp = await fetch(`${cfg.url}/storage/v1/object/sign/${bucket || BUCKET}/${path}`, {
     method: "POST", headers: cfg.headers, body: JSON.stringify({ expiresIn: expiresIn || 3600 }),
   });
   if (!resp.ok) return null;
@@ -112,8 +118,8 @@ async function signedDownloadUrl(cfg, path, expiresIn) {
 }
 
 // Short-lived URL the browser can PUT a file to directly (no server relay).
-async function signedUploadUrl(cfg, path) {
-  const resp = await fetch(`${cfg.url}/storage/v1/object/upload/sign/${BUCKET}/${path}`, {
+async function signedUploadUrl(cfg, path, bucket) {
+  const resp = await fetch(`${cfg.url}/storage/v1/object/upload/sign/${bucket || BUCKET}/${path}`, {
     method: "POST", headers: cfg.headers, body: "{}",
   });
   if (!resp.ok) return null;
@@ -137,7 +143,7 @@ function requireCollab(body, res) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return String(s).replace(/[&<>"\']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "\'": "&#39;" }[c]));
 }
 
 function siteUrl() {
@@ -160,15 +166,15 @@ async function sendEmail(to, subject, html) {
 }
 
 // Best-effort delete of a stored file (used when a layer is removed).
-async function deleteObject(cfg, path) {
+async function deleteObject(cfg, path, bucket) {
   try {
-    const resp = await fetch(`${cfg.url}/storage/v1/object/${BUCKET}/${path}`, { method: "DELETE", headers: cfg.headers });
+    const resp = await fetch(`${cfg.url}/storage/v1/object/${bucket || BUCKET}/${path}`, { method: "DELETE", headers: cfg.headers });
     return !!(resp && resp.ok);
   } catch (e) { return false; }
 }
 
 module.exports = {
-  BUCKET, UUID_RE, canCollaborate, requireCollab, escapeHtml, siteUrl, sendEmail, deleteObject,
+  BUCKET, PROJECTS_BUCKET, UUID_RE, canCollaborate, requireCollab, escapeHtml, siteUrl, sendEmail, deleteObject,
   parseBody, verifyAccessToken, signGuestToken, verifyGuestToken,
   newInviteToken, sbConfig, sbRest, signedDownloadUrl, signedUploadUrl,
 };
