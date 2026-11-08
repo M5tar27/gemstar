@@ -24,7 +24,11 @@ const crypto = require("crypto");
 const C = require("./_lib/common");
 
 const ALLOWED_EXT = ["webm", "m4a", "mp4", "ogg", "wav"];
-const MAX_LAYERS_PER_PERSON = 3;
+// Fallback only -- tracks created after the per-tier limit shipped always
+// carry their own max_layers_per_collaborator (set at creation time from
+// the owner's tier, see create-track.js); this covers tracks from before
+// that column existed, which default to the column's own DB default (3).
+const MAX_LAYERS_PER_PERSON_FALLBACK = 3;
 const STATUSES = ["pending", "accepted", "muted", "removed"];
 
 function fail(res, status, reason, error) {
@@ -65,7 +69,8 @@ async function handleSubmit(body, res) {
     }
     const trackId = inv.track_id;
 
-    const tracks = await C.sbRest(cfg, `gemstar_tracks?id=eq.${trackId}&select=max_collaborators,owner_email,title`);
+    const tracks = await C.sbRest(cfg,
+      `gemstar_tracks?id=eq.${trackId}&select=max_collaborators,max_layers_per_collaborator,owner_email,title`);
     const track = Array.isArray(tracks) && tracks[0];
     if (!track) return fail(res, 404, "invalid", "This track is no longer available.");
 
@@ -98,10 +103,11 @@ async function handleSubmit(body, res) {
         body: JSON.stringify({ track_id: trackId, member_key: memberKey, role: "collaborator" }),
       });
     } else {
+      const maxLayers = track.max_layers_per_collaborator || MAX_LAYERS_PER_PERSON_FALLBACK;
       const mine = await C.sbRest(cfg,
         `gemstar_track_layers?track_id=eq.${trackId}&author_key=eq.${encodeURIComponent(memberKey)}&status=neq.removed&select=id`);
-      if (Array.isArray(mine) && mine.length >= MAX_LAYERS_PER_PERSON) {
-        return fail(res, 429, "limit", `You can add up to ${MAX_LAYERS_PER_PERSON} layers to a track.`);
+      if (Array.isArray(mine) && mine.length >= maxLayers) {
+        return fail(res, 429, "limit", `You can add up to ${maxLayers} layers to a track.`);
       }
     }
 
