@@ -9574,6 +9574,13 @@ btnDeletePreset.style.display = "none";
   function closeWelcome(){
     if (welcomeOverlay) welcomeOverlay.classList.remove("show");
     try { localStorage.setItem(WELCOME_SEEN_KEY, "1"); } catch(e){}
+    // The overlay itself is fixed/centered and never moves, but other things
+    // can scroll the page underneath it while it's open (notably the Group 2
+    // mixer-tour bubbles below, which point at controls further down the
+    // page) -- without this, finishing the steps could silently drop you
+    // wherever the page had scrolled to meanwhile, like the bottom of the
+    // page near Export, instead of back where you started.
+    try { window.scrollTo({top:0, behavior:"smooth"}); } catch(e){ window.scrollTo(0,0); }
   }
   if (welcomeNextBtn) welcomeNextBtn.addEventListener("click", function(){
     if (welcomeStepIdx === WELCOME_STEPS.length - 1) { closeWelcome(); return; }
@@ -12039,9 +12046,17 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   }
 
   // ---- Group 2: the first time the vocal mixer actually becomes visible ----
+  // Gated on the welcome modal the same way Group 1 is: without this, the
+  // mixer is often already visible the instant the page loads, so this
+  // watcher used to fire WHILE the 4-step welcome modal was still open and
+  // start scrolling the page (to AI Mix, then to Export) underneath it --
+  // the modal is fixed/centered so it looked fine the whole time, but
+  // finishing the welcome steps then dropped you wherever that scroll had
+  // silently left off, often the bottom of the page near Export.
   if (!seen(TOUR_MIX_SEEN_KEY)){
-    var mixerEl = document.getElementById("vocal-mixer");
-    if (mixerEl){
+    var startMixWatcher = function(){
+      var mixerEl = document.getElementById("vocal-mixer");
+      if (!mixerEl) return;
       var watchMixer = setInterval(function(){
         if (seen(TOUR_MIX_SEEN_KEY)){ clearInterval(watchMixer); return; }
         if (!mixerEl.hidden && mixerEl.getBoundingClientRect().height > 0){
@@ -12049,6 +12064,17 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
           setTimeout(startMixTour, 500);
         }
       }, 400);
+    };
+    var welcomeOverlayEl2 = document.getElementById("welcome-overlay");
+    if (welcomeOverlayEl2 && welcomeOverlayEl2.classList.contains("show")){
+      var waitWelcome2 = setInterval(function(){
+        if (!welcomeOverlayEl2.classList.contains("show")){
+          clearInterval(waitWelcome2);
+          startMixWatcher();
+        }
+      }, 300);
+    } else {
+      startMixWatcher();
     }
   }
 })();
