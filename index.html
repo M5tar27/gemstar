@@ -300,7 +300,22 @@
   .welcome-card{
     max-width:400px; width:100%; background:var(--bg-panel); border:1px solid var(--line-strong);
     border-radius:14px; padding:28px 24px 22px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.55);
+    transition:border-color .25s ease, background .25s ease;
   }
+  /* Each of the 4 welcome-tour steps gets its own accent (border + a faint
+     top-down tint) instead of one plain card reused four times -- same
+     brand colors used elsewhere (cyan/gem/yellow), plus --ok's green for
+     the 4th so all four steps read as distinct without introducing a new
+     hue. The active progress dot picks up the same color, tying the two
+     together. */
+  .welcome-card[data-step="1"]{ border-color:rgba(0,245,255,0.5); background:radial-gradient(circle at 50% 0%, rgba(0,245,255,0.12), var(--bg-panel) 65%); }
+  .welcome-card[data-step="2"]{ border-color:rgba(255,46,136,0.5); background:radial-gradient(circle at 50% 0%, rgba(255,46,136,0.12), var(--bg-panel) 65%); }
+  .welcome-card[data-step="3"]{ border-color:rgba(255,230,0,0.5); background:radial-gradient(circle at 50% 0%, rgba(255,230,0,0.12), var(--bg-panel) 65%); }
+  .welcome-card[data-step="4"]{ border-color:rgba(60,242,160,0.5); background:radial-gradient(circle at 50% 0%, rgba(60,242,160,0.12), var(--bg-panel) 65%); }
+  .welcome-card[data-step="1"] .welcome-dots span.active{ background:#00F5FF; }
+  .welcome-card[data-step="2"] .welcome-dots span.active{ background:#FF2E88; }
+  .welcome-card[data-step="3"] .welcome-dots span.active{ background:#FFE600; }
+  .welcome-card[data-step="4"] .welcome-dots span.active{ background:#3CF2A0; }
   .welcome-skip{
     display:block; margin:0 0 10px auto; background:none; border:none; color:var(--ink-dim);
     font-size:0.74rem; letter-spacing:0.03em; cursor:pointer; padding:2px 4px;
@@ -633,15 +648,24 @@
     box-shadow:0 0 8px var(--cyan); pointer-events:none; z-index:5;
     transform:translateX(-1px);
   }
-
-  .spectrum-shell{
-    position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden;
-    background:#07070d; height:90px; margin-bottom:14px;
+  /* Time ruler across the top of the grid -- ticks every grid-ruler-step()
+     seconds (adaptive to the current zoom window, see renderAllVocalsRuler),
+     bold every 3rd tick, with an mm:ss label at each one. Sits above the
+     rows and shares their exact left-edge math (position/total as a
+     percentage), so a tick always lines up with the same instant the
+     waveforms below it show. */
+  .grid-ruler{
+    position:relative; height:20px; margin-bottom:4px;
+    border-bottom:1px solid var(--line-strong);
   }
-  .spectrum-shell canvas{display:block; width:100%; height:100%;}
-  .spectrum-shell .spectrum-readout{
-    position:absolute; top:6px; right:8px; font-size:0.68rem; letter-spacing:0.03em;
-    color:var(--cyan); pointer-events:none; font-variant-numeric:tabular-nums;
+  .grid-ruler-tick{
+    position:absolute; top:0; bottom:0; width:1px; background:var(--line-strong);
+  }
+  .grid-ruler-tick.major{ background:rgba(0,245,255,0.55); }
+  .grid-ruler-label{
+    position:absolute; top:2px; font-size:0.62rem; color:var(--ink-dim);
+    font-family:var(--font-display); letter-spacing:0.02em; transform:translateX(2px);
+    white-space:nowrap; pointer-events:none;
   }
 
   .knob-info-tooltip{
@@ -1347,7 +1371,7 @@
   </div>
 
   <div id="welcome-overlay">
-    <div class="welcome-card">
+    <div class="welcome-card" id="welcome-card">
       <button type="button" class="welcome-skip" id="welcome-skip" data-i18n="welcomeSkip">Skip</button>
       <h3 id="welcome-step-title"></h3>
       <p id="welcome-step-desc"></p>
@@ -1627,6 +1651,7 @@
   <button class="icon-btn small" id="btn-trk-zoom-in" type="button" aria-label="Zoom in on vocal waveforms">+</button>
 </div>
           <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
+            <div class="grid-ruler" id="all-vocals-ruler"></div>
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
             <div class="live-row" id="grid-live-row" hidden>
               <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
@@ -1685,11 +1710,6 @@
     </div>
 
     <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
-    <div class="spectrum-shell" id="spectrum-shell">
-      <span class="wf-label" data-i18n="wfLabelSpectrum">Frequency</span>
-      <span class="spectrum-readout" id="spectrum-readout">-- Hz</span>
-      <canvas id="spectrum-canvas" width="900" height="90"></canvas>
-    </div>
     <div class="track-edit-row" id="track-edit-row" hidden>
       <span class="status-label" data-i18n="editingLabel">Editing FX for</span>
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
@@ -2104,7 +2124,7 @@ calibrateSyncTapBtn:"TAP",
       contactBubbleSub:"We'll reply to you at Gemstaraudio@gmail.com",
       contactBubblePlaceholder:"What's up?", contactBubbleSend:"Send", contactBubbleCloseAria:"Close",
       headline:"Your beat. Your voice. <em>Our ears.</em>",
-      wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelSpectrum:"Frequency", wfLabelRecording:"Recording",
+      wfLabelVocal:"Vocal", wfLabelBeat:"Beat", wfLabelRecording:"Recording",
       allVocalsLabel:"Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here",
       volumeKnobLabel:"Volume",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →", manageSubLink:"Manage / cancel subscription →",
@@ -2340,7 +2360,7 @@ calibrateSyncTapBtn:"TOCAR",
       contactBubbleSub:"Te responderemos a Gemstaraudio@gmail.com",
       contactBubblePlaceholder:"¿Qué pasa?", contactBubbleSend:"Enviar", contactBubbleCloseAria:"Cerrar",
       headline:"Tu beat. Tu voz. <em>Nuestros oídos.</em>",
-      wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelSpectrum:"Frecuencia", wfLabelRecording:"Grabando",
+      wfLabelVocal:"Voz", wfLabelBeat:"Beat", wfLabelRecording:"Grabando",
       allVocalsLabel:"Todo a la vez — toca una voz para ajustar sus perillas, o silencia/solo cualquier pista (voces o beat) aquí mismo",
       volumeKnobLabel:"Volumen",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →", manageSubLink:"Gestionar / cancelar suscripción →",
@@ -2637,9 +2657,10 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.render();
       label.dataset.key = def.id;
       label.textContent = STR[lang].knobs[def.id];
 
-      // small live frequency meter right under each knob -- same source as
-      // the big spectrum box above, just a compact per-knob glance so you
-      // don't have to look away from the knob you're actually turning.
+      // small live frequency meter right under each knob -- same analyser
+      // data as any other live metering in the app, just a compact
+      // per-knob glance so you don't have to look away from the knob
+      // you're actually turning.
       var miniMeter = document.createElement("div");
       miniMeter.className = "knob-mini-meter";
       for (var mb = 0; mb < KNOB_MINI_METER_BANDS; mb++){
@@ -3026,10 +3047,9 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
   var isPlaying = false;
   var bypassed = false;
   // True while either mic recorder (main or extra-vocal) has an active
-  // capture running. The heavy per-frame visualizers added alongside the
-  // Hz meter/mini-meters (drawSpectrum + updateKnobMiniMeters, both called
-  // every animation frame from runVisualizer's frame() loop below) are
-  // skipped while this is true -- recording capture itself already runs on
+  // capture running. The heavy per-frame visualizer (updateKnobMiniMeters,
+  // called every animation frame from runVisualizer's frame() loop below)
+  // is skipped while this is true -- recording capture itself already runs on
   // the dedicated AudioWorklet audio thread (see loadCaptureWorklet) so it
   // can't glitch from main-thread JS, but singing along to a playing beat
   // while recording means that extra canvas/array work was competing with
@@ -6716,6 +6736,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   var allVocalsStripEl = document.getElementById("all-vocals-strip");
   var allVocalsRowsEl = document.getElementById("all-vocals-rows");
   var allVocalsPlayheadEl = document.getElementById("all-vocals-playhead");
+  var allVocalsRulerEl = document.getElementById("all-vocals-ruler");
   var gridLiveRowEl = document.getElementById("grid-live-row");
   var gridLiveCanvas = document.getElementById("grid-live-waveform");
   var leadTrackRowEl = document.getElementById("lead-track-row");
@@ -6753,6 +6774,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     allVocalsStripEl.hidden = !show;
     if (!show){
       if (gridLiveRowEl) gridLiveRowEl.hidden = true;
+      if (allVocalsRulerEl) allVocalsRulerEl.innerHTML = "";
       return;
     }
     allVocalsRowsEl.innerHTML = "";
@@ -6872,7 +6894,10 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
         restartPlaybackFromCursor();
       });
       allVocalsRowsEl.appendChild(row);
-      var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.55)" : "rgba(0,245,255,0.35)";
+      // 0.85 opacity on both -- was 0.55/0.35, too faint to read at a glance
+      // in the "Everything at once" grid, especially next to several rows
+      // stacked together.
+      var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.85)" : "rgba(0,245,255,0.85)";
       if (trackZoomIdx > 0){ drawBufferWaveformWindowed(canvas, canvas.getContext("2d"), buffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], opts.track ? trackNudgeSec(opts.track) : 0, trackZoomCenter); } else { drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0); }
 
       // Drag this track's mini waveform left/right to hand-align its timing
@@ -6993,6 +7018,56 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     }
     if (audioBuffer) addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead", {track:leadTrack});
     extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id, {track:t}); });
+    renderAllVocalsRuler(total);
+  }
+
+  // Picks a "nice" tick spacing (seconds) for a given span, aiming for
+  // roughly 6-10 minor ticks across it regardless of zoom level -- 5s/15s
+  // at the default full-song view, down to fractions of a second once
+  // zoomed in tight (TRACK_ZOOM_LEVELS goes as low as 0.6s).
+  function gridRulerStep(span){
+    var steps = [0.1,0.2,0.5,1,2,5,10,15,30,60,120,300,600,900,1800];
+    var raw = span / 8;
+    for (var i=0;i<steps.length;i++){ if (steps[i] >= raw) return steps[i]; }
+    return steps[steps.length-1];
+  }
+  function fmtRulerLabel(sec, step){
+    // Sub-second zoom levels need more than whole-second resolution or
+    // every label in the window would read identical.
+    if (step < 1) return sec.toFixed(1) + "s";
+    return fmtClock(sec);
+  }
+  // Draws the tick marks above the grid, in the SAME time window (and same
+  // left-edge % math) the rows themselves are currently drawn in -- the
+  // full song by default, or the zoomed/panned window when trackZoomIdx >
+  // 0 (see drawBufferWaveformWindowed and the zoom controls above), so a
+  // tick always lines up with the same instant in the waveforms below it.
+  function renderAllVocalsRuler(total){
+    if (!allVocalsRulerEl) return;
+    var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
+    var winStart = trackZoomIdx > 0 ? Math.max(0, trackZoomCenter - winDur/2) : 0;
+    allVocalsRulerEl.innerHTML = "";
+    if (!(winDur > 0)) return;
+    var step = gridRulerStep(winDur);
+    var firstTick = Math.ceil(winStart / step) * step;
+    var idx = Math.round(firstTick / step);
+    for (var t = firstTick; t <= winStart + winDur + 1e-9; t += step, idx++){
+      var pct = Math.max(0, Math.min(100, ((t - winStart) / winDur) * 100));
+      var tick = document.createElement("div");
+      tick.className = "grid-ruler-tick" + (idx % 3 === 0 ? " major" : "");
+      tick.style.left = pct + "%";
+      allVocalsRulerEl.appendChild(tick);
+      // Only major ticks get a label -- a label at every minor tick would
+      // overlap itself at tighter zoom levels where ticks sit a few
+      // pixels apart.
+      if (idx % 3 === 0){
+        var lbl = document.createElement("div");
+        lbl.className = "grid-ruler-label";
+        lbl.style.left = pct + "%";
+        lbl.textContent = fmtRulerLabel(Math.max(0, t), step);
+        allVocalsRulerEl.appendChild(lbl);
+      }
+    }
   }
 
   function panLabel(p){
@@ -8177,9 +8252,20 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
     // sweeping through every lane at once, same left-edge math (left% =
     // position/total) the rows already use to scale their own waveforms.
     if (allVocalsPlayheadEl && allVocalsStripEl && !allVocalsStripEl.hidden){
-      allVocalsPlayheadEl.hidden = !isPlaying;
-      if (isPlaying && total > 0){
-        allVocalsPlayheadEl.style.left = (Math.min(1, pos / total) * 100) + "%";
+      // Same window the rows (and the ruler above them) are currently drawn
+      // in -- plain position/total only lined up while the grid showed the
+      // whole song; once zoomed in (see trackZoomIdx/TRACK_ZOOM_LEVELS) that
+      // math put the line somewhere unrelated to the zoomed-in waveforms it
+      // was supposed to be sweeping across. Hidden outright, rather than
+      // clamped to an edge, whenever playback is currently outside the
+      // zoomed-in window -- clamping would show a line that isn't actually
+      // where the audio is right now.
+      var gridWinDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
+      var gridWinStart = trackZoomIdx > 0 ? Math.max(0, trackZoomCenter - gridWinDur/2) : 0;
+      var inGridWindow = isPlaying && gridWinDur > 0 && pos >= gridWinStart && pos <= gridWinStart + gridWinDur;
+      allVocalsPlayheadEl.hidden = !inGridWindow;
+      if (inGridWindow){
+        allVocalsPlayheadEl.style.left = (((pos - gridWinStart) / gridWinDur) * 100) + "%";
       }
     }
     if (typeof updateWfPlayheadUI === "function") updateWfPlayheadUI();
@@ -8488,64 +8574,11 @@ btnDeletePreset.style.display = "none";
   var cctx = canvas.getContext("2d");
   var beatCanvas = document.getElementById("beat-waveform");
   var beatCctx = beatCanvas.getContext("2d");
-  var specCanvas = document.getElementById("spectrum-canvas");
-  var specCctx = specCanvas.getContext("2d");
-  var specReadout = document.getElementById("spectrum-readout");
   var rafId = null;
 
-  // Log-scale Hz meter: shows the live frequency content of the final,
-  // fully-processed output (post every knob, post beat, post limiter) so
-  // turning a knob shows exactly which part of the spectrum it's touching.
-  // Reuses chain.analyser -- it's already tapped right before ctx.destination.
-  var SPEC_MIN_HZ = 30, SPEC_MAX_HZ = 16000;
-  var SPEC_GRID_HZ = [60, 250, 1000, 4000, 12000];
-  function specLabel(hz){
-    return hz >= 1000 ? (hz/1000) + "k" : String(hz);
-  }
-  function hzToX(hz, w){
-    var lo = Math.log(SPEC_MIN_HZ), hi = Math.log(SPEC_MAX_HZ);
-    var t = (Math.log(Math.max(SPEC_MIN_HZ, Math.min(SPEC_MAX_HZ, hz))) - lo) / (hi - lo);
-    return t * w;
-  }
-  function drawSpectrum(freqData, binHz){
-    var w = specCanvas.width, h = specCanvas.height;
-    specCctx.clearRect(0, 0, w, h);
-    var n = freqData.length;
-    var peakBin = -1, peakVal = 0;
-    specCctx.fillStyle = "rgba(0,245,255,0.55)";
-    for (var x = 0; x < w; x++){
-      var lo = Math.log(SPEC_MIN_HZ), hiL = Math.log(SPEC_MAX_HZ);
-      var hz = Math.exp(lo + (x / w) * (hiL - lo));
-      var bin = Math.min(n - 1, Math.round(hz / binHz));
-      var v = freqData[bin] / 255;
-      if (freqData[bin] > peakVal){ peakVal = freqData[bin]; peakBin = bin; }
-      var barH = v * h;
-      specCctx.fillRect(x, h - barH, 1, barH);
-    }
-    // gridlines + Hz labels
-    specCctx.strokeStyle = "rgba(255,255,255,0.08)";
-    specCctx.fillStyle = "rgba(255,255,255,0.35)";
-    specCctx.font = "9px sans-serif";
-    specCctx.lineWidth = 1;
-    SPEC_GRID_HZ.forEach(function(hz){
-      var gx = hzToX(hz, w);
-      specCctx.beginPath();
-      specCctx.moveTo(gx, 0);
-      specCctx.lineTo(gx, h);
-      specCctx.stroke();
-      specCctx.fillText(specLabel(hz) + "Hz", Math.min(w - 30, gx + 3), h - 4);
-    });
-    if (peakVal > 12){ // ignore near-silent noise floor
-      var peakHz = Math.round(peakBin * binHz);
-      specReadout.textContent = peakHz.toLocaleString() + " Hz";
-    } else {
-      specReadout.textContent = "-- Hz";
-    }
-  }
-
-  // Every knob gets its own tiny 6-bar meter (same log-spaced bands as the
-  // big spectrum box) so there's live frequency feedback right where your
-  // eyes already are while you're turning that specific knob.
+  // Every knob gets its own tiny 6-bar meter, log-spaced across the
+  // spectrum, so there's live frequency feedback right where your eyes
+  // already are while you're turning that specific knob.
   var MINI_METER_HZ = [80, 250, 700, 2000, 6000, 14000];
   function updateKnobMiniMeters(freqData, binHz){
     var n = freqData.length;
@@ -8630,7 +8663,9 @@ btnDeletePreset.style.display = "none";
     // see word-level detail or drag out a precise Cut selection. This is a
     // single-track editing view, so it always fills the full width with
     // just the track you're working on, regardless of what else is loaded.
-    drawBufferWaveform(canvas, cctx, shownBuffer, "rgba(0,245,255,0.35)", shownBuffer.duration);
+    // 0.85 opacity -- was 0.35, which read as a faint hint of a waveform
+    // rather than something you could actually line a Cut up against.
+    drawBufferWaveform(canvas, cctx, shownBuffer, "rgba(0,245,255,0.85)", shownBuffer.duration);
   }
 
   function drawBeatWaveformStatic(){
@@ -8646,7 +8681,7 @@ btnDeletePreset.style.display = "none";
     var visFrameCount = 0;
 
     function frame(){
-      if (!isPlaying) { rafId = null; updatePlayheadUI(); specReadout.textContent = "-- Hz"; resetKnobMiniMeters(); visFrameCount = 0; return; }
+      if (!isPlaying) { rafId = null; updatePlayheadUI(); resetKnobMiniMeters(); visFrameCount = 0; return; }
       updatePlayheadUI();
 
       // Used to auto-duck the beat under the vocal here -- watch the
@@ -8679,14 +8714,14 @@ btnDeletePreset.style.display = "none";
       // (#wf-playhead) across it instead, so nothing competes with it and
       // there's no extra per-frame canvas cost either.
       //
-      // Everything below here is pure visual feedback (Hz spectrum,
-      // per-knob meters) -- none of it needs to run at a full 60fps to
-      // look smooth, and this canvas/DOM work was part of what was
-      // crowding out the audio engine and causing the stutter/slowdown
-      // reported during ordinary playback, not just while recording.
-      // Throttling it to ~20fps is visually indistinguishable but cuts
-      // that main-thread cost noticeably, on every single playback, not
-      // only during a mic recording.
+      // Everything below here is pure visual feedback (per-knob meters --
+      // the big Hz spectrum box this used to also drive was removed) --
+      // none of it needs to run at a full 60fps to look smooth, and this
+      // canvas/DOM work was part of what was crowding out the audio engine
+      // and causing the stutter/slowdown reported during ordinary playback,
+      // not just while recording. Throttling it to ~20fps is visually
+      // indistinguishable but cuts that main-thread cost noticeably, on
+      // every single playback, not only during a mic recording.
       visFrameCount++;
       // Skip it entirely while a mic recording is in progress (e.g.
       // singing an extra take along to the beat) -- this is the single
@@ -8696,7 +8731,6 @@ btnDeletePreset.style.display = "none";
       // last value and pick back up once recording stops.
       if (!isMicRecording && visFrameCount % 3 === 0){
         chain.analyser.getByteFrequencyData(freqData);
-        drawSpectrum(freqData, binHz);
         updateKnobMiniMeters(freqData, binHz);
       }
 
@@ -9508,6 +9542,7 @@ btnDeletePreset.style.display = "none";
   var WELCOME_STEPS = ["welcomeStep1", "welcomeStep2", "welcomeStep3", "welcomeStep4"];
   var welcomeStepIdx = 0;
   var welcomeOverlay = document.getElementById("welcome-overlay");
+  var welcomeCardEl = document.getElementById("welcome-card");
   var welcomeTitleEl = document.getElementById("welcome-step-title");
   var welcomeDescEl = document.getElementById("welcome-step-desc");
   var welcomeDotsEl = document.getElementById("welcome-dots");
@@ -9518,6 +9553,7 @@ btnDeletePreset.style.display = "none";
   function renderWelcomeStep(){
     if (!welcomeOverlay) return;
     var key = WELCOME_STEPS[welcomeStepIdx];
+    if (welcomeCardEl) welcomeCardEl.dataset.step = String(welcomeStepIdx + 1);
     welcomeTitleEl.textContent = STR[lang][key + "Title"];
     welcomeDescEl.textContent = STR[lang][key + "Desc"];
     welcomeDotsEl.innerHTML = "";
