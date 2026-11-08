@@ -594,6 +594,8 @@
   .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
   .all-vocals-row .row-controls .trk-rerecord{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-rerecord:hover{color:var(--cyan); border-color:var(--cyan);}
+  .all-vocals-row .row-controls .trk-punch{color:var(--ink-dim);}
+  .all-vocals-row .row-controls .trk-punch:hover{color:var(--yellow); border-color:var(--yellow);}
 
   /* Destructive-action styling for the standalone Remove-lead button (next
      to "Change File") -- same danger color as the project-delete buttons,
@@ -2108,6 +2110,10 @@ calibrateSyncTapBtn:"TAP",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
+      punchInAria:"Punch in on",
+      punchArmedHint:"Punching in at {time} — tap Record, sing the new bit, then tap Stop. Only that part gets replaced; everything else stays.",
+      trackPunchedToast:'Punched in on "{name}"',
+      punchTooShort:"Didn't catch enough there — try the punch again.",
       removeLeadBtn:"🗑 Remove", removeLeadAria:"Remove the lead vocal",
       undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
@@ -2339,6 +2345,10 @@ calibrateSyncTapBtn:"TOCAR",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
+      punchInAria:"Hacer punch in en",
+      punchArmedHint:"Punch in en {time} — toca Grabar, canta la parte nueva y luego toca Detener. Solo se reemplaza esa parte; el resto se queda igual.",
+      trackPunchedToast:'Se hizo punch in en "{name}"',
+      punchTooShort:"No se captó suficiente ahí — intenta el punch de nuevo.",
       removeLeadBtn:"🗑 Quitar", removeLeadAria:"Quitar la voz principal",
       undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
@@ -4713,6 +4723,125 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     return new Blob([view], { type: "audio/wav" });
   }
 
+  /* Same WAV encoder as encodeWavBlob, generalized to N channels (so a
+     punch-in splice on a stereo lead/extra can be re-encoded as a File
+     that keeps its real channel count) -- used only by the Punch In
+     feature below. encodeWavBlob itself is left untouched since every
+     other caller only ever has mono mic PCM to encode. */
+  function encodeWavBlobMultiChannel(buf){
+    var numCh = buf.numberOfChannels, sr = buf.sampleRate, len = buf.length;
+    var bytesPerSample = 2, blockAlign = bytesPerSample * numCh, byteRate = sr * blockAlign;
+    var dataSize = len * blockAlign;
+    var arrbuf = new ArrayBuffer(44 + dataSize);
+    var view = new DataView(arrbuf);
+    function writeStr(offset, str){ for (var i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); }
+    writeStr(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); writeStr(8, "WAVE");
+    writeStr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+    view.setUint16(22, numCh, true); view.setUint32(24, sr, true);
+    view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+    writeStr(36, "data"); view.setUint32(40, dataSize, true);
+    var channels = [];
+    for (var c=0;c<numCh;c++) channels.push(buf.getChannelData(c));
+    var offset = 44;
+    for (var i=0;i<len;i++){
+      for (var c2=0;c2<numCh;c2++, offset+=2){
+        var s = Math.max(-1, Math.min(1, channels[c2][i]));
+        view.setInt16(offset, s < 0 ? s*0x8000 : s*0x7FFF, true);
+      }
+    }
+    return new Blob([view], { type: "audio/wav" });
+  }
+
+  /* ---------------- Punch In: redo one section without re-singing the
+     whole take ----------------
+     The capture itself reuses createVocalRecorder() exactly as-is (same
+     mic pipeline, latency compensation, Bluetooth detection) -- Punch In
+     only changes what happens before (where playback monitor starts from,
+     see startRecordMonitor/startRecordMonitorLite below) and after (this
+     splice, instead of a full-track replace) a take.
+
+     PUNCH_PREROLL_SEC is a count-in: the monitor starts this many seconds
+     before the punch point so there's something to sing along to cueing
+     into the line, but capture still starts the moment Start is pressed --
+     trimPunchPreroll() below throws away that lead-in from the captured
+     PCM so only what was actually sung from the punch point onward gets
+     spliced in. */
+  var PUNCH_PREROLL_SEC = 2.5;
+  var PUNCH_CROSSFADE_SEC = 0.012; // ~12ms -- long enough to kill a splice click, short enough to stay inaudible as a "fade"
+
+  // Drops the count-in lead-in off the front of a freshly captured mono
+  // take, so sample 0 of the result lines up with the actual punch point
+  // on the timeline. Returns null if nothing was actually sung past the
+  // count-in (e.g. Stop was hit almost immediately).
+  function trimPunchPreroll(monoArray, sampleRate, punchStartSec){
+    var preroll = Math.min(PUNCH_PREROLL_SEC, punchStartSec);
+    var skip = Math.max(0, Math.round(preroll * sampleRate));
+    if (skip >= monoArray.length) return null;
+    return monoArray.subarray(skip);
+  }
+
+  // Builds a new AudioBuffer with newSeg (mono) dropped into originalBuffer
+  // starting at punchStartSec, replacing whatever was there for newSeg's
+  // length and leaving everything before and after untouched. Short linear
+  // crossfades at both edges avoid an audible click at the splice points.
+  // If the new take runs past the original's own ending, the buffer is
+  // extended to fit rather than cutting it off. originalBuffer's channel
+  // count is preserved -- a stereo track gets the same mono take written
+  // into every channel for the punched span.
+  function splicePunchBuffer(originalBuffer, punchStartSec, newSeg){
+    if (!originalBuffer || !newSeg || !newSeg.length) return null;
+    var sr = originalBuffer.sampleRate;
+    var chCount = originalBuffer.numberOfChannels;
+    var origLen = originalBuffer.length;
+    var startSample = Math.max(0, Math.min(origLen, Math.round(punchStartSec * sr)));
+    var newLen = newSeg.length;
+    var fadeSamples = Math.min(Math.round(PUNCH_CROSSFADE_SEC * sr), Math.floor(newLen / 2));
+    var endSampleInOrig = startSample + newLen;
+    var outLen = Math.max(origLen, endSampleInOrig);
+
+    var out = ctx.createBuffer(chCount, outLen, sr);
+    for (var ch = 0; ch < chCount; ch++){
+      var src = originalBuffer.getChannelData(ch);
+      var dst = out.getChannelData(ch);
+      for (var i = 0; i < outLen; i++) dst[i] = i < origLen ? src[i] : 0;
+      for (var j = 0; j < newLen; j++) dst[startSample + j] = newSeg[j];
+      // Leading edge: blend from whatever was already there into the new take.
+      for (var f = 0; f < fadeSamples; f++){
+        var pos = startSample + f;
+        if (pos >= origLen) break;
+        var t = (f + 1) / (fadeSamples + 1);
+        dst[pos] = src[pos] * (1 - t) + newSeg[f] * t;
+      }
+      // Trailing edge: hand back off to the original, only when there's
+      // original material right after the punch to hand back off to.
+      if (endSampleInOrig <= origLen){
+        var tailStart = startSample + newLen - fadeSamples;
+        for (var k = 0; k < fadeSamples; k++){
+          var pos2 = tailStart + k;
+          if (pos2 < startSample) continue;
+          var t2 = (k + 1) / (fadeSamples + 1);
+          var origVal = pos2 < origLen ? src[pos2] : 0;
+          dst[pos2] = newSeg[pos2 - startSample] * (1 - t2) + origVal * t2;
+        }
+      }
+    }
+    return out;
+  }
+
+  // Loop just the section that was punched (same idea as
+  // loopJustRecordedSection, but for an arbitrary mid-track span instead
+  // of always starting from 0) so you can immediately hear the fix land.
+  function loopPunchedSection(startSec, endSec){
+    var total = currentTotalDuration();
+    var end = total > 0 ? Math.min(endSec, total) : endSec;
+    var start = Math.max(0, Math.min(startSec, end - 0.05));
+    if (end - start < 0.2) return;
+    tlCursor = start;
+    tlRegion = {start: start, end: end};
+    tlLoop = true;
+    renderTimeline();
+  }
+
   /* Input-device picker: wires a <select> (+ optional hint line) to
      navigator.mediaDevices, and auto-picks a connected audio interface over
      the laptop's built-in mic whenever one is present -- the user still has
@@ -5236,6 +5365,10 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
 
     function refreshIdleHint(){
       if (!opts.hintEl) return;
+      if (opts.isPunchTarget && opts.isPunchTarget()){
+        opts.hintEl.textContent = STR[lang].punchArmedHint.replace("{time}", fmtRecordTime(punchStartSeconds));
+        return;
+      }
       var cap = opts.getCapSeconds ? opts.getCapSeconds() : capSeconds;
       var note = STR[lang].recordCapNote
         .replace("{cap}", fmtRecordTime(cap))
@@ -5459,6 +5592,15 @@ return;
   // an Undo-back-to-the-old-take toast.
   var reRecordLeadActive = false;
   var reRecordLeadPrevSnapshot = null;
+  // Punch In: set (to leadTrack or one extra-track ref) while either record
+  // panel is armed/recording a punch instead of a full re-record -- see
+  // startPunchIn() below. Shared by both recorders (only one panel is ever
+  // open at a time), which is why this lives up here rather than inside
+  // either recorder's own closure.
+  var punchModeTarget = null;
+  var punchStartSeconds = 0;
+  var punchPrevBuffer = null;
+  var punchPrevFile = null;
   var btnRerecordCancel = document.getElementById("btn-rerecord-cancel");
   var mainRecorder = createVocalRecorder({
     startBtn: document.getElementById("btn-record-start"),
@@ -5476,7 +5618,45 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     fxReverbCheckbox: document.getElementById("record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: mainDeviceSelector,
+    isPunchTarget: function(){ return punchModeTarget === leadTrack; },
     onCaptured: function(file){
+      if (punchModeTarget === leadTrack){
+        var punchStart = punchStartSeconds;
+        var prevBuf = punchPrevBuffer, prevFile = punchPrevFile;
+        punchModeTarget = null;
+        if (btnRerecordCancel) btnRerecordCancel.hidden = true;
+        decodeAudioFile(file).then(function(capturedBuf){
+          if (!capturedBuf){ audioReadError(); return; }
+          var newSeg = trimPunchPreroll(capturedBuf.getChannelData(0), capturedBuf.sampleRate, punchStart);
+          if (!newSeg || newSeg.length < Math.round(0.1 * capturedBuf.sampleRate)){
+            alert(STR[lang].punchTooShort);
+            if (audioBuffer) showPlayerForLoadedVocal(); else resetToDropzone();
+            return;
+          }
+          var spliced = splicePunchBuffer(prevBuf, punchStart, newSeg);
+          if (!spliced) return;
+          var splicedFile = new File([encodeWavBlobMultiChannel(spliced)], "gemstar-punch.wav", {type:"audio/wav"});
+          var wasPlaying = isPlaying;
+          if (wasPlaying) stopPlayback();
+          audioBuffer = spliced;
+          leadTrack.originalBuffer = null;
+          leadTrack.cutUndoBuffer = null;
+          leadTrack._file = splicedFile; // keeps autosave/cloud-sync (which persist leadTrack._file, not audioBuffer) in sync with the splice
+          showPlayerForLoadedVocal();
+          afterVocalSetChanged();
+          loopPunchedSection(punchStart, punchStart + (newSeg.length / capturedBuf.sampleRate));
+          if (wasPlaying) startPlayback();
+          showUndoToast(STR[lang].trackPunchedToast.replace("{name}", trackNameEl.textContent), function(){
+            var wp = isPlaying;
+            if (wp) stopPlayback();
+            audioBuffer = prevBuf;
+            leadTrack._file = prevFile;
+            afterVocalSetChanged();
+            if (wp) startPlayback();
+          });
+        });
+        return;
+      }
       var wasReRecord = reRecordLeadActive;
       var prevSnap = reRecordLeadPrevSnapshot;
       var prevName = trackNameEl.textContent;
@@ -5511,6 +5691,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     if (!audioBuffer) return;
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
+    punchModeTarget = null; // arming a full re-record instead -- any pending punch no longer applies
     reRecordLeadPrevSnapshot = snapshotLead();
     reRecordLeadActive = true;
     mainRecorder.stop();
@@ -5529,10 +5710,52 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     recordPanel.hidden = true;
     reRecordLeadActive = false;
     reRecordLeadPrevSnapshot = null;
+    if (punchModeTarget === leadTrack) punchModeTarget = null;
     btnRerecordCancel.hidden = true;
     if (audioBuffer) showPlayerForLoadedVocal();
     else resetToDropzone();
   });
+
+  // Punch In: redo just one section of an existing track (lead or extra)
+  // instead of re-singing the whole thing. Grabs the current playhead
+  // position as the punch point -- scrub/seek on the timeline first, then
+  // tap Punch In on that track's row -- then reuses the same record panel
+  // and mic pipeline as a normal re-record; onCaptured above/below splices
+  // the new take into the existing buffer instead of replacing it whole.
+  function startPunchIn(tr){
+    if (isMicRecording) return; // a take is already in flight elsewhere -- don't stomp on it
+    var buf = (tr === leadTrack) ? audioBuffer : tr.buffer;
+    if (!buf) return;
+    var startSec = Math.max(0, Math.min(Math.max(0, buf.duration - 0.05), currentPlayPosition()));
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    punchModeTarget = tr;
+    punchStartSeconds = startSec;
+    punchPrevBuffer = buf;
+    punchPrevFile = tr._file;
+    if (tr === leadTrack){
+      reRecordLeadActive = false;
+      reRecordLeadPrevSnapshot = null;
+      mainRecorder.stop();
+      playerBlock.hidden = true;
+      if (inputModeRow) inputModeRow.hidden = true;
+      dropzone.hidden = true;
+      recordPanel.hidden = false;
+      if (btnRerecordCancel) btnRerecordCancel.hidden = false;
+      mainRecorder.refreshIdleHint();
+      mainDeviceSelector.populate();
+    } else {
+      reRecordExtraTarget = null;
+      reRecordExtraPrevBuffer = null;
+      reRecordExtraPrevFile = null;
+      lastCapturedExtraVocal = null;
+      extraRecorder.stop();
+      if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
+      extraRecordPanel.hidden = false;
+      extraRecorder.refreshIdleHint();
+      extraDeviceSelector.populate();
+    }
+  }
 
   var micPickerReady = false;
   function setInputMode(m, quiet){
@@ -6165,8 +6388,9 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     fxReverbCheckbox: document.getElementById("extra-record-fx-reverb"),
     getCapSeconds: maxRecordSeconds,
     deviceSelector: extraDeviceSelector,
+    isPunchTarget: function(){ return !!punchModeTarget && punchModeTarget !== leadTrack; },
     canStart: function(){
-      if (reRecordExtraTarget) return true; // replacing an existing track, not adding one -- the track-count cap doesn't apply
+      if (reRecordExtraTarget || punchModeTarget) return true; // replacing/punching an existing track, not adding one -- the track-count cap doesn't apply
       if (totalVocalTrackCount() >= maxVocalTracks()){
         alert(STR[lang].recordCapReached
           .replace("{max}", String(maxVocalTracks()))
@@ -6179,6 +6403,48 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     // without it, hitting Re-record just recorded a SECOND take on top of
     // the first instead of replacing it.
     onCaptured: function(file){
+      if (punchModeTarget && punchModeTarget !== leadTrack){
+        var punchTarget = punchModeTarget;
+        var punchStart = punchStartSeconds;
+        var prevBuf = punchPrevBuffer, prevFile = punchPrevFile;
+        // Deliberately NOT clearing punchModeTarget here -- this panel stays
+        // open after a take (see the comment below), so hitting Start again
+        // without Cancel should redo the same punch against the original,
+        // not fall through to "add a new track". It's only cleared by
+        // Cancel or by arming a different record action (see startPunchIn,
+        // startReRecordExtra, and the "+ Record Vocal Track" handler).
+        decodeAudioFile(file).then(function(capturedBuf){
+          if (!capturedBuf){ audioReadError(); return; }
+          var newSeg = trimPunchPreroll(capturedBuf.getChannelData(0), capturedBuf.sampleRate, punchStart);
+          if (!newSeg || newSeg.length < Math.round(0.1 * capturedBuf.sampleRate)){
+            alert(STR[lang].punchTooShort);
+            return;
+          }
+          var spliced = splicePunchBuffer(prevBuf, punchStart, newSeg);
+          if (!spliced) return;
+          var splicedFile = new File([encodeWavBlobMultiChannel(spliced)], "gemstar-punch.wav", {type:"audio/wav"});
+          var wasPlaying = isPlaying;
+          if (wasPlaying) stopPlayback();
+          punchTarget.buffer = spliced;
+          punchTarget._file = splicedFile;
+          punchTarget.originalBuffer = null;
+          punchTarget.cutUndoBuffer = null;
+          renderExtraVocals();
+          afterVocalSetChanged();
+          loopPunchedSection(punchStart, punchStart + (newSeg.length / capturedBuf.sampleRate));
+          if (wasPlaying) startPlayback();
+          showUndoToast(STR[lang].trackPunchedToast.replace("{name}", punchTarget.name), function(){
+            var wp = isPlaying;
+            if (wp) stopPlayback();
+            punchTarget.buffer = prevBuf;
+            punchTarget._file = prevFile;
+            renderExtraVocals();
+            afterVocalSetChanged();
+            if (wp) startPlayback();
+          });
+        });
+        return;
+      }
       if (reRecordExtraTarget){
         var target = reRecordExtraTarget;
         var prevBuf = reRecordExtraPrevBuffer, prevFile = reRecordExtraPrevFile;
@@ -6224,6 +6490,17 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         afterVocalSetChanged();
         return;
       }
+      if (punchModeTarget && punchModeTarget !== leadTrack){
+        // Put the live buffer back the way it was before that attempt --
+        // punchPrevBuffer/File stay fixed at "before any punch this
+        // session" (see the onCaptured branch above), so this and the
+        // next Start press both measure against the true original.
+        punchModeTarget.buffer = punchPrevBuffer;
+        punchModeTarget._file = punchPrevFile;
+        renderExtraVocals();
+        afterVocalSetChanged();
+        return;
+      }
       if (lastCapturedExtraVocal){
         removeExtraVocal(lastCapturedExtraVocal, {silent: true});
         lastCapturedExtraVocal = null;
@@ -6237,6 +6514,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   // as "+ Record Vocal Track" above, just tagged with which track it's
   // standing in for instead of appending a new one.
   function startReRecordExtra(t){
+    punchModeTarget = null; // arming a full re-record instead -- any pending punch no longer applies
     reRecordExtraTarget = t;
     reRecordExtraPrevBuffer = t.buffer;
     reRecordExtraPrevFile = t._file;
@@ -6255,6 +6533,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           .replace("{plan}", planLabelFor(currentPlan)));
         return;
       }
+      punchModeTarget = null; // adding a brand new track -- any pending punch no longer applies
       reRecordExtraTarget = null; // starting a new track, not replacing one
       lastCapturedExtraVocal = null; // starting fresh -- nothing here to undo yet
       if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
@@ -6268,6 +6547,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       extraRecorder.stop();
       extraRecordPanel.hidden = true;
       reRecordExtraTarget = null;
+      punchModeTarget = null;
       lastCapturedExtraVocal = null; // panel's closed -- too late to undo via Re-record now
     });
   }
@@ -6525,6 +6805,17 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           if (tr === leadTrack) startReRecordLead(); else startReRecordExtra(tr);
         });
         controls.appendChild(reRecBtn);
+
+        var punchBtn = document.createElement("button");
+        punchBtn.type = "button";
+        punchBtn.className = "trk-btn trk-punch";
+        punchBtn.textContent = "✂️";
+        punchBtn.setAttribute("aria-label", STR[lang].punchInAria + " " + name);
+        punchBtn.addEventListener("click", function(e){
+          e.stopPropagation();
+          startPunchIn(tr);
+        });
+        controls.appendChild(punchBtn);
 
         var removeBtn = document.createElement("button");
         removeBtn.type = "button";
@@ -7602,7 +7893,18 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // song. The timeline/playhead and beat waveform still scrub along
       // underneath it the same as any regular playback -- only the signal
       // path each track's audio takes is lighter, not the UI.
-      tlCursor = 0; tlRegion = null; tlLoop = true;
+      // Punch In is the one exception: instead of monitoring from the top
+      // and looping forever, it starts a few seconds before the punch
+      // point (for cueing) and plays straight through once -- see
+      // startPunchIn(). PUNCH_PREROLL_SEC of that lead-in is trimmed back
+      // off the captured take afterward (trimPunchPreroll) so the splice
+      // still lines up exactly on the punch point.
+      if (punchModeTarget){
+        tlCursor = Math.max(0, punchStartSeconds - PUNCH_PREROLL_SEC);
+        tlRegion = null; tlLoop = false;
+      } else {
+        tlCursor = 0; tlRegion = null; tlLoop = true;
+      }
       startRecordMonitorLite();
       recordMonitorOwnsPlayback = true;
     } else if (beatBuffer && chain){
@@ -7660,32 +7962,37 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // now -- otherwise re-record (lead or an extra vocal) plays the OLD
       // version back in your headphones while you're singing the new one,
       // which sounds exactly like it's recording on top of itself even
-      // though the captured take only ever replaces, never layers.
-      var leadSrc = (audioBuffer && !reRecordLeadActive) ? makeTimedSource(audioBuffer, 0, null, true) : null;
+      // though the captured take only ever replaces, never layers. Same
+      // exclusion applies to whichever track Punch In is currently armed
+      // on -- tlCursor (monitorOffset below) already carries the punch
+      // lead-in/no-loop difference set by startRecordMonitor().
+      var monitorOffset = tlCursor;
+      var monitorLoop = !punchModeTarget;
+      var leadSrc = (audioBuffer && !reRecordLeadActive && punchModeTarget !== leadTrack) ? makeTimedSource(audioBuffer, monitorOffset, null, monitorLoop) : null;
       if (leadSrc){
         var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.mixSum);
         leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
         vocalSourceNodes.push({src:leadSrc, gain:leadNodes.gain, pan:leadNodes.pan, ref:leadTrack});
       }
       extraVocals.forEach(function(t){
-        if (t === reRecordExtraTarget) return; // being replaced right now -- don't play the take you're about to overwrite
-        var src = makeTimedSource(t.buffer, 0, null, true);
+        if (t === reRecordExtraTarget || t === punchModeTarget) return; // being replaced/punched right now -- don't play the take you're about to overwrite
+        var src = makeTimedSource(t.buffer, monitorOffset, null, monitorLoop);
         if (!src) return;
         var nodes = wireTrackSource(src, t, chain.mixSum);
         t._liveGain = nodes.gain; t._livePan = nodes.pan;
         vocalSourceNodes.push({src:src, gain:nodes.gain, pan:nodes.pan, ref:t});
       });
       if (beatBuffer){
-        beatSourceNode = makeTimedSource(beatBuffer, 0, null, true);
+        beatSourceNode = makeTimedSource(beatBuffer, monitorOffset, null, monitorLoop);
         if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
       var startAt = ctx.currentTime + 0.03 + RECORD_MONITOR_PREROLL;
       vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       playStartCtxTime = startAt;
-      playStartOffset = 0;
+      playStartOffset = monitorOffset;
       playRegion = null;
-      playLoopWhole = true;
+      playLoopWhole = monitorLoop;
       isPlaying = true;
       updatePlayButton();
       renderTimeline();
