@@ -521,6 +521,13 @@
     border-left:1px solid var(--danger); border-right:1px solid var(--danger);
     pointer-events:none;
   }
+  /* Dragging the selection itself (to move that slice) rather than drawing
+     a new one -- cyan instead of the cut-red, so the two gestures read as
+     visually distinct while the drag is live. */
+  .wf-selection.moving{
+    background:rgba(0,245,255,0.22);
+    border-left-color:var(--cyan); border-right-color:var(--cyan);
+  }
   /* Moving cursor over the Step 2 waveform while it plays. That canvas
      used to get overwritten every frame by a live oscilloscope trace
      during playback (see runVisualizer()), which flickered the whole
@@ -2136,10 +2143,11 @@ calibrateSyncTapBtn:"TAP",
       cleanHint:"Mutes the dead air between phrases (hiss, room noise, stray breaths) on every vocal, without moving anything in time.",
       cleanDone:"Silenced {pct}% dead air across {n} track(s). Timing stays locked to your beat.",
       cleanNone:"No dead air long enough to clean up. Your vocals were already tight.",
-      cutHint:"Drag on the waveform to select a section, then cut it. Keeps everything locked to the beat -- it silences that part instead of shifting the rest of the track.",
+      cutHint:"Drag on the waveform to select a section, then cut it -- or drag the selection itself to move it elsewhere in the track. Keeps everything locked to the beat: cutting silences that part, moving never shifts the rest of the track.",
       cutSelectedLabel:"{dur}s selected",
       cutBtn:"✂ Cut", cutClearBtn:"✕ Clear", cutUndoBtn:"↺ Undo Cut",
       cutDoneToast:'"{name}": section cut',
+      moveDoneToast:'"{name}": section moved',
       tuneKeyLabel:"Auto-Tune Key", tuneChromatic:"Chromatic (all notes)", scaleMajor:"Major", scaleMinor:"Minor",
       tuneKeyHint:"Set your song's key so Tune only snaps to notes that fit it.",
       keyAnalyzing:"Listening to your beat to find its key…",
@@ -2371,10 +2379,11 @@ calibrateSyncTapBtn:"TOCAR",
       cleanHint:"Silencia el aire muerto entre frases (siseo, ruido de cuarto, respiraciones) en cada voz, sin mover nada en el tiempo.",
       cleanDone:"Se silenció {pct}% de aire muerto en {n} pista(s). El tiempo sigue alineado con tu beat.",
       cleanNone:"No hay silencios lo bastante largos para limpiar. Tus voces ya estaban limpias.",
-      cutHint:"Arrastra sobre la onda para seleccionar una sección y cortarla. Todo se mantiene alineado con el beat -- silencia esa parte en vez de mover el resto de la pista.",
+      cutHint:"Arrastra sobre la onda para seleccionar una sección y cortarla -- o arrastra la selección misma para moverla a otra parte de la pista. Todo se mantiene alineado con el beat: cortar silencia esa parte, mover nunca desplaza el resto de la pista.",
       cutSelectedLabel:"{dur}s seleccionados",
       cutBtn:"✂ Cortar", cutClearBtn:"✕ Borrar", cutUndoBtn:"↺ Deshacer corte",
       cutDoneToast:'"{name}": sección cortada',
+      moveDoneToast:'"{name}": sección movida',
       tuneKeyLabel:"Tono del Auto-Tune", tuneChromatic:"Cromático (todas las notas)", scaleMajor:"Mayor", scaleMinor:"Menor",
       tuneKeyHint:"Elige el tono de tu canción para que Tune solo se ajuste a notas que encajan.",
       keyAnalyzing:"Escuchando tu beat para encontrar su tono…",
@@ -5910,14 +5919,27 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     if (btnVocalSolo) { btnVocalSolo.classList.toggle("on", vocalGroupSolo); btnVocalSolo.setAttribute("aria-pressed", String(vocalGroupSolo)); }
   }
 
-  function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_REFERENCE_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file){
+  function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_REFERENCE_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file, opts){
     if (!file) return;
+    opts = opts || {};
     // The Mix/Unlimited gate used to live on the Vocal Only/Full Song Mix
     // tab switch itself -- now that there's only one view (vocal recording
     // with the beat-drop area always right there beside it), this is the
     // actual point a free/Starter account would otherwise get a beat mixed
     // in for free, so the gate moved here.
-    if (!isTierAtLeast("mix")){ openTierGate("fullMix"); return; }
+    //
+    // opts.skipTierGate is for restoring a previously-saved project (see
+    // openNamedProject/openCloudProject/offerProjectResume): a saved record
+    // only ever has a beat in it if this account already had mix/unlimited
+    // access when it was saved, and restoring the lead/extra vocal files
+    // never re-checks entitlement either. currentPlan starts as "starter"
+    // and only becomes accurate once the async /api/verify-token round trip
+    // (verifyStoredToken) finishes and calls window.gemstarApplyTier -- a
+    // restore can easily run before that resolves (it's triggered by the
+    // user clicking Resume/Open, which can happen within a second of page
+    // load), so gating it here was silently dropping a legitimately-saved
+    // beat and leaving only the recorded vocal files behind on reopen.
+    if (!opts.skipTierGate && !isTierAtLeast("mix")){ openTierGate("fullMix"); return; }
     ensureContext();
     var reader = new FileReader();
     reader.onload = function(e){
@@ -10036,6 +10058,14 @@ return {onBeat:onBeat, clear:clear, render:render};
   var btnWfCutUndo = document.getElementById("btn-wf-cut-undo");
   var cutSelStart = null, cutSelEnd = null, cutDragging = false;
   var MIN_CUT_SEC = 0.05; // ignore a stray tap/click -- only a real drag counts
+  // Drag-to-move state: starting a NEW drag inside the CURRENT selection
+  // moves that slice instead of redefining the selection (see the
+  // pointerdown handler below). cutMoveOrigA/B are the selection's bounds
+  // (seconds, same basis as cutSelStart/cutSelEnd) at the moment the move
+  // began, so the drop can be computed from how far the pointer traveled
+  // rather than from an absolute position that could drift from where the
+  // user actually grabbed the slice.
+  var cutMoveDragging = false, cutMoveOrigA = null, cutMoveOrigB = null, cutMoveGrabT = null;
 
   function cutTargetBuffer(){
     var t = editTargetTrack();
@@ -10044,6 +10074,24 @@ return {onBeat:onBeat, clear:clear, render:render};
   function setCutTargetBuffer(buf){
     var t = editTargetTrack();
     if (t) t.buffer = buf; else audioBuffer = buf;
+  }
+  function cutTargetFile(){
+    var t = editTargetTrack();
+    return t ? t._file : leadTrack._file;
+  }
+  function setCutTargetFile(file){
+    var t = editTargetTrack();
+    if (t) t._file = file; else leadTrack._file = file;
+  }
+  // Cut and Move both replace a track's live AudioBuffer but, until this,
+  // left its _file (the blob autosave/cloud-sync actually persists -- see
+  // saveProjectNow/captureNamedProjectRecord) pointing at the OLD audio.
+  // The edit played back fine in the same tab, then silently vanished on
+  // reload or cloud-sync. Re-encoding straight from whichever buffer is
+  // becoming live (forward edit OR an undo) keeps the two in sync no
+  // matter how that buffer got there.
+  function fileFromBuffer(buf, filenameHint){
+    return new File([encodeWavBlobMultiChannel(buf)], filenameHint, {type:"audio/wav"});
   }
   // Keeps a thin cursor sweeping across the Step 2 waveform in sync with
   // playback -- the canvas itself no longer redraws during playback (see
@@ -10128,22 +10176,106 @@ return {onBeat:onBeat, clear:clear, render:render};
   if (canvas){
     canvas.style.touchAction = "none";
     canvas.addEventListener("pointerdown", function(e){
-      if (!cutTargetBuffer()) return;
-      cutDragging = true;
+      var buf = cutTargetBuffer();
+      if (!buf) return;
+      var t0 = timeFromClientX(e.clientX);
+      // Starting the drag INSIDE the selection that's already there moves
+      // that slice instead of replacing the selection with a brand new
+      // (zero-length, at this point) one -- same gesture either way, the
+      // cursor's start position decides which one the user meant.
+      var hasSel = cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) >= MIN_CUT_SEC;
+      var selA = hasSel ? Math.min(cutSelStart, cutSelEnd) : null;
+      var selB = hasSel ? Math.max(cutSelStart, cutSelEnd) : null;
       try { canvas.setPointerCapture(e.pointerId); } catch(err){}
       e.preventDefault();
-      var t0 = timeFromClientX(e.clientX);
+      if (hasSel && t0 >= selA && t0 <= selB){
+        cutMoveDragging = true;
+        cutMoveOrigA = selA; cutMoveOrigB = selB; cutMoveGrabT = t0;
+        if (wfSelectionEl) wfSelectionEl.classList.add("moving");
+        canvas.style.cursor = "grabbing";
+        return;
+      }
+      cutDragging = true;
       cutSelStart = t0; cutSelEnd = t0;
       updateSelectionOverlay();
       updateCutBar();
     });
     canvas.addEventListener("pointermove", function(e){
+      if (cutMoveDragging){
+        var buf = cutTargetBuffer();
+        if (!buf) return;
+        var t = timeFromClientX(e.clientX);
+        var sliceLen = cutMoveOrigB - cutMoveOrigA;
+        var maxA = Math.max(0, buf.duration - sliceLen);
+        var newA = Math.max(0, Math.min(maxA, cutMoveOrigA + (t - cutMoveGrabT)));
+        // Live preview only -- reuses the existing selection overlay to show
+        // where the slice would land, without touching the actual audio
+        // until the drag is released (committing on every pointermove would
+        // mean re-encoding/redrawing dozens of times per drag).
+        cutSelStart = newA; cutSelEnd = newA + sliceLen;
+        updateSelectionOverlay();
+        return;
+      }
       if (!cutDragging) return;
       cutSelEnd = timeFromClientX(e.clientX);
       updateSelectionOverlay();
       updateCutBar();
     });
+    function commitMoveDrag(){
+      cutMoveDragging = false;
+      canvas.style.cursor = "";
+      if (wfSelectionEl) wfSelectionEl.classList.remove("moving");
+      var buf = cutTargetBuffer();
+      var destA = Math.min(cutSelStart, cutSelEnd);
+      // Treat a release that barely moved as "never mind" rather than
+      // committing a no-op edit (and spamming an undo toast for it) --
+      // snapping back to the exact original bounds also clears out any
+      // float drift from the live-preview math above.
+      if (!buf || Math.abs(destA - cutMoveOrigA) < MIN_CUT_SEC){
+        cutSelStart = cutMoveOrigA; cutSelEnd = cutMoveOrigB;
+        updateSelectionOverlay();
+        updateCutBar();
+        return;
+      }
+      ensureContext(); // same defensive call silenceRegion() makes before using ctx.createBuffer
+      var wasPlaying = isPlaying;
+      if (wasPlaying) stopPlayback();
+      var prevBuffer = buf;
+      var prevFile = cutTargetFile();
+      var name = cutTargetName();
+      var moved = moveAudioSlice(ctx.createBuffer.bind(ctx), buf, cutMoveOrigA, cutMoveOrigB, destA);
+      if (!moved){ cutSelStart = cutMoveOrigA; cutSelEnd = cutMoveOrigB; updateSelectionOverlay(); updateCutBar(); if (wasPlaying) startPlayback(); return; }
+      var movedFile = fileFromBuffer(moved, "gemstar-move.wav");
+      setCutTargetBuffer(moved);
+      setCutTargetFile(movedFile);
+      setCutUndoBuffer(prevBuffer);
+      updateCutUndoUI();
+      // Selection follows the slice to its new spot, so it's still right
+      // there to nudge again or cut if that's what comes next.
+      var sliceLen = cutMoveOrigB - cutMoveOrigA;
+      cutSelStart = destA; cutSelEnd = destA + sliceLen;
+      updateSelectionOverlay();
+      updateCutBar();
+      drawStaticWaveform();
+      afterVocalSetChanged();
+      if (wasPlaying) startPlayback();
+      showUndoToast(STR[lang].moveDoneToast.replace("{name}", name), function(){
+        var wasPlaying2 = isPlaying;
+        if (wasPlaying2) stopPlayback();
+        setCutTargetBuffer(prevBuffer);
+        setCutTargetFile(prevFile);
+        setCutUndoBuffer(null);
+        updateCutUndoUI();
+        cutSelStart = cutMoveOrigA; cutSelEnd = cutMoveOrigB;
+        updateSelectionOverlay();
+        updateCutBar();
+        drawStaticWaveform();
+        afterVocalSetChanged();
+        if (wasPlaying2) startPlayback();
+      });
+    }
     function endCutDrag(){
+      if (cutMoveDragging){ commitMoveDrag(); return; }
       if (!cutDragging) return;
       cutDragging = false;
       if (cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) < MIN_CUT_SEC){
@@ -10179,6 +10311,73 @@ return {onBeat:onBeat, clear:clear, render:render};
     return out;
   }
 
+  // Moves the slice [srcStartSec, srcEndSec) to start at destStartSec,
+  // silencing the vacated source region exactly like silenceRegion() above
+  // (there's no "underneath" audio on a single track to reveal, so vacating
+  // a slice means silence there, same as Cut). Never changes the buffer's
+  // length or duration -- the destination clamps to stay inside the track
+  // instead of letting the slice run past the end, same "never shift time"
+  // rule as Cut/Clean Silence (this track's sync with the beat and every
+  // other track never moves, only this slice's position within it). Reads
+  // the slice from the ORIGINAL buffer before silencing anything, so an
+  // overlapping drag (source and destination ranges overlap) still gets a
+  // clean copy with no doubled/missing audio. Verified against 7 cases
+  // (non-overlapping, overlapping, end-clamping, move-from-start, stereo,
+  // very-short-slice, zero-length-guard) in move_slice_test.js before ever
+  // touching this file.
+  var MOVE_FADE_SEC = 0.02; // 20ms, matches silenceRegion()'s fade
+  function moveAudioSlice(ctxCreateBuffer, buffer, srcStartSec, srcEndSec, destStartSec){
+    var sr = buffer.sampleRate;
+    var nch = buffer.numberOfChannels;
+    var n = buffer.length;
+    var srcA = Math.max(0, Math.min(n, Math.round(srcStartSec * sr)));
+    var srcB = Math.max(0, Math.min(n, Math.round(srcEndSec * sr)));
+    if (srcB <= srcA) return null;
+    var sliceLen = srcB - srcA;
+    var maxDestA = Math.max(0, n - sliceLen);
+    var destA = Math.max(0, Math.min(maxDestA, Math.round(destStartSec * sr)));
+    var sFade = Math.max(1, Math.min(Math.round(sr * MOVE_FADE_SEC), Math.floor(sliceLen / 2)));
+    var pFade = Math.max(1, Math.min(Math.round(sr * MOVE_FADE_SEC), Math.floor(sliceLen / 2)));
+
+    var out = ctxCreateBuffer(nch, n, sr);
+    for (var c = 0; c < nch; c++){
+      var src = buffer.getChannelData(c);
+      var dst = out.getChannelData(c);
+      dst.set(src);
+
+      // Extract the slice from the ORIGINAL (untouched) source -- always
+      // correct even when the destination overlaps the source range, since
+      // we never read from dst for this part.
+      var sliceData = src.slice(srcA, srcB);
+
+      // Silence the source region on dst (same fade-at-edges approach as
+      // silenceRegion()).
+      var fs = Math.max(0, srcA - sFade);
+      for (var i = fs; i < srcA; i++) dst[i] = src[i] * ((srcA - i) / sFade);
+      for (i = srcA; i < srcB; i++) dst[i] = 0;
+      var fe = Math.min(n, srcB + sFade);
+      for (i = srcB; i < fe; i++) dst[i] = src[i] * ((i - srcB) / sFade);
+
+      // Paste the slice at the destination, crossfading both edges against
+      // whatever is now in dst at those positions (silence if it overlaps
+      // the just-silenced source, or untouched background audio otherwise).
+      for (i = 0; i < sliceLen; i++){
+        var pos = destA + i;
+        var val = sliceData[i];
+        if (i < pFade){
+          var t = (i + 1) / (pFade + 1);
+          dst[pos] = dst[pos] * (1 - t) + val * t;
+        } else if (i >= sliceLen - pFade){
+          var t2 = (sliceLen - i) / (pFade + 1);
+          dst[pos] = val * t2 + dst[pos] * (1 - t2);
+        } else {
+          dst[pos] = val;
+        }
+      }
+    }
+    return out;
+  }
+
   if (btnWfCut) btnWfCut.addEventListener("click", function(){
     var buf = cutTargetBuffer();
     if (!buf || cutSelStart == null || cutSelEnd == null) return;
@@ -10188,8 +10387,11 @@ return {onBeat:onBeat, clear:clear, render:render};
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
     var prevBuffer = buf; // AudioBuffers are immutable -- holding this costs nothing
+    var prevFile = cutTargetFile();
     var name = cutTargetName();
-    setCutTargetBuffer(silenceRegion(buf, a, b));
+    var cutBuf = silenceRegion(buf, a, b);
+    setCutTargetBuffer(cutBuf);
+    setCutTargetFile(fileFromBuffer(cutBuf, "gemstar-cut.wav")); // keeps autosave/cloud-sync (which persist _file, not the live buffer) in sync with the cut
     setCutUndoBuffer(prevBuffer);
     updateCutUndoUI();
     clearCutSelection();
@@ -10199,6 +10401,7 @@ return {onBeat:onBeat, clear:clear, render:render};
       var wasPlaying2 = isPlaying;
       if (wasPlaying2) stopPlayback();
       setCutTargetBuffer(prevBuffer);
+      setCutTargetFile(prevFile);
       setCutUndoBuffer(null);
       updateCutUndoUI();
       drawStaticWaveform();
@@ -10212,6 +10415,12 @@ return {onBeat:onBeat, clear:clear, render:render};
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
     setCutTargetBuffer(buf);
+    // Regenerated rather than tracked alongside cutUndoBuffer through every
+    // snapshot/promote/swap path that field already flows through (session
+    // save, promote-extra-to-lead, etc.) -- re-encoding straight from the
+    // buffer being restored is always correct no matter which of those
+    // paths it arrived through, with no extra state to keep in sync.
+    setCutTargetFile(fileFromBuffer(buf, "gemstar-cut-undo.wav"));
     setCutUndoBuffer(null);
     updateCutUndoUI();
     drawStaticWaveform();
@@ -10613,7 +10822,7 @@ return {onBeat:onBeat, clear:clear, render:render};
       // it decodes, re-levels for drop, and wires up key/BPM detection, all
       // of which applyNamedProjectSettings below then fine-tunes back to the
       // saved level/EQ/mute/solo.
-      if (rec.beat) handleBeatFile(new File([rec.beat.blob], rec.beat.name, {type: rec.beat.blob.type || rec.beat.type || ""}));
+      if (rec.beat) handleBeatFile(new File([rec.beat.blob], rec.beat.name, {type: rec.beat.blob.type || rec.beat.type || ""}), {skipTierGate: true});
     }).then(function(){
       applyNamedProjectSettings(rec.settings);
       exportStatus.textContent = STR[lang].savedProjectOk;
@@ -10932,7 +11141,7 @@ return {onBeat:onBeat, clear:clear, render:render};
         // half of why the beat vanished for a verified/synced account.
         if (data.beat && data.beat.url){
           return fetch(data.beat.url).then(function(r){ return r.blob(); }).then(function(blob){
-            return handleBeatFile(new File([blob], data.beat.name || "beat", {type: blob.type}));
+            return handleBeatFile(new File([blob], data.beat.name || "beat", {type: blob.type}), {skipTierGate: true});
           });
         }
       }).then(function(){
@@ -10969,7 +11178,9 @@ return {onBeat:onBeat, clear:clear, render:render};
         });
         // The beat used to be silently dropped by this autosave/resume path
         // entirely -- see the comment on the beat field in saveProjectNow.
-        if (rec.beat) handleBeatFile(new File([rec.beat.blob], rec.beat.name, {type: rec.beat.blob.type || rec.beat.type || ""}));
+        // skipTierGate: true for the same reason as openNamedProject/
+        // openCloudProject -- see the comment on handleBeatFile's opts.
+        if (rec.beat) handleBeatFile(new File([rec.beat.blob], rec.beat.name, {type: rec.beat.blob.type || rec.beat.type || ""}), {skipTierGate: true});
         if (rec.beatSettings) applyBeatSettings(rec.beatSettings);
       }, {once:true});
       if (noBtn) noBtn.addEventListener("click", function(){
