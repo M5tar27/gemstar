@@ -1135,6 +1135,10 @@
 
   /* ---------------- access gate (export-only) ---------------- */
   .console{position:relative;}
+  .free-tier-title{
+    text-align:center; font-family:var(--font-display); font-weight:700;
+    font-size:1.45rem; color:var(--cyan); margin:0 0 10px; letter-spacing:0.02em;
+  }
   .free-tier-note{
     text-align:center; font-size:0.78rem; color:var(--ink-muted);
     margin:0 0 14px; letter-spacing:0.02em;
@@ -1150,7 +1154,7 @@
   .inline-subscribe-cta:hover{transform:translateY(-1px); box-shadow:0 10px 28px -8px rgba(0,245,255,0.5);}
   .single-export-link{
     display:flex; align-items:center; justify-content:center; gap:6px;
-    width:fit-content; margin:-6px auto 18px;
+    width:fit-content; margin:0 auto 18px;
     padding:9px 22px; border-radius:999px; border:1px solid var(--line-strong);
     background:var(--bg-panel-2); font-size:0.78rem; font-weight:700; letter-spacing:0.02em;
     color:var(--ink); text-decoration:none; text-align:center;
@@ -1405,9 +1409,10 @@
         </div>
       </div>
     </div>
-    <p class="free-tier-note"><strong>Free to try</strong> — dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock Full Song Mix (Unlimited also unlocks the M5tar &amp; Jewels signature knobs); any plan unlocks export.</p>
-    <a href="#pricing" id="inline-subscribe-btn" class="inline-subscribe-cta" data-i18n="join">Subscribe Now</a>
+    <p class="free-tier-title">Free to try</p>
     <a href="https://buy.stripe.com/aFa6oGgze0ov1gSgcz1RC04" id="single-export-btn" class="single-export-link" target="_blank" rel="noopener" data-i18n="singleExportBtn">Export 1 track for $3.99 — no commitment</a>
+    <p class="free-tier-note">Dial in the core vocal chain live. Subscribe to Mix or Unlimited to unlock Full Song Mix (Unlimited also unlocks the M5tar &amp; Jewels signature knobs); any plan unlocks export.</p>
+    <a href="#pricing" id="inline-subscribe-btn" class="inline-subscribe-cta" data-i18n="join">Subscribe Now</a>
     <div class="transport">
       <div class="mode-toggle" role="tablist" aria-label="Mix mode" hidden>
         <button type="button" class="mode-btn" id="mode-full" role="tab" aria-selected="false">
