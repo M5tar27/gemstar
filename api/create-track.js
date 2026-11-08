@@ -29,6 +29,13 @@ module.exports = async (req, res) => {
   if (!Number.isFinite(bpm) || bpm < 30 || bpm > 300) bpm = null;
   const ext = ALLOWED_EXT.indexOf(String(body.ext || "wav").toLowerCase()) === -1 ? "wav" : String(body.ext).toLowerCase();
 
+  // How many layers ONE invited collaborator can add to this track -- set
+  // once at creation time from the owner's tier at that moment, so a later
+  // tier change (up or down) doesn't retroactively reshuffle limits on
+  // tracks already shared out. Unlimited gets more headroom per friend
+  // since the track itself has no cap; Mix keeps it tighter.
+  const maxLayersPerCollaborator = who.tier === "unlimited" ? 8 : 2;
+
   try {
     const trackId = crypto.randomUUID();
     const audioPath = `${trackId}/base.${ext}`;
@@ -39,7 +46,10 @@ module.exports = async (req, res) => {
     await C.sbRest(cfg, "gemstar_tracks", {
       method: "POST",
       headers: Object.assign({}, cfg.headers, { Prefer: "return=minimal" }),
-      body: JSON.stringify({ id: trackId, owner_email: who.email, title, bpm, base_audio_path: audioPath }),
+      body: JSON.stringify({
+        id: trackId, owner_email: who.email, title, bpm, base_audio_path: audioPath,
+        max_layers_per_collaborator: maxLayersPerCollaborator,
+      }),
     });
     await C.sbRest(cfg, "gemstar_track_members", {
       method: "POST",
