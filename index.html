@@ -10332,6 +10332,36 @@ return {onBeat:onBeat, clear:clear, render:render};
   // browser, not just the one that saved it -- and an owner can share a
   // project with another Gemstar user by email. Local saves above are
   // untouched and still work instantly/offline even without verifying.
+  //
+  // BUG FIX: the four constants below used to be declared only inside the
+  // separate access-gate <script> block further down this page (its own
+  // standalone closure -- see the comment on window.gemstarLang for why
+  // that split exists). hasCloudToken/cloudApi here live in THIS script
+  // block instead, which is a different closure with no visibility into
+  // that one's local variables -- so every reference to STORE_KEY/
+  // DEVICE_KEY here was silently resolving to a ReferenceError, which the
+  // try/catch in hasCloudToken/cloudApi was swallowing every time. Net
+  // effect: hasCloudToken() always returned false, so cloud sync ("Save
+  // Project As...", "My Projects", and the quick-save sync added below)
+  // silently never ran for anyone, ever -- no crash, no console error,
+  // just nothing uploaded. These are plain localStorage KEY NAMES (not
+  // live values shared between scripts), so the fix is just giving this
+  // script its own copies of the same string constants -- matching
+  // key names are all two independent scripts need to agree on to read
+  // and write the same localStorage entry.
+  var STORE_KEY = "gemstar_access_token";
+  var DEVICE_KEY = "gemstar_device_id";
+  // The cloud-project id for this browser's plain "Save Project" (quick
+  // autosave) record, once it has been synced to the cloud at least once.
+  // Keeping it means every later quick-save updates that same cloud row
+  // (via the save endpoint's projectId-is-a-UUID update path) instead of
+  // creating a new one each time -- see syncQuickSaveToCloud below.
+  var QUICK_SAVE_CLOUD_ID_KEY = "gemstar_quicksave_cloud_id";
+  // Tracks the "at" timestamp (from the raw IndexedDB record) of the
+  // newest quick-save this device has already pushed to the cloud via
+  // syncLocalQuickSaveIfNeeded, so an unchanged local save isn't
+  // re-uploaded on every single page load.
+  var QUICK_SAVE_SYNCED_AT_KEY = "gemstar_quicksave_synced_at";
   function hasCloudToken(){
     try { return !!localStorage.getItem(STORE_KEY); } catch(e){ return false; }
   }
@@ -10433,6 +10463,57 @@ return {onBeat:onBeat, clear:clear, render:render};
     }).then(function(){
       renderCloudProjectsList();
     }).catch(function(){ /* best-effort -- the local quick-save already succeeded */ });
+  }
+
+  // Covers quick-saves that already existed in this browser's local
+  // IndexedDB BEFORE syncQuickSaveToCloud shipped (or from any later visit
+  // where someone quick-saved, closed the tab, and never clicked Save
+  // Project again) -- those never had a chance to reach the cloud, because
+  // syncQuickSaveToCloud only ever ran from the button click, and nothing
+  // else was watching the local record. This reads the raw saved record
+  // straight out of IndexedDB and uploads it directly, with no audio
+  // decode and no dependency on the "Resume previous session?" banner
+  // (offerProjectResume) being accepted -- so it runs quietly on page load
+  // and doesn't change that banner's own behavior at all. A record is only
+  // re-uploaded once per save (tracked by its own "at" timestamp against
+  // QUICK_SAVE_SYNCED_AT_KEY), so repeat visits with nothing new to sync
+  // don't re-upload the same audio over and over.
+  function syncLocalQuickSaveIfNeeded(){
+    if (!hasCloudToken()) return Promise.resolve();
+    return idbGet(PROJECT_KEY).then(function(rec){
+      if (!rec || (!rec.lead && !rec.beat && (!rec.extras || !rec.extras.length))) return;
+      var lastSyncedAt = 0;
+      try { lastSyncedAt = parseInt(localStorage.getItem(QUICK_SAVE_SYNCED_AT_KEY) || "0", 10) || 0; } catch(e){}
+      if (rec.at && rec.at <= lastSyncedAt) return; // this exact save already made it up
+
+      var leadFile = rec.lead ? rec.lead.blob : null;
+      var extraFiles = (rec.extras || []).map(function(e){ return e.blob; });
+      var beatFileToUpload = rec.beat ? rec.beat.blob : null;
+      var existingId = getQuickSaveCloudId();
+      var name = (rec.lead && rec.lead.name) || (rec.beat && rec.beat.name) || STR[lang].saveAsProjectDefault;
+      var payload = {action: "save",
+        name: name,
+        settings: {beat: rec.beatSettings || null},
+        lead: leadFile ? {name: leadFile.name, ext: cloudExtOf(leadFile)} : null,
+        extras: extraFiles.map(function(f){ return {name: f.name, ext: cloudExtOf(f)}; }),
+        beat: beatFileToUpload ? {name: beatFileToUpload.name, ext: cloudExtOf(beatFileToUpload)} : null,
+      };
+      if (existingId) payload.projectId = existingId;
+      return cloudApi("projects", payload).then(function(res){
+        if (!res.ok || !res.d || !res.d.projectId) return;
+        setQuickSaveCloudId(res.d.projectId);
+        var uploads = [];
+        if (leadFile && res.d.leadUploadUrl) uploads.push(cloudPutFile(res.d.leadUploadUrl, leadFile));
+        (res.d.extraUploadUrls || []).forEach(function(u, i){
+          if (u && extraFiles[i]) uploads.push(cloudPutFile(u, extraFiles[i]));
+        });
+        if (beatFileToUpload && res.d.beatUploadUrl) uploads.push(cloudPutFile(res.d.beatUploadUrl, beatFileToUpload));
+        return Promise.all(uploads);
+      }).then(function(){
+        if (rec.at){ try { localStorage.setItem(QUICK_SAVE_SYNCED_AT_KEY, String(rec.at)); } catch(e){} }
+        renderCloudProjectsList();
+      });
+    }).catch(function(){ /* best-effort, silent -- never interrupts page load over this */ });
   }
 
   var cloudProjectsListEl = document.getElementById("cloud-projects-list");
@@ -10687,6 +10768,12 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   syncTuneKeyUI();
   restoreSession();
   offerProjectResume();
+  // Quietly pushes any already-existing local quick-save up to the cloud
+  // for a verified user, independent of whether they accept/decline the
+  // resume banner above -- see syncLocalQuickSaveIfNeeded for why this is
+  // the path that actually makes an old local-only save show up on
+  // another device.
+  syncLocalQuickSaveIfNeeded();
   (function(){
     var seen = false;
     try { seen = localStorage.getItem(WELCOME_SEEN_KEY) === "1"; } catch(e){}
@@ -10743,12 +10830,6 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   var SINGLE_EXPORT_UNLOCK_KEY = "gemstar_single_export_unlock";
   var SINGLE_EXPORT_UNLOCK_FRESH_MS = 2 * 60 * 1000;
   var DEVICE_KEY = "gemstar_device_id";
-  // The cloud-project id for this browser's plain "Save Project" (quick
-  // autosave) record, once it has been synced to the cloud at least once.
-  // Keeping it means every later quick-save updates that same cloud row
-  // (via the save endpoint's projectId-is-a-UUID update path) instead of
-  // creating a new one each time -- see syncQuickSaveToCloud below.
-  var QUICK_SAVE_CLOUD_ID_KEY = "gemstar_quicksave_cloud_id";
   var pendingAction = "export";
   var currentChallenge = null;
   var currentEmail = "";
