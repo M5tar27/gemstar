@@ -5930,6 +5930,22 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
             afterVocalSetChanged();
             if (wp) startPlayback();
           });
+        } else {
+          // First-ever recording of the lead vocal, not a re-record --
+          // handleFile() above just hid #record-panel (the thing the user
+          // was looking at) and revealed #player-block instead, but the
+          // page itself never scrolls, so whatever happened to be at the
+          // old scroll position (often something further down, like the
+          // mixer) is what's left on screen. That buries both their new
+          // track AND the "Record Vocal Track" button right next to it,
+          // which is exactly the "easy to add another track" ask -- it's
+          // not that the button is hard to find, it's that it's offscreen.
+          // Scroll the lead row (Re-record/Remove/Change File, with
+          // "+ Add Vocal Track"/"Record Vocal Track" right under it) to
+          // the top so adding another take is the next obvious thing.
+          if (leadTrackRowEl && leadTrackRowEl.scrollIntoView){
+            leadTrackRowEl.scrollIntoView({behavior: "smooth", block: "start"});
+          }
         }
       });
     }
