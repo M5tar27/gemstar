@@ -2092,6 +2092,7 @@ calibrateSyncTapBtn:"TAP",
       exportErr:"Export needs a loaded track first.",
       saveProjectBtn:"💾 Save Project", savingProject:"Saving…", savedProjectOk:"Saved.", savedProjectErr:"Couldn't save — your browser may be in private mode.",
       resumeProjectText:"You have a saved session from last time.", resumeProjectYes:"Resume", resumeProjectNo:"Discard",
+      resumeProjectCloudText:"We found your last project saved to your account — resume it?",
       saveAsProjectBtn:"💾 Save Project As…", openProjectsBtn:"📁 My Projects",
       saveAsProjectPrompt:"Name this project:", saveAsProjectDefault:"My Project",
       savedAsProjectOk:"Saved as \"{name}\" — find it anytime under My Projects.",
@@ -2334,6 +2335,7 @@ calibrateSyncTapBtn:"TOCAR",
       exportErr:"Primero carga una pista para exportar.",
       saveProjectBtn:"💾 Guardar Proyecto", savingProject:"Guardando…", savedProjectOk:"Guardado.", savedProjectErr:"No se pudo guardar — tu navegador puede estar en modo privado.",
       resumeProjectText:"Tienes una sesión guardada de la última vez.", resumeProjectYes:"Continuar", resumeProjectNo:"Descartar",
+      resumeProjectCloudText:"Encontramos tu último proyecto guardado en tu cuenta — ¿quieres continuarlo?",
       saveAsProjectBtn:"💾 Guardar Proyecto Como…", openProjectsBtn:"📁 Mis Proyectos",
       saveAsProjectPrompt:"Nombra este proyecto:", saveAsProjectDefault:"Mi Proyecto",
       savedAsProjectOk:"Guardado como \"{name}\" — encuéntralo en Mis Proyectos cuando quieras.",
@@ -3306,6 +3308,18 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "interactive", sampleRate: 48000});
     buildChain();
   }
+
+  // Exposed for the separate access-gate script (its own closure -- see
+  // the STORE_KEY comment further down) to nudge an existing *suspended*
+  // context back to running on the page's first click/keypress, without
+  // being able to see this script's own ctx variable directly. Deliberately
+  // does NOT call ensureContext(): someone's first click on the page can
+  // happen before any track is ever loaded, and this should only resume a
+  // context that already exists, never construct one just because of a
+  // click that has nothing to do with audio.
+  window.gemstarResumeCtxIfSuspended = function(){
+    if (ctx && ctx.state === "suspended") ctx.resume().catch(function(){});
+  };
 
   // ctx.resume() is async. Firing it and then immediately scheduling
   // buffer-source .start() times (or reading ctx.currentTime) without
@@ -11439,7 +11453,11 @@ return {onBeat:onBeat, clear:clear, render:render};
   // levels/pan/role for a file of that name, so nothing extra is needed here.
   function offerProjectResume(){
     idbGet(PROJECT_KEY).then(function(rec){
-      if (!rec || (!rec.lead && !rec.beat && (!rec.extras || !rec.extras.length))) return;
+      // Nothing saved in THIS browser -- doesn't mean nothing to resume.
+      // For a signed-in account, the real "last session" may live only in
+      // the cloud (saved from a different device/browser). Falls back
+      // there instead of silently staying quiet.
+      if (!rec || (!rec.lead && !rec.beat && (!rec.extras || !rec.extras.length))){ tryCloudResume(); return; }
       var banner = document.getElementById("resume-project-banner");
       var yesBtn = document.getElementById("resume-project-yes");
       var noBtn = document.getElementById("resume-project-no");
@@ -11481,6 +11499,44 @@ return {onBeat:onBeat, clear:clear, render:render};
       }, {once:true});
     }).catch(function(){});
   }
+
+  // Cross-device counterpart to offerProjectResume above: that one only
+  // ever looks at this browser's own IndexedDB, so a verified user who
+  // last worked on a different device (or a fresh browser) never got
+  // offered anything, even though their last project is sitting right
+  // there in their account's cloud "My Projects". Reuses the exact same
+  // banner UI, just hydrated from the cloud instead of a local blob --
+  // and reuses openCloudProject itself for the actual load, so this is
+  // really just "find the right project id, then do what My Projects
+  // already does when you click one." Picks the most-recently-updated
+  // project the caller owns (the list endpoint already orders that way),
+  // the same "whatever I touched last" meaning a local resume has.
+  var cloudResumeAsked = false;
+  function tryCloudResume(){
+    if (cloudResumeAsked) return;
+    if (!hasCloudToken()) return;
+    if (audioBuffer || beatBuffer) return; // something's already loaded -- nothing to resume into
+    cloudResumeAsked = true;
+    cloudApi("projects", {action: "list"}).then(function(res){
+      if (!res.ok || !res.d || !Array.isArray(res.d.projects)) return;
+      if (audioBuffer || beatBuffer) return; // a race loaded something while this was in flight
+      var mine = res.d.projects.filter(function(p){ return p.isOwner; });
+      if (!mine.length) return;
+      var p = mine[0];
+      var banner = document.getElementById("resume-project-banner");
+      var textEl = document.getElementById("resume-project-text");
+      var yesBtn = document.getElementById("resume-project-yes");
+      var noBtn = document.getElementById("resume-project-no");
+      if (!banner || !yesBtn || !noBtn) return;
+      var origText = textEl ? textEl.textContent : "";
+      if (textEl) textEl.textContent = STR[lang].resumeProjectCloudText;
+      banner.classList.add("show");
+      function hide(){ banner.classList.remove("show"); if (textEl) textEl.textContent = origText; }
+      yesBtn.addEventListener("click", function(){ hide(); openCloudProject(p); }, {once:true});
+      noBtn.addEventListener("click", function(){ hide(); }, {once:true});
+    }).catch(function(){});
+  }
+  window.gemstarTryCloudResume = tryCloudResume;
 
   function savedTrack(name){
     return (savedSession && savedSession.tracks && name && savedSession.tracks[name]) || null;
@@ -11781,6 +11837,11 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     if (window.gemstarApplyTier) window.gemstarApplyTier(window.gemstarTier, legacyKnobs);
     if (manageSubLink) manageSubLink.hidden = false;
     if (inlineSubscribeBtn) inlineSubscribeBtn.hidden = true;
+    // Verifying is exactly the moment a brand-new device goes from "no
+    // account access" to "has it" -- the page-load resume check already
+    // ran before this token existed, so it never got a chance to look.
+    // Give it that chance now, same as reloading the page would.
+    if (window.gemstarTryCloudResume) window.gemstarTryCloudResume();
     setTimeout(function(){
       hideGate();
       setStatus(""); setCodeStatus("");
@@ -12024,7 +12085,12 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   // sits backgrounded for a while -- ctx.resume() on an already-running
   // context is a harmless no-op.
   function resumeAudioIfSuspended(){
-    if (ctx && ctx.state === "suspended") ctx.resume().catch(function(){});
+    // ctx lives in the main script's own closure, not this one (see the
+    // STORE_KEY comment above for why these two scripts stay separate) --
+    // this used to reference a bare `ctx` that was never defined here, so
+    // every visitor's very first click or keypress on the page threw a
+    // silent ReferenceError and this safety net never actually ran.
+    if (window.gemstarResumeCtxIfSuspended) window.gemstarResumeCtxIfSuspended();
   }
   document.addEventListener("pointerdown", resumeAudioIfSuspended, {passive:true});
   document.addEventListener("keydown", resumeAudioIfSuspended);
