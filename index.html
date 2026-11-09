@@ -1747,6 +1747,9 @@
         </select>
         <button class="pill-btn pill-purple" id="btn-save-preset" type="button" data-i18n="savePresetBtn">💾 Save Preset</button>
 <button class="pill-btn pill-purple" id="btn-delete-preset" type="button" aria-label="Delete this preset" style="display:none">🗑</button>
+<button class="pill-btn pill-purple" id="btn-export-presets" type="button" data-i18n="exportPresetsBtn">⬇ Export Presets</button>
+<button class="pill-btn pill-purple" id="btn-import-presets" type="button" data-i18n="importPresetsBtn">⬆ Import Presets</button>
+<input type="file" id="import-presets-input" accept="application/json,.json" hidden />
 <button class="pill-btn pill-purple" id="btn-reset" type="button" data-i18n="reset">Reset to Default</button>
         <button class="pill-btn pill-cyan" id="btn-midi" type="button">
           <span data-i18n="midiBtnLabel">MIDI</span><span class="midi-dot" id="midi-status-dot"></span>
@@ -2057,6 +2060,11 @@ calibrateSyncTapBtn:"TAP",
       inputReady:"INPUT · FILE · READY", inputLive:"INPUT · FILE · LIVE",
       changeFile:"Change File", play:"▶ Play", pause:"⏸ Pause", ab:"A/B: After", abBefore:"A/B: Before",
       preset:"Preset", reset:"Reset to Default", savePresetBtn:"💾 Save Preset", savePresetPrompt:"Name this preset:", savePresetDefault:"My Preset", myPresetsLabel:"My Presets", presetDeleteConfirm:"Delete preset \"{name}\"?", bypass:"Bypass",
+      exportPresetsBtn:"⬇ Export Presets", importPresetsBtn:"⬆ Import Presets",
+      exportPresetsNone:"You don't have any saved presets yet — save one first with 💾 Save Preset.",
+      importPresetsBadFile:"Couldn't read that as a Gemstar preset file.",
+      importPresetsNone:"That file didn't have any presets in it.",
+      importPresetsToast:"Imported {count} preset(s)",
       modeVocal:"Vocal Only", modeFull:"Full Song Mix",
       beatDzTitle:"Drop your beat here (MP3/WAV)", removeBeat:"Remove Beat", beatLevel:"Beat Level",
       beatLow:"Low", beatMid:"Mid", beatHigh:"High",
@@ -2143,6 +2151,7 @@ calibrateSyncTapBtn:"TAP",
       punchTooShort:"Didn't catch enough there — try the punch again.",
       removeLeadBtn:"🗑 Remove", removeLeadAria:"Remove the lead vocal",
       undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
+      autoAlignedToast:"Auto-aligned to the beat — drag the waveform anytime to fine-tune",
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
       tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
@@ -2293,6 +2302,11 @@ calibrateSyncTapBtn:"TOCAR",
       inputReady:"ENTRADA · ARCHIVO · LISTO", inputLive:"ENTRADA · ARCHIVO · EN VIVO",
       changeFile:"Cambiar Archivo", play:"▶ Reproducir", pause:"⏸ Pausar", ab:"A/B: Después", abBefore:"A/B: Antes",
       preset:"Preajuste", reset:"Restablecer", savePresetBtn:"💾 Guardar Preajuste", savePresetPrompt:"Nombra este preajuste:", savePresetDefault:"Mi Preajuste", myPresetsLabel:"Mis Preajustes", presetDeleteConfirm:"¿Eliminar el preajuste \"{name}\"?", bypass:"Anular",
+      exportPresetsBtn:"⬇ Exportar Preajustes", importPresetsBtn:"⬆ Importar Preajustes",
+      exportPresetsNone:"Todavía no tienes preajustes guardados — guarda uno primero con 💾 Guardar Preajuste.",
+      importPresetsBadFile:"No se pudo leer eso como un archivo de preajustes de Gemstar.",
+      importPresetsNone:"Ese archivo no tenía preajustes.",
+      importPresetsToast:"Se importaron {count} preajuste(s)",
       modeVocal:"Solo Voz", modeFull:"Mezcla De Canción Completa",
       beatDzTitle:"Suelta tu beat aquí (MP3/WAV)", removeBeat:"Quitar Beat", beatLevel:"Nivel Del Beat",
       beatLow:"Graves", beatMid:"Medios", beatHigh:"Agudos",
@@ -2379,6 +2393,7 @@ calibrateSyncTapBtn:"TOCAR",
       punchTooShort:"No se captó suficiente ahí — intenta el punch de nuevo.",
       removeLeadBtn:"🗑 Quitar", removeLeadAria:"Quitar la voz principal",
       undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
+      autoAlignedToast:"Alineado automáticamente al beat — arrastra la forma de onda cuando quieras para ajustar",
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
       tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle · acerca el zoom para ediciones precisas en canciones largas",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
@@ -2880,6 +2895,115 @@ var RECORD_MONITOR_PREROLL = 0.25; // seconds -- the lead-in before the recordin
     return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
   }
   function trackNudgeSec(tr){ return tr ? clampNudge(tr.nudgeSec || 0) : 0; }
+
+  /* ---------- Auto-align: automatically nudge a freshly recorded/uploaded
+     vocal onto the beat grid, so most takes land close to on-time without
+     ever touching the manual drag-to-nudge above -- the drag stays as the
+     fallback for fine-tuning or for whatever this can't confidently place.
+     Deliberately conservative: it only ever acts when it has a confident
+     BPM read and a real onset to measure from, and skips entirely (leaves
+     nudgeSec untouched) rather than force a correction it isn't sure about
+     -- a wrong auto-nudge would be worse than no nudge at all. ---------- */
+  // Finds the time (seconds, from the start of buf) of the first real,
+  // sustained sound in a buffer -- used both for a vocal's own onset (what
+  // we're trying to align) and for the beat's first downbeat (the anchor
+  // the grid is measured from). RMS-envelope based: peak-normalizes against
+  // the loudest moment in the scanned window, then looks for the first
+  // stretch that stays above a fraction of that peak for a few windows in a
+  // row, which a brief click/pop can't satisfy -- only a real, sustained
+  // onset can. Pure/side-effect-free and shaped to work on anything with
+  // getChannelData/sampleRate/duration, so it's unit-testable against a
+  // fake buffer the same way moveAudioSlice is.
+  function findOnsetSec(buf, opts){
+    opts = opts || {};
+    var sr = buf.sampleRate;
+    var data = buf.getChannelData(0);
+    var winLen = Math.max(1, Math.round((opts.winSec || 0.012) * sr));
+    var maxScanSec = Math.min(buf.duration, opts.maxScanSec || 20);
+    var nWin = Math.floor((maxScanSec * sr) / winLen);
+    if (nWin < 2) return null;
+    var rms = new Float64Array(nWin);
+    var peak = 0;
+    for (var w = 0; w < nWin; w++){
+      var start = w * winLen, end = Math.min(data.length, start + winLen);
+      var sum = 0;
+      for (var i = start; i < end; i++){ var v = data[i]; sum += v * v; }
+      var r = Math.sqrt(sum / Math.max(1, end - start));
+      rms[w] = r;
+      if (r > peak) peak = r;
+    }
+    if (peak <= 1e-6) return null; // silence/empty -- nothing to find
+    var thresh = peak * (opts.thresholdRatio || 0.12);
+    var sustainWins = opts.sustainWins || 3;
+    for (var w2 = 0; w2 <= nWin - sustainWins; w2++){
+      var ok = true;
+      for (var s = 0; s < sustainWins; s++){ if (rms[w2 + s] < thresh){ ok = false; break; } }
+      if (ok) return (w2 * winLen) / sr;
+    }
+    return null; // nothing cleared the bar with sustain -- bail rather than guess
+  }
+  // The nearest point to targetSec on a grid of beats spaced 60/bpm apart,
+  // measured from anchorSec (the beat's own detected downbeat, not assumed
+  // to be exactly buffer-time 0 -- a beat file can have a sliver of
+  // lead-in silence before the first hit).
+  function nearestBeatGridSec(targetSec, anchorSec, bpm){
+    var period = 60 / bpm;
+    if (!(period > 0)) return targetSec;
+    var n = Math.round((targetSec - anchorSec) / period);
+    return anchorSec + n * period;
+  }
+  // Combines the two onsets + the detected tempo into the one number that
+  // matters: how many seconds to nudge this vocal by. Returns null when it
+  // isn't confident enough to act at all (missing onset, low-confidence
+  // BPM, or a correction so large it's more likely wrong detection than a
+  // real drift), 0 when the take is already close enough to the grid to
+  // leave alone, otherwise the nudge to apply.
+  function computeAutoAlignNudge(opts){
+    if (opts.vocalOnsetSec == null || opts.beatAnchorSec == null || !opts.bpm) return null;
+    if (opts.confidence === "low") return null;
+    var grid = nearestBeatGridSec(opts.vocalOnsetSec, opts.beatAnchorSec, opts.bpm);
+    var nudge = grid - opts.vocalOnsetSec;
+    var nudgeMax = opts.nudgeMax != null ? opts.nudgeMax : TRACK_NUDGE_MAX;
+    var deadband = opts.deadbandSec != null ? opts.deadbandSec : 0.015;
+    if (Math.abs(nudge) > nudgeMax) return null;
+    if (Math.abs(nudge) < deadband) return 0;
+    return nudge;
+  }
+  // Orchestrates the above against a just-landed vocal track (freshly
+  // recorded OR uploaded -- both call this the same way) and, if a
+  // confident nudge comes back, applies it to that track's existing
+  // nudgeSec. opts.silent skips the toast for call sites that are already
+  // showing their own (a re-record's "Undo" toast already restores
+  // everything about the previous take, nudgeSec included -- see
+  // snapshotLead/applyLeadSnapshot, snapshotExtra/restoreExtraFromSnapshot,
+  // and the re-record-extra undo/retry paths), so this never competes with
+  // it for the one toast slot.
+  function autoAlignVocalToBeat(track, buf, opts){
+    opts = opts || {};
+    if (!track || !buf || !beatBuffer || !window.GemstarBPM) return;
+    window.GemstarBPM.detect(beatBuffer, {isCancelled: function(){ return false; }}).then(function(bpmRes){
+      if (!bpmRes) return;
+      var vocalOnset = findOnsetSec(buf);
+      var beatAnchor = findOnsetSec(beatBuffer);
+      if (beatAnchor === null) beatAnchor = 0; // most produced beats start right on the downbeat
+      var nudge = computeAutoAlignNudge({
+        vocalOnsetSec: vocalOnset, beatAnchorSec: beatAnchor, bpm: bpmRes.bpm, confidence: bpmRes.confidence
+      });
+      if (!nudge) return; // null (not confident) or 0 (already on grid) -- leave nudgeSec alone
+      var prevNudge = track.nudgeSec || 0;
+      track.nudgeSec = clampNudge(nudge);
+      if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+      if (typeof updatePlayheadUI === "function") updatePlayheadUI();
+      if (typeof scheduleSave === "function") scheduleSave();
+      if (opts.silent) return;
+      showUndoToast(STR[lang].autoAlignedToast, function(){
+        track.nudgeSec = prevNudge;
+        if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+        if (typeof updatePlayheadUI === "function") updatePlayheadUI();
+        if (typeof scheduleSave === "function") scheduleSave();
+      });
+    }).catch(function(){});
+  }
 
 // Zoom for the per-track waveform rows in "everything at once" (see
 // renderAllVocalsStrip()/addRow()) -- 0 is the original whole-song view
@@ -4630,6 +4754,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
       afterVocalSetChanged();
+      // Silent when this is a re-record (see mainRecorder.onCaptured below,
+      // which already has its own "Undo re-record" toast up and will
+      // restore nudgeSec along with everything else if that's clicked) --
+      // otherwise this is the vocal's first landing with nothing else
+      // competing for the toast, so auto-align gets to show its own.
+      autoAlignVocalToBeat(leadTrack, buf, {silent: !!opts.suppressAutoAlignToast});
       // Recorded straight into the tool (not uploaded) -- loop just the
       // take you just sang so you can hear it back right away instead of
       // it playing into silence/the rest of the song.
@@ -4677,11 +4807,20 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       mainVocalLevel = 1;
       if (leadVocalLevelSlider) leadVocalLevelSlider.value = "100";
       applySavedLeadSettings(loaded[0].name); if (beatBuffer) autoLevelVocalToBeat();
-      loaded.slice(1).forEach(function(item){ pushExtraVocal(item.name, item.buffer)._file = item.file; });
+      var pushedExtras = loaded.slice(1).map(function(item){
+        var t = pushExtraVocal(item.name, item.buffer);
+        t._file = item.file;
+        return {track: t, buffer: item.buffer};
+      });
       tlCursor = 0; tlRegion = null; tlLoop = false;
       showPlayerForLoadedVocal();
       renderExtraVocals();
       afterVocalSetChanged();
+      // Several tracks landing in one drop -- silent, since one toast per
+      // track would just flicker/replace itself; each still gets nudged,
+      // and the drag-to-nudge waveform is the visible way to check/adjust.
+      autoAlignVocalToBeat(leadTrack, loaded[0].buffer, {silent: true});
+      pushedExtras.forEach(function(p){ autoAlignVocalToBeat(p.track, p.buffer, {silent: true}); });
       if (wasPlaying) startPlayback();
     });
   }
@@ -5693,7 +5832,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
       // track -- pan/mute/solo/role and the FX knobs -- it only ever
       // replaces the buffer/name/file, so it's exactly what a true in-place
       // re-record needs with no extra plumbing.
-      handleFile(file, {loopJustRecorded: true}).then(function(){
+      handleFile(file, {loopJustRecorded: true, suppressAutoAlignToast: wasReRecord}).then(function(){
         reRecordLeadActive = false;
         reRecordLeadPrevSnapshot = null;
         if (btnRerecordCancel) btnRerecordCancel.hidden = true;
@@ -5777,6 +5916,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
       reRecordExtraTarget = null;
       reRecordExtraPrevBuffer = null;
       reRecordExtraPrevFile = null;
+      reRecordExtraPrevNudge = 0;
       lastCapturedExtraVocal = null;
       extraRecorder.stop();
       if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
@@ -6163,7 +6303,8 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     return {
       buffer: audioBuffer, originalBuffer: leadTrack.originalBuffer, cutUndoBuffer: leadTrack.cutUndoBuffer, file: leadTrack._file,
       name: trackNameEl.textContent, level: mainVocalLevel, values: Object.assign({}, leadValues),
-      pan: leadTrack.pan, muted: leadTrack.muted, solo: leadTrack.solo, role: leadTrack.role
+      pan: leadTrack.pan, muted: leadTrack.muted, solo: leadTrack.solo, role: leadTrack.role,
+      nudgeSec: leadTrack.nudgeSec || 0
     };
   }
   function applyLeadSnapshot(s){
@@ -6175,6 +6316,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     mainVocalLevel = s.level;
     leadValues = Object.assign({}, s.values);
     leadTrack.pan = s.pan; leadTrack.muted = s.muted; leadTrack.solo = s.solo; leadTrack.role = s.role;
+    leadTrack.nudgeSec = typeof s.nudgeSec === "number" ? s.nudgeSec : 0;
     if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel*100));
     if (editTarget === "lead") values = leadValues;
     applyAllParams();
@@ -6183,7 +6325,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     return {
       id: t.id, name: t.name, buffer: t.buffer, level: t.level, values: Object.assign({}, t.values),
       pan: t.pan, muted: t.muted, solo: t.solo, role: t.role, file: t._file, originalBuffer: t.originalBuffer,
-      cutUndoBuffer: t.cutUndoBuffer
+      cutUndoBuffer: t.cutUndoBuffer, nudgeSec: t.nudgeSec || 0
     };
   }
   // Rebuilds a fresh track object from a snapshot and splices it back into
@@ -6193,7 +6335,8 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
   function restoreExtraFromSnapshot(snap, index){
     var t = {id: snap.id, name: snap.name, buffer: snap.buffer, level: snap.level, _liveGain: null,
              values: Object.assign({}, snap.values), chain: null,
-             pan: snap.pan, muted: snap.muted, solo: snap.solo, role: snap.role};
+             pan: snap.pan, muted: snap.muted, solo: snap.solo, role: snap.role,
+             nudgeSec: snap.nudgeSec || 0};
     t._file = snap.file;
     t.originalBuffer = snap.originalBuffer;
     t.cutUndoBuffer = snap.cutUndoBuffer || null;
@@ -6339,6 +6482,9 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
       t._file = file;
       renderExtraVocals();
       afterVocalSetChanged();
+      // A brand new track landing -- nothing else is showing a toast right
+      // now, so auto-align gets to show its own.
+      autoAlignVocalToBeat(t, buf);
       if (wasPlaying) startPlayback();
       return t;
     });
@@ -6414,6 +6560,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
   var reRecordExtraTarget = null;
   var reRecordExtraPrevBuffer = null;
   var reRecordExtraPrevFile = null;
+  var reRecordExtraPrevNudge = 0;
   var extraRecorder = createVocalRecorder({
     startBtn: document.getElementById("extra-btn-record-start"),
     stopBtn: document.getElementById("extra-btn-record-stop"),
@@ -6489,7 +6636,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       }
       if (reRecordExtraTarget){
         var target = reRecordExtraTarget;
-        var prevBuf = reRecordExtraPrevBuffer, prevFile = reRecordExtraPrevFile;
+        var prevBuf = reRecordExtraPrevBuffer, prevFile = reRecordExtraPrevFile, prevNudge = reRecordExtraPrevNudge;
         decodeAudioFile(file).then(function(buf){
           if (!buf){ audioReadError(); return; }
           var wasPlaying = isPlaying;
@@ -6500,6 +6647,9 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           target.cutUndoBuffer = null; // fresh take -- any pending Cut undo on the old audio no longer applies
           renderExtraVocals();
           afterVocalSetChanged();
+          // Silent -- the "Undo re-record" toast below already restores
+          // nudgeSec along with everything else if clicked.
+          autoAlignVocalToBeat(target, buf, {silent: true});
           if (wasPlaying) startPlayback();
           loopJustRecordedSection(buf.duration);
           showUndoToast(STR[lang].trackReRecordedToast.replace("{name}", target.name), function(){
@@ -6507,6 +6657,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
             if (wp) stopPlayback();
             target.buffer = prevBuf;
             target._file = prevFile;
+            target.nudgeSec = prevNudge;
             renderExtraVocals();
             afterVocalSetChanged();
             if (wp) startPlayback();
@@ -6528,6 +6679,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       if (reRecordExtraTarget){
         reRecordExtraTarget.buffer = reRecordExtraPrevBuffer;
         reRecordExtraTarget._file = reRecordExtraPrevFile;
+        reRecordExtraTarget.nudgeSec = reRecordExtraPrevNudge;
         renderExtraVocals();
         afterVocalSetChanged();
         return;
@@ -6560,6 +6712,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     reRecordExtraTarget = t;
     reRecordExtraPrevBuffer = t.buffer;
     reRecordExtraPrevFile = t._file;
+    reRecordExtraPrevNudge = t.nudgeSec || 0;
     lastCapturedExtraVocal = null;
     if (extraBtnRecordRetry) extraBtnRecordRetry.hidden = true;
     extraRecordPanel.hidden = false;
@@ -8567,7 +8720,87 @@ populateUserPresetOptions();
 sel.value = "";
 btnDeletePreset.style.display = "none";
 });
-    
+
+/* ---- Export/Import: lets a preset (or a whole set of them) leave the
+   browser it was saved in as one small file -- the thing that makes a
+   "preset pack" possible at all, since gemstarUserPresets on its own never
+   leaves localStorage. Exported presets are just the same name -> knob
+   values pairs already used everywhere else here; importing always runs
+   every value through pickKnobs() (the same whitelist used when presets
+   are first saved), so an imported file can only ever set known knobs to
+   numbers -- never inject arbitrary keys or non-numeric values, however
+   the file was produced. This is Gemstar's own preset format, not a
+   universal one: a preset from another plugin/DAW has nothing in common
+   with these knobs and can't be translated into them. ---- */
+var GEMSTAR_PRESET_PACK_VERSION = 1;
+var btnExportPresets = document.getElementById("btn-export-presets");
+if (btnExportPresets) btnExportPresets.addEventListener("click", function(){
+var all = loadUserPresets();
+var names = Object.keys(all);
+if (!names.length){ alert(STR[lang].exportPresetsNone); return; }
+var pack = {gemstarPresetPack:true, version:GEMSTAR_PRESET_PACK_VERSION, presets:all};
+var blob = new Blob([JSON.stringify(pack, null, 2)], {type:"application/json"});
+var url = URL.createObjectURL(blob);
+var a = document.createElement("a");
+var d = new Date();
+var stamp = d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+a.href = url;
+a.download = "gemstar-presets-" + stamp + ".json";
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
+setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+});
+
+var btnImportPresets = document.getElementById("btn-import-presets");
+var importPresetsInput = document.getElementById("import-presets-input");
+if (btnImportPresets && importPresetsInput) btnImportPresets.addEventListener("click", function(){
+importPresetsInput.click();
+});
+if (importPresetsInput) importPresetsInput.addEventListener("change", function(e){
+var file = e.target.files && e.target.files[0];
+importPresetsInput.value = ""; // allow re-picking the same file next time
+if (!file) return;
+var reader = new FileReader();
+reader.onload = function(ev){
+var data;
+try { data = JSON.parse(String(ev.target.result)); }
+catch(err){ alert(STR[lang].importPresetsBadFile); return; }
+if (!data || typeof data !== "object" || !data.presets || typeof data.presets !== "object"){
+alert(STR[lang].importPresetsBadFile);
+return;
+}
+var all = loadUserPresets();
+var existingNames = Object.keys(all);
+var incomingNames = Object.keys(data.presets).slice(0, 200); // sane cap against a pathological file
+var addedNames = [];
+incomingNames.forEach(function(rawName){
+var knobs = pickKnobs(data.presets[rawName]);
+if (!Object.keys(knobs).length) return; // nothing valid in this entry -- skip it
+var name = String(rawName).trim().slice(0, 60);
+if (!name) return;
+// Never silently overwrite an existing preset with the same name --
+// suffix instead, same idea as a filesystem avoiding a name clash.
+var finalName = name, n = 2;
+while (existingNames.indexOf(finalName) !== -1 || addedNames.indexOf(finalName) !== -1){
+finalName = name + " (" + n + ")"; n++;
+}
+all[finalName] = knobs;
+addedNames.push(finalName);
+});
+if (!addedNames.length){ alert(STR[lang].importPresetsNone); return; }
+saveUserPresets(all);
+populateUserPresetOptions();
+showUndoToast(STR[lang].importPresetsToast.replace("{count}", String(addedNames.length)), function(){
+var cur = loadUserPresets();
+addedNames.forEach(function(n){ delete cur[n]; });
+saveUserPresets(cur);
+populateUserPresetOptions();
+});
+};
+reader.readAsText(file);
+});
+
 
 /* ---------- waveform + meter ---------- */
   var canvas = document.getElementById("waveform");
