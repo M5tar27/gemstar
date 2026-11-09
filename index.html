@@ -614,8 +614,8 @@
   .all-vocals-row .row-controls .trk-btn{width:28px; height:28px; font-size:0.68rem; border-radius:6px;}
   .all-vocals-row .row-controls .trk-remove{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
-  .all-vocals-row .row-controls .trk-rerecord{color:var(--ink-dim);}
-  .all-vocals-row .row-controls .trk-rerecord:hover{color:var(--cyan); border-color:var(--cyan);}
+  .all-vocals-row .row-controls .trk-rerecord{color:var(--danger); border-color:rgba(255,92,122,0.4);}
+  .all-vocals-row .row-controls .trk-rerecord:hover{color:var(--danger); border-color:var(--danger); background:rgba(255,92,122,0.1);}
   .all-vocals-row .row-controls .trk-punch{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-punch:hover{color:var(--yellow); border-color:var(--yellow);}
 
@@ -1575,7 +1575,7 @@
         <div class="record-controls">
           <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
           <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
-          <button type="button" class="icon-btn small" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
+          <button type="button" class="icon-btn small btn-danger" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
           <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
         </div>
         <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
@@ -1658,7 +1658,7 @@
           <div class="record-controls">
             <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
             <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
-            <button type="button" class="icon-btn small" id="extra-btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
+            <button type="button" class="icon-btn small btn-danger" id="extra-btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
             <button type="button" class="icon-btn small" id="extra-btn-record-cancel" data-i18n="recordCancel">Cancel</button>
           </div>
           <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
@@ -1673,7 +1673,7 @@
         <div class="track-row" id="lead-track-row">
           <span class="track-name" id="track-name"></span>
           <div class="transport-btns">
-            <button class="icon-btn small" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
+            <button class="icon-btn small btn-danger" id="btn-rerecord-lead" type="button" data-i18n="reRecordBtn" data-i18n-aria="reRecordAria" aria-label="Re-record">🎤 Re-record</button>
             <button class="icon-btn small btn-danger" id="btn-remove-lead" type="button" data-i18n="removeLeadBtn" data-i18n-aria="removeLeadAria" aria-label="Remove the lead vocal">🗑 Remove</button>
             <button class="icon-btn small" id="btn-change" type="button" data-i18n="changeFile">Change File</button>
           </div>
@@ -5678,6 +5678,19 @@ if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && o
         // that quietly carries over.
         if (opts.fxMonitorCheckbox && opts.fxMonitorCheckbox.checked){
           monitorFxDry = ctx.createGain(); monitorFxDry.gain.value = 0.5;
+          // Force a real center-mono downmix right here, the same way
+          // captureNode above already does (channelCount:1/explicit/
+          // speakers). channelCount:{ideal:1} on getUserMedia is only a
+          // preference -- some audio interfaces still hand the browser a
+          // 2-channel stream with the mic signal in the left channel only.
+          // Left at a GainNode's default (channelCountMode "max"), that
+          // 2-channel signal passes straight through to the speakers/
+          // headphones unmixed, which is heard as this live monitor panned
+          // hard into one ear while tracking -- even though the actual
+          // saved take (captured via captureNode, already forced mono the
+          // same way) is unaffected. Forcing it here fixes what's heard
+          // while singing without touching the capture path at all.
+          monitorFxDry.channelCount = 1; monitorFxDry.channelCountMode = "explicit"; monitorFxDry.channelCountInterpretation = "speakers";
           monitorFxOut = ctx.createGain(); monitorFxOut.gain.value = 1;
           recordSrcNode.connect(monitorFxDry); monitorFxDry.connect(monitorFxOut);
           // The reverb touch is its own opt-in on top of plain self-monitoring
@@ -5687,6 +5700,10 @@ if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && o
             monitorFxWet = ctx.createGain(); monitorFxWet.gain.value = 0.22;
             monitorFxConv = ctx.createConvolver();
             monitorFxConv.buffer = getReverbBuffer(0.9, 2.2, 1);
+            // Same forced downmix as monitorFxDry above -- this is a second,
+            // independent tap straight off recordSrcNode, so it needs its
+            // own explicit mono setting rather than inheriting monitorFxDry's.
+            monitorFxConv.channelCount = 1; monitorFxConv.channelCountMode = "explicit"; monitorFxConv.channelCountInterpretation = "speakers";
             recordSrcNode.connect(monitorFxConv); monitorFxConv.connect(monitorFxWet); monitorFxWet.connect(monitorFxOut);
           }
           monitorFxOut.connect(ctx.destination);
@@ -6921,7 +6938,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
 
       var reRecBtn = document.createElement("button");
       reRecBtn.type = "button";
-      reRecBtn.className = "icon-btn small btn-rerecord-vocal";
+      reRecBtn.className = "icon-btn small btn-danger btn-rerecord-vocal";
       reRecBtn.textContent = STR[lang].reRecordBtn;
       reRecBtn.setAttribute("aria-label", STR[lang].reRecordAria + " " + t.name);
       reRecBtn.addEventListener("click", function(){ startReRecordExtra(t); });
