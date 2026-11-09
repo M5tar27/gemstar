@@ -1255,6 +1255,59 @@
     color:var(--ink-dim); margin-bottom:2px;
   }
   .transport > #beat-block{ order:50; }
+
+  /* ---- Mixer redesign: the knob grid now sits right under the recorded
+     tracks (#player-block, order:20) instead of far below the page, and
+     the Vocal Mixer + Beat Mixer are folded into one side-by-side row.
+     #vocal-controls-wrap and .mixers-row are built at runtime by
+     relocateControlsLayout() below, which only MOVES these existing
+     elements into .transport -- nothing about how they work changes. ---- */
+  .transport > #vocal-controls-wrap{ order:22; margin-top:4px; }
+  .transport > .mixers-row{ order:40; margin-top:4px; }
+  .mixers-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+  .mixers-row::before{
+    content:"STEP 4 · MIX IT IN"; flex-basis:100%;
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:2px;
+  }
+  .mixers-row > .vocal-mixer, .mixers-row > #beat-block{
+    flex:1 1 260px; min-width:240px; margin-top:0;
+    border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+  }
+  #beat-block .controls-heading, .mixers-row .vocal-mixer .controls-heading{ text-align:left; margin:0 0 2px; }
+
+  /* vertical faders inside each mixer -- same <input type=range>/knob
+     elements and listeners as before, just turned on their side and laid
+     out as channel-strip columns instead of a stacked list of rows. */
+  .vocal-faders, .beat-faders{
+    display:flex; gap:20px; flex-wrap:wrap; justify-content:center; padding:10px 0 2px;
+  }
+  #extra-vocals-list{ display:contents; }
+  .mixers-row .vocal-track-row, #beat-block .slider-row{
+    flex-direction:column; align-items:center; justify-content:flex-start;
+    border:none; padding:0; margin-top:0; width:96px; text-align:center; gap:6px;
+  }
+  .mixers-row .vocal-track-row .vocal-track-label{ flex-direction:column; gap:4px; }
+  .mixers-row .vocal-track-row > *{ order:4; }
+  .mixers-row .vocal-track-row input[type=range],
+  #beat-block .slider-row input[type=range]{
+    -webkit-appearance:slider-vertical; writing-mode:vertical-lr; direction:rtl;
+    width:8px; height:150px; max-width:none; order:1; accent-color:var(--cyan);
+  }
+  #beat-block .slider-row .status-label{ order:2; font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; }
+  #beat-block .slider-row .trk-btn{ order:3; }
+  .mixers-row .vocal-track-row .track-ctl{ flex-direction:column; gap:6px; order:3; }
+  .mixers-row .vocal-track-row .trk-pan{ flex-direction:column; }
+  .mixers-row .vocal-track-row .mini-knob-wrap{ order:1; }
+  .mixers-row .vocal-track-row .vocal-track-label{ order:2; }
+  .mixers-row .vocal-track-row .btn-make-lead,
+  .mixers-row .vocal-track-row .btn-edit-fx,
+  .mixers-row .vocal-track-row .btn-rerecord-vocal,
+  .mixers-row .vocal-track-row .btn-remove-vocal{ order:4; font-size:0.66rem; padding:4px 8px; }
+  @media (max-width:760px){
+    .mixers-row .vocal-track-row, #beat-block .slider-row{ width:78px; }
+    .mixers-row .vocal-track-row input[type=range], #beat-block .slider-row input[type=range]{ height:110px; }
+  }
 </style>
 
 <div class="wrap">
@@ -1531,6 +1584,7 @@
       </div>
 
       <div id="beat-block" hidden>
+        <p class="controls-heading" data-i18n="beatMixerHeading">Beat Mixer</p>
         <div class="track-row">
           <span class="track-name" id="beat-name"></span>
           <button class="icon-btn small" id="btn-beat-remove" type="button" data-i18n="removeBeat">Remove Beat</button>
@@ -1709,7 +1763,7 @@
       <button class="icon-btn" id="btn-open-projects" type="button" data-i18n="openProjectsBtn">📁 My Projects</button>
     </div>
 
-    <p class="controls-heading" data-i18n="controlsHeading">Vocal Controls</p>
+    <p class="controls-heading" id="controls-heading-main" data-i18n="controlsHeading">Vocal Controls</p>
     <div class="track-edit-row" id="track-edit-row" hidden>
       <span class="status-label" data-i18n="editingLabel">Editing FX for</span>
       <div class="track-edit-tabs" id="track-edit-tabs" role="tablist"></div>
@@ -2067,7 +2121,7 @@ calibrateSyncTapBtn:"TAP",
       importPresetsToast:"Imported {count} preset(s)",
       modeVocal:"Vocal Only", modeFull:"Full Song Mix",
       beatDzTitle:"Drop your beat here (MP3/WAV)", removeBeat:"Remove Beat", beatLevel:"Beat Level",
-      beatLow:"Low", beatMid:"Mid", beatHigh:"High",
+      beatLow:"Low", beatMid:"Mid", beatHigh:"High", beatMixerHeading:"Beat Mixer",
       masterHeading:"Auto-Master (LUFS)",
       masterDesc:"Plays the track through, measures real integrated loudness (ITU-R BS.1770), and sets Output Gain to hit your target.",
       masterBtn:"Analyze & Master",
@@ -2310,7 +2364,7 @@ calibrateSyncTapBtn:"TOCAR",
       importPresetsToast:"Se importaron {count} preajuste(s)",
       modeVocal:"Solo Voz", modeFull:"Mezcla De Canción Completa",
       beatDzTitle:"Suelta tu beat aquí (MP3/WAV)", removeBeat:"Quitar Beat", beatLevel:"Nivel Del Beat",
-      beatLow:"Graves", beatMid:"Medios", beatHigh:"Agudos",
+      beatLow:"Graves", beatMid:"Medios", beatHigh:"Agudos", beatMixerHeading:"Mezclador Del Beat",
       masterHeading:"Auto-Masterizar (LUFS)",
       masterDesc:"Reproduce la pista completa, mide la sonoridad integrada real (ITU-R BS.1770) y ajusta la Ganancia de Salida para alcanzar tu objetivo.",
       masterBtn:"Analizar y Masterizar",
@@ -11618,7 +11672,65 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     if (chain) applyAllParams();
   }
 
+  // Mixer redesign: fold the knob grid under the recorded-tracks view, and
+  // the Vocal Mixer + Beat Mixer into one side-by-side row, by MOVING the
+  // existing elements (via the .transport flex `order` system already used
+  // for the Guided Steps) rather than rewriting them -- every id lookup,
+  // event listener, and tier-cap check elsewhere in this file keeps working
+  // untouched, since none of it depends on where in the DOM these elements
+  // sit. See the matching CSS block above (search "Mixer redesign").
+  function relocateControlsLayout(){
+    var transportEl = document.querySelector(".transport");
+    var vocalMixerEl = document.getElementById("vocal-mixer");
+    var beatBlockEl = document.getElementById("beat-block");
+    if (!transportEl || !vocalMixerEl || !beatBlockEl) return;
+
+    var controlsWrap = document.createElement("div");
+    controlsWrap.id = "vocal-controls-wrap";
+    [
+      document.getElementById("controls-heading-main"),
+      document.getElementById("track-edit-row"),
+      document.querySelector(".knob-howto"),
+      document.getElementById("knob-grid"),
+      document.getElementById("tune-key-row")
+    ].forEach(function(el){ if (el) controlsWrap.appendChild(el); });
+    transportEl.appendChild(controlsWrap);
+
+    // One shared fader strip per mixer, built around the exact same
+    // <input type=range>/knob elements and listeners that already exist --
+    // this only changes their container, never their behavior.
+    var beatLevelInput = document.getElementById("beat-level");
+    var beatLevelRow = beatLevelInput ? beatLevelInput.closest(".slider-row") : null;
+    if (beatLevelRow){
+      var beatFaders = document.createElement("div");
+      beatFaders.className = "beat-faders";
+      beatFaders.appendChild(beatLevelRow);
+      Array.prototype.slice.call(document.querySelectorAll("#beat-block .beat-eq-row")).forEach(function(r){
+        beatFaders.appendChild(r);
+      });
+      beatBlockEl.appendChild(beatFaders);
+    }
+
+    var leadLevelInput = document.getElementById("lead-vocal-level");
+    var leadRow = leadLevelInput ? leadLevelInput.closest(".slider-row") : null;
+    var extraListEl = document.getElementById("extra-vocals-list");
+    if (leadRow && extraListEl){
+      var vocalFaders = document.createElement("div");
+      vocalFaders.className = "vocal-faders";
+      vocalFaders.appendChild(leadRow);
+      vocalFaders.appendChild(extraListEl); // CSS gives this display:contents -- each ad-lib's own column (one per track, capped by plan tier via the existing vocal-cap logic) lines up next to Lead instead of sitting in its own wrapper box
+      vocalMixerEl.appendChild(vocalFaders);
+    }
+
+    var mixersRow = document.createElement("div");
+    mixersRow.className = "mixers-row";
+    mixersRow.appendChild(vocalMixerEl);
+    mixersRow.appendChild(beatBlockEl);
+    transportEl.appendChild(mixersRow);
+  }
+
   buildKnobs();
+  relocateControlsLayout();
   applyLang("en");
   syncTuneKeyUI();
   restoreSession();
