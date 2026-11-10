@@ -6122,7 +6122,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     if (mode !== "full" && extraRecorder) extraRecorder.stop();
     updateVocalMixerUI();
     if (chain && !beatBuffer){
-      chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      chain._duckTarget = null; chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   }
   // The Vocal Only / Full Song Mix tab toggle is retired -- there's only one
@@ -6284,7 +6284,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     beatInput.value = "";
     updateBeatVisibility();
     if (chain){
-      chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      chain._duckTarget = null; chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
     }
   });
 
@@ -9032,7 +9032,18 @@ reader.readAsText(file);
       // mode, or no beat loaded).
       if (beatBuffer){
         var duckTarget = mixEnabled ? 1 : 0;
-        chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, 0.1);
+        // Only schedule a ramp when the target actually changes. This
+        // used to call setTargetAtTime() on every animation frame (~60
+        // automation events a second, with an unchanged value), which
+        // piles up on the AudioParam timeline and makes the audio thread
+        // chew through them on each render block -- a slow-building
+        // load that can show up as light static after many record/play
+        // cycles. chain._duckTarget is cleared by every other place that
+        // writes this gain, so we never skip a real change.
+        if (chain._duckTarget !== duckTarget){
+          chain._duckTarget = duckTarget;
+          chain.beatDuck.gain.setTargetAtTime(duckTarget, ctx.currentTime, 0.1);
+        }
       }
 
       // This used to also redraw the Step 2 "waveform" canvas every frame
@@ -9154,7 +9165,7 @@ reader.readAsText(file);
       // runVisualizer()'s frame() for why the old vocal-envelope-driven
       // ducking was removed) -- open whenever the beat should be audible
       // at all, silent otherwise.
-      chain.beatDuck.gain.setTargetAtTime(mixEnabled && beatSrc ? 1 : 0, ctx.currentTime, 0.05);
+      chain._duckTarget = null; chain.beatDuck.gain.setTargetAtTime(mixEnabled && beatSrc ? 1 : 0, ctx.currentTime, 0.05);
 
       setTimeout(function(){
         try { chain.safetyClip.disconnect(tapNode); } catch(err){}
@@ -9170,7 +9181,7 @@ reader.readAsText(file);
           try { beatSrc.stop(); } catch(err){}
           try { beatSrc.disconnect(); } catch(err){}
         }
-        chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+        chain._duckTarget = null; chain.beatDuck.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
         releaseMixWiring();
 
         var totalLen = chunksL.reduce(function(a,c){ return a + c.length; }, 0);
