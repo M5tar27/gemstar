@@ -1200,6 +1200,50 @@
     background:rgba(6,6,12,0.72); pointer-events:auto;
   }
   #gate-overlay.show{display:flex;}
+  /* Share Clip */
+  #clip-overlay{
+    display:none; position:fixed; inset:0; z-index:410; align-items:center; justify-content:center;
+    padding:16px; background:rgba(6,6,12,0.78); overflow-y:auto;
+  }
+  #clip-overlay.show{display:flex;}
+  .clip-card{
+    position:relative; width:100%; max-width:380px; max-height:calc(100vh - 32px); overflow-y:auto;
+    background:var(--bg-panel); border:1px solid var(--line-strong); border-radius:14px;
+    padding:24px 20px 20px; box-shadow:0 20px 60px rgba(0,0,0,0.55);
+  }
+  .clip-card h3{font-family:var(--font-display); font-size:1.1rem; margin:0 0 8px; color:var(--ink);}
+  .clip-x{position:absolute; top:8px; right:10px; background:none; border:0; color:var(--ink-muted); font-size:1.7rem; line-height:1; cursor:pointer; padding:6px 10px;}
+  .clip-sub{color:var(--ink-muted); font-size:0.86rem; line-height:1.5; margin:0 0 14px;}
+  .clip-lbl{display:block; font-size:0.74rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-dim); margin:12px 0 6px;}
+  #clip-title{width:100%; padding:11px 14px; border-radius:9px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:0.9rem; font-family:var(--font-body);}
+  #clip-title:focus{outline:none; border-color:var(--cyan);}
+  .clip-lens{display:flex; gap:8px;}
+  .clip-len{flex:1; padding:11px 0; border-radius:9px; border:1px solid var(--line); background:var(--bg); color:var(--ink-muted); font-family:var(--font-display); font-size:0.9rem; cursor:pointer;}
+  .clip-len.on{border-color:var(--cyan); color:var(--cyan); background:rgba(0,245,255,0.08);}
+  .clip-len.locked{opacity:0.5;}
+  .clip-len.locked::after{content:" \1F512"; font-size:0.75em;}
+  .clip-check{display:flex; gap:10px; align-items:flex-start; margin:14px 0 6px; font-size:0.84rem; color:var(--ink); line-height:1.4; cursor:pointer;}
+  .clip-check input{margin-top:3px; accent-color:var(--gem);}
+  .clip-hint{font-size:0.74rem; color:var(--ink-dim); line-height:1.5; margin:8px 0 14px;}
+  .clip-primary{
+    width:100%; padding:13px 16px; border-radius:999px; border:0; cursor:pointer; color:#0A0A12;
+    font-family:var(--font-display); font-weight:700; font-size:0.95rem;
+    background:linear-gradient(90deg,var(--cyan),var(--gem));
+  }
+  .clip-ghost{
+    flex:1; padding:10px 8px; border-radius:999px; border:1px solid var(--line-strong); background:transparent;
+    color:var(--ink); font-size:0.78rem; cursor:pointer; font-family:var(--font-body);
+  }
+  #clip-step-busy .clip-ghost{width:100%; flex:none; margin-top:16px;}
+  .clip-bar{height:8px; border-radius:4px; background:rgba(234,246,255,0.12); overflow:hidden; margin:6px 0;}
+  #clip-busy-bar{height:100%; width:0; background:linear-gradient(90deg,var(--cyan),var(--gem));}
+  #clip-video{display:block; width:100%; max-height:52vh; margin:0 auto 14px; border-radius:10px; background:#000; object-fit:contain;}
+  .clip-plats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0;}
+  .clip-plat{padding:11px 8px; border-radius:10px; border:1px solid var(--line-gem); background:rgba(255,46,136,0.07); color:var(--ink); font-family:var(--font-display); font-size:0.88rem; cursor:pointer;}
+  .clip-row{display:flex; gap:8px;}
+  .clip-msg{font-size:0.78rem; color:var(--ok); margin:12px 0 0; min-height:1.2em; line-height:1.45;}
+  .clip-msg.err{color:var(--danger);}
+
   .gate-card{
     max-width:360px; width:100%; background:var(--bg-panel); border:1px solid var(--line-strong);
     border-radius:14px; padding:26px 22px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.5);
@@ -1469,6 +1513,48 @@
   </section>
 
   <div class="console" id="gemstar-console">
+    <div id="clip-overlay" role="dialog" aria-modal="true" aria-labelledby="clip-title-h">
+      <div class="clip-card">
+        <button class="clip-x" id="clip-close" type="button" aria-label="Close">&times;</button>
+        <h3 id="clip-title-h">Share Clip</h3>
+        <div id="clip-step-setup">
+          <p class="clip-sub">Make a vertical video of your mix with the Gemstar watermark, ready for TikTok, Instagram, YouTube and Reddit.</p>
+          <label class="clip-lbl" for="clip-title">Title on the video</label>
+          <input type="text" id="clip-title" maxlength="60" placeholder="Song or vocal name" autocomplete="off" />
+          <div class="clip-lbl">Length</div>
+          <div class="clip-lens">
+            <button type="button" class="clip-len on" data-sec="15">15s</button>
+            <button type="button" class="clip-len" data-sec="30">30s</button>
+            <button type="button" class="clip-len" data-sec="60">60s</button>
+          </div>
+          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (hear your raw vocal, then the Gemstar sound)</span></label>
+          <p class="clip-hint">Starts from where your playhead is. It plays your mix out loud while it records, so a 15s clip takes about 15s.</p>
+          <button type="button" class="clip-primary" id="clip-make">Create clip</button>
+          <p class="clip-msg err" id="clip-msg-setup"></p>
+        </div>
+        <div id="clip-step-busy" hidden>
+          <p class="clip-sub" id="clip-busy-msg">Getting ready...</p>
+          <div class="clip-bar"><div id="clip-busy-bar"></div></div>
+          <button type="button" class="clip-ghost" id="clip-cancel">Cancel</button>
+        </div>
+        <div id="clip-step-done" hidden>
+          <video id="clip-video" controls playsinline preload="auto"></video>
+          <button type="button" class="clip-primary" id="clip-share">Share&hellip;</button>
+          <div class="clip-plats">
+            <button type="button" class="clip-plat" data-plat="tiktok">TikTok</button>
+            <button type="button" class="clip-plat" data-plat="instagram">Instagram</button>
+            <button type="button" class="clip-plat" data-plat="youtube">YouTube</button>
+            <button type="button" class="clip-plat" data-plat="reddit">Reddit</button>
+          </div>
+          <div class="clip-row">
+            <button type="button" class="clip-ghost" id="clip-save">Save video</button>
+            <button type="button" class="clip-ghost" id="clip-copy">Copy caption</button>
+            <button type="button" class="clip-ghost" id="clip-redo">Make another</button>
+          </div>
+          <p class="clip-msg" id="clip-done-msg"></p>
+        </div>
+      </div>
+    </div>
     <div id="gate-overlay">
       <div class="gate-card">
         <div id="gate-step-email">
@@ -1844,6 +1930,7 @@
       </select>
       <button class="icon-btn" id="btn-export" type="button" data-i18n="exportBtn">Export</button>
       <button class="icon-btn" id="btn-export-stems" type="button" data-i18n="stemsBtn">⬇ Export Stems</button>
+      <button class="icon-btn clip-open-btn" id="btn-share-clip" type="button">Share Clip</button>
     </div>
     <p class="export-note" data-i18n="exportNote">Downloads a real file encoded right in your browser — MP3 for easy sharing, or WAV (24-bit, uncompressed) for the cleanest quality to bring into another DAW. Capturing the audio happens in real time, so it takes as long as the track; encoding after that is quick.</p>
     <p class="export-note" data-i18n="stemsNote">Unlimited: Export Stems downloads every processed vocal as its own 24-bit WAV (in one .zip), lined up from the start of the song, so you can finish the mix in any DAW.</p>
@@ -9409,6 +9496,371 @@ reader.readAsText(file);
     for (var j=0; j<parts.length; j++){ out.set(parts[j], off); off += parts[j].length; }
     return new Blob([out], {type:"audio/mpeg"});
   }
+
+  /* ---------- Share Clip: vertical video of your mix for TikTok / Instagram / YouTube / Reddit ----------
+     Plays the real mix once, records it (audio + an animated waveform card with the Gemstar
+     watermark) into a 9:16 video, then hands it to the phone's share menu (or downloads it on
+     desktop). Nothing is uploaded anywhere -- it is all made in the browser. */
+  var CLIP_LOGO_SRC = "data:image/png;base64,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";
+  (function(){
+    var btnOpen = document.getElementById("btn-share-clip");
+    var overlay = document.getElementById("clip-overlay");
+    if (!btnOpen || !overlay) return;
+    var stepSetup = document.getElementById("clip-step-setup");
+    var stepBusy = document.getElementById("clip-step-busy");
+    var stepDone = document.getElementById("clip-step-done");
+    var titleEl = document.getElementById("clip-title");
+    var abEl = document.getElementById("clip-ab");
+    var msgSetup = document.getElementById("clip-msg-setup");
+    var busyMsg = document.getElementById("clip-busy-msg");
+    var busyBar = document.getElementById("clip-busy-bar");
+    var doneMsg = document.getElementById("clip-done-msg");
+    var videoEl = document.getElementById("clip-video");
+    var lenBtns = overlay.querySelectorAll(".clip-len");
+
+    var CW = 720, CH = 1280, FPS = 30;
+    var clipSec = 15;
+    var clipBusy = false, clipAbort = false;
+    var clipBlob = null, clipUrl = null, clipName = "gemstar-clip.mp4";
+    var logoImg = new Image(); logoImg.src = CLIP_LOGO_SRC;
+
+    function pickMime(){
+      if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
+      var c = ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4",
+               "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+      for (var i=0;i<c.length;i++){ try { if (MediaRecorder.isTypeSupported(c[i])) return c[i]; } catch(e){} }
+      return "";
+    }
+    function show(step){
+      stepSetup.hidden = step !== "setup";
+      stepBusy.hidden = step !== "busy";
+      stepDone.hidden = step !== "done";
+    }
+    function openModal(){
+      overlay.classList.add("show");
+      if (!clipBusy){
+        if (clipBlob) show("done"); else show("setup");
+        if (!titleEl.value){
+          var en = document.getElementById("export-name");
+          if (en && en.value) titleEl.value = en.value;
+        }
+        refreshLenLocks();
+      }
+    }
+    function closeModal(){
+      overlay.classList.remove("show");
+      if (clipBusy) clipAbort = true;
+      try { videoEl.pause(); } catch(e){}
+    }
+    function refreshLenBtns(){
+      lenBtns.forEach(function(b){ b.classList.toggle("on", parseInt(b.getAttribute("data-sec"),10) === clipSec); });
+    }
+    function refreshLenLocks(){
+      lenBtns.forEach(function(b){
+        var sec = parseInt(b.getAttribute("data-sec"),10);
+        b.classList.toggle("locked", sec > 15 && !window.gemstarHasAccess);
+      });
+      refreshLenBtns();
+    }
+    lenBtns.forEach(function(b){
+      b.addEventListener("click", function(){
+        var sec = parseInt(b.getAttribute("data-sec"),10);
+        if (sec > 15 && !window.gemstarHasAccess){
+          if (window.gemstarShowGate) window.gemstarShowGate();
+          return;
+        }
+        clipSec = sec; refreshLenBtns();
+      });
+    });
+    btnOpen.addEventListener("click", openModal);
+    document.getElementById("clip-close").addEventListener("click", closeModal);
+    overlay.addEventListener("click", function(e){ if (e.target === overlay) closeModal(); });
+
+    function setBypass(v){
+      bypassed = !!v;
+      try { ensureContext(); applyBypassGains(); updateAbButton(); } catch(e){}
+      var t = document.getElementById("bypass-toggle");
+      if (t){ t.classList.toggle("on", bypassed); t.setAttribute("aria-checked", String(bypassed)); }
+    }
+    function wrapText(c, text, maxW, maxLines){
+      var words = String(text).split(/\s+/), lines = [], cur = "";
+      for (var i=0;i<words.length;i++){
+        var test = cur ? cur + " " + words[i] : words[i];
+        if (c.measureText(test).width > maxW && cur){ lines.push(cur); cur = words[i]; }
+        else cur = test;
+      }
+      if (cur) lines.push(cur);
+      if (lines.length > maxLines){
+        lines = lines.slice(0, maxLines);
+        var last = lines[maxLines-1];
+        while (last.length > 1 && c.measureText(last + "...").width > maxW) last = last.slice(0,-1);
+        lines[maxLines-1] = last + "...";
+      }
+      return lines;
+    }
+    function rr(c, x, y, w, h, r){
+      r = Math.min(r, w/2, h/2);
+      c.beginPath(); c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
+      c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h); c.lineTo(x+r,y+h);
+      c.quadraticCurveTo(x,y+h,x,y+h-r); c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y); c.closePath();
+    }
+
+    function makeClip(){
+      if (clipBusy) return;
+      var mime = pickMime();
+      if (!mime){ msgSetup.textContent = "This browser can't record video. Try Chrome or Safari."; return; }
+      if (!audioBuffer && !beatBuffer){ msgSetup.textContent = "Load a beat or record a vocal first, then make your clip."; return; }
+      var total = currentTotalDuration();
+      if (total < 2){ msgSetup.textContent = "That track is too short for a clip."; return; }
+      msgSetup.textContent = "";
+      clipBusy = true; clipAbort = false;
+      show("busy"); busyMsg.textContent = "Getting ready..."; busyBar.style.width = "0%";
+
+      var savedCursor = tlCursor, savedRegion = tlRegion, savedLoop = tlLoop, savedBypass = bypassed;
+      if (isPlaying) stopPlayback();
+      var start = tlCursor;
+      if (start > total - 3) start = 0;
+      var len = Math.min(clipSec, total - start);
+      if (len < 3){ start = 0; len = Math.min(clipSec, total); }
+      var wantAB = !!abEl.checked && !!audioBuffer && len >= 6;
+      var splitAt = len * 0.4;
+      var title = (titleEl.value || "").trim() || "My Gemstar vocal";
+      clipName = (title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0,40) || "gemstar-clip");
+
+      var canvas = document.createElement("canvas"); canvas.width = CW; canvas.height = CH;
+      var c = canvas.getContext("2d");
+      var tapGain = null, dest = null, rec = null, chunks = [], drawRaf = 0, guard = 0, started = false, t0 = 0;
+      var bars = new Array(36); for (var bi=0; bi<bars.length; bi++) bars[bi] = 0;
+      var freq = null, binHz = 1, level = 0, flash = 0, lastLabel = "";
+
+      function cleanup(){
+        cancelAnimationFrame(drawRaf); clearTimeout(guard); clearInterval(waitTimer);
+        try { if (rec && rec.state !== "inactive") rec.stop(); } catch(e){}
+        try { if (tapGain){ chain.safetyClip.disconnect(tapGain); tapGain.disconnect(); } } catch(e){}
+        try { stopPlayback(); } catch(e){}
+        tlCursor = savedCursor; tlRegion = savedRegion; tlLoop = savedLoop;
+        try { renderTimeline(); } catch(e){}
+        if (bypassed !== savedBypass) setBypass(savedBypass);
+        clipBusy = false;
+      }
+      function fail(text){
+        cleanup(); show("setup"); msgSetup.textContent = text;
+      }
+
+      function drawFrame(elapsed){
+        var ab = wantAB, isAfter = !wantAB || elapsed >= splitAt;
+        if (freq && chain && chain.analyser){
+          try { chain.analyser.getByteFrequencyData(freq); } catch(e){}
+          var N = bars.length, sum = 0;
+          for (var i=0;i<N;i++){
+            var f0 = 70 * Math.pow(9000/70, i/N), f1 = 70 * Math.pow(9000/70, (i+1)/N);
+            var b0 = Math.max(1, Math.floor(f0/binHz)), b1 = Math.max(b0+1, Math.ceil(f1/binHz));
+            var s = 0, n = 0;
+            for (var k=b0;k<b1 && k<freq.length;k++){ s += freq[k]; n++; }
+            var v = n ? s/n/255 : 0;
+            v = Math.pow(Math.min(1, v*1.25), 1.35);
+            bars[i] = Math.max(v, bars[i]*0.82);
+            sum += bars[i];
+          }
+          level = level*0.8 + (sum/N)*0.2;
+        }
+        var label = ab ? (isAfter ? "AFTER" : "BEFORE") : "VOCALS BY GEMSTAR";
+        if (label !== lastLabel){ if (lastLabel) flash = 1; lastLabel = label; }
+        flash = Math.max(0, flash - 0.06);
+
+        // background
+        c.fillStyle = "#0A0A12"; c.fillRect(0,0,CW,CH);
+        var g1 = c.createRadialGradient(CW/2, 600, 20, CW/2, 600, 560);
+        g1.addColorStop(0, "rgba(255,46,136," + (0.16 + level*0.5).toFixed(3) + ")"); g1.addColorStop(1, "rgba(255,46,136,0)");
+        c.fillStyle = g1; c.fillRect(0,0,CW,CH);
+        var g2 = c.createRadialGradient(80, 140, 10, 80, 140, 520);
+        g2.addColorStop(0, "rgba(0,245,255,0.16)"); g2.addColorStop(1, "rgba(0,245,255,0)");
+        c.fillStyle = g2; c.fillRect(0,0,CW,CH);
+
+        // title
+        c.textAlign = "center"; c.textBaseline = "alphabetic";
+        c.fillStyle = "#EAF6FF"; c.font = "700 60px 'Chakra Petch', 'Segoe UI', sans-serif";
+        var lines = wrapText(c, title, CW - 120, 3);
+        var ty = 190 - (lines.length-1)*34;
+        for (var li=0; li<lines.length; li++) c.fillText(lines[li], CW/2, ty + li*70);
+
+        // before/after pill
+        var pw = 330, ph = 66, px = (CW-pw)/2, py = 350;
+        rr(c, px, py, pw, ph, 33);
+        if (ab && !isAfter){ c.fillStyle = "rgba(182,187,200,0.16)"; c.fill(); c.lineWidth = 2; c.strokeStyle = "rgba(182,187,200,0.5)"; c.stroke(); }
+        else {
+          var pg = c.createLinearGradient(px,0,px+pw,0); pg.addColorStop(0,"#00F5FF"); pg.addColorStop(1,"#FF2E88");
+          c.fillStyle = "rgba(10,10,18,0.55)"; c.fill(); c.lineWidth = 3 + flash*5; c.strokeStyle = pg; c.stroke();
+        }
+        c.fillStyle = (ab && !isAfter) ? "#B6BBC8" : "#EAF6FF";
+        c.font = "700 32px 'Chakra Petch', 'Segoe UI', sans-serif";
+        c.fillText(label, CW/2, py + 44);
+
+        // waveform bars (mirrored)
+        var N2 = bars.length, left = 60, areaW = CW - 120, slot = areaW / N2, bw = slot * 0.62, cy = 650, maxH = 180;
+        var bg = c.createLinearGradient(left, 0, left+areaW, 0);
+        if (ab && !isAfter){ bg.addColorStop(0, "#7d869c"); bg.addColorStop(1, "#aab1c3"); }
+        else { bg.addColorStop(0, "#00F5FF"); bg.addColorStop(0.55, "#B05CFF"); bg.addColorStop(1, "#FF2E88"); }
+        c.fillStyle = bg;
+        for (var j=0;j<N2;j++){
+          var h = 10 + bars[j]*maxH;
+          rr(c, left + j*slot + (slot-bw)/2, cy - h, bw, h*2, bw/2); c.fill();
+        }
+
+        // progress line
+        var pr = Math.max(0, Math.min(1, elapsed/len));
+        rr(c, 60, 850, CW-120, 6, 3); c.fillStyle = "rgba(234,246,255,0.14)"; c.fill();
+        if (pr > 0.01){ rr(c, 60, 850, (CW-120)*pr, 6, 3); c.fillStyle = bg; c.fill(); }
+
+        // watermark: Gemstar logo lockup + site
+        if (logoImg.complete && logoImg.naturalWidth){
+          var lw = 190, lh = lw * logoImg.naturalHeight / logoImg.naturalWidth;
+          c.globalAlpha = 0.96; c.drawImage(logoImg, (CW-lw)/2, 892, lw, lh); c.globalAlpha = 1;
+          c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
+          c.fillText("gemstaraudio.com", CW/2, 892 + lh + 44);
+        } else {
+          c.fillStyle = "#EAF6FF"; c.font = "700 48px 'Chakra Petch', sans-serif"; c.fillText("GEMSTAR", CW/2, 980);
+          c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', sans-serif"; c.fillText("gemstaraudio.com", CW/2, 1030);
+        }
+      }
+
+      var waitTimer = 0;
+      Promise.resolve().then(function(){
+        try { return document.fonts && document.fonts.load("700 60px 'Chakra Petch'"); } catch(e){}
+      }).catch(function(){}).then(function(){
+        if (clipAbort){ cleanup(); return; }
+        tlRegion = null; tlLoop = false; tlCursor = start;
+        if (wantAB) setBypass(true); else if (bypassed) setBypass(false);
+        startPlayback();
+        var waited = 0;
+        waitTimer = setInterval(function(){
+          waited += 10;
+          if (clipAbort){ cleanup(); return; }
+          if (!isPlaying || !ctx || !chain){
+            if (waited > 4000){ fail("Couldn't start playback. Tap Play once, then try again."); }
+            return;
+          }
+          if (!started){
+            // audio is scheduled a moment ahead (see startPlayback) -- wait for it to actually begin
+            busyMsg.textContent = "Recording your clip - keep this screen open";
+            if (ctx.currentTime < playStartCtxTime - 0.03) return;
+            started = true;
+            try {
+              dest = ctx.createMediaStreamDestination();
+              tapGain = ctx.createGain();
+              chain.safetyClip.connect(tapGain); tapGain.connect(dest);
+              freq = new Uint8Array(chain.analyser.frequencyBinCount);
+              binHz = ctx.sampleRate / chain.analyser.fftSize;
+              t0 = ctx.currentTime;
+              tapGain.gain.setValueAtTime(0, t0);
+              tapGain.gain.linearRampToValueAtTime(1, t0 + 0.05);
+              tapGain.gain.setValueAtTime(1, t0 + len - 0.7);
+              tapGain.gain.linearRampToValueAtTime(0, t0 + len);
+              var vs = canvas.captureStream(FPS);
+              var stream = new MediaStream(vs.getVideoTracks().concat(dest.stream.getAudioTracks()));
+              var opts = { mimeType: mime, videoBitsPerSecond: 4000000, audioBitsPerSecond: 192000 };
+              rec = new MediaRecorder(stream, opts);
+              rec.ondataavailable = function(e){ if (e.data && e.data.size) chunks.push(e.data); };
+              rec.onstop = function(){
+                if (clipAbort){ return; }
+                var type = (mime.split(";")[0]) || "video/mp4";
+                var blob = new Blob(chunks, {type: type});
+                if (!blob.size){ cleanup(); show("setup"); msgSetup.textContent = "The clip came out empty. Please try again."; return; }
+                if (clipUrl) { try { URL.revokeObjectURL(clipUrl); } catch(e){} }
+                clipBlob = blob; clipUrl = URL.createObjectURL(blob);
+                clipName += (type.indexOf("mp4") >= 0 ? ".mp4" : ".webm");
+                videoEl.src = clipUrl;
+                cleanup();
+                doneMsg.textContent = "";
+                show("done");
+              };
+              rec.start(250);
+            } catch(err){ fail("Couldn't start recording: " + (err && err.message || err)); return; }
+            var loop = function(){
+              var elapsed = Math.max(0, ctx.currentTime - t0);
+              if (clipAbort){ cleanup(); return; }
+              if (wantAB && elapsed >= splitAt && bypassed) setBypass(false);
+              drawFrame(Math.min(elapsed, len));
+              busyBar.style.width = Math.min(100, elapsed/len*100).toFixed(1) + "%";
+              if (elapsed >= len){
+                // stop the recorder first (cleanup() would also stop it, but needs rec.onstop to run with a blob)
+                try { rec.stop(); } catch(e){ cleanup(); }
+                return;
+              }
+              drawRaf = requestAnimationFrame(loop);
+            };
+            drawRaf = requestAnimationFrame(loop);
+            guard = setTimeout(function(){ if (clipBusy) fail("That took too long. Keep this tab in front and try again."); }, (len + 8) * 1000);
+            clearInterval(waitTimer);
+          }
+        }, 10);
+      });
+    }
+    document.getElementById("clip-make").addEventListener("click", makeClip);
+
+    /* ---- sharing ---- */
+    function captionText(){
+      var t = (titleEl.value || "").trim();
+      return (t ? t + " - " : "") + "my vocals, made in Gemstar. gemstaraudio.com #Gemstar #M5tar #Gemsquad #vocals #newmusic";
+    }
+    function fileForShare(){
+      if (!clipBlob) return null;
+      try {
+        var f = new File([clipBlob], clipName, {type: clipBlob.type});
+        if (navigator.canShare && navigator.canShare({files:[f]})) return f;
+      } catch(e){}
+      return null;
+    }
+    function saveVideo(){
+      if (!clipUrl) return;
+      var a = document.createElement("a"); a.href = clipUrl; a.download = clipName;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); }, 500);
+    }
+    function copyCaption(){
+      var t = captionText();
+      try { if (navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).catch(function(){}); return true; } } catch(e){}
+      try {
+        var ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); return true;
+      } catch(e){}
+      return false;
+    }
+    function nativeShare(hint){
+      var f = fileForShare();
+      if (!f) return false;
+      doneMsg.textContent = hint || "";
+      navigator.share({files:[f], title: "Gemstar clip", text: captionText()}).catch(function(err){
+        if (err && err.name === "AbortError") return;
+        doneMsg.textContent = "Couldn't open the share menu. Use Save video instead.";
+      });
+      return true;
+    }
+    var PLATS = {
+      tiktok:    { name: "TikTok",    url: "https://www.tiktok.com/upload" },
+      instagram: { name: "Instagram", url: "https://www.instagram.com/" },
+      youtube:   { name: "YouTube",   url: "https://studio.youtube.com/" },
+      reddit:    { name: "Reddit",    url: function(){ return "https://www.reddit.com/submit?title=" + encodeURIComponent((titleEl.value || "").trim() || "My vocals, made in Gemstar"); } }
+    };
+    document.getElementById("clip-share").addEventListener("click", function(){
+      if (!nativeShare("")){ saveVideo(); copyCaption(); doneMsg.textContent = "Saved to your device and caption copied. Upload it from your favorite app."; }
+    });
+    overlay.querySelectorAll(".clip-plat").forEach(function(b){
+      b.addEventListener("click", function(){
+        var p = PLATS[b.getAttribute("data-plat")]; if (!p) return;
+        if (nativeShare("In the menu, pick " + p.name + ".")) return;
+        var url = typeof p.url === "function" ? p.url() : p.url;
+        window.open(url, "_blank", "noopener");
+        saveVideo(); copyCaption();
+        doneMsg.textContent = "Video saved and caption copied. Upload it on " + p.name + " (opened in a new tab).";
+      });
+    });
+    document.getElementById("clip-save").addEventListener("click", function(){ saveVideo(); doneMsg.textContent = "Saved to your device."; });
+    document.getElementById("clip-copy").addEventListener("click", function(){ doneMsg.textContent = copyCaption() ? "Caption copied." : "Couldn't copy the caption."; });
+    document.getElementById("clip-redo").addEventListener("click", function(){ show("setup"); refreshLenLocks(); });
+    document.getElementById("clip-cancel").addEventListener("click", function(){ clipAbort = true; show("setup"); });
+    window.gemstarOpenShareClip = openModal;
+  })();
 
   btnExport.addEventListener("click", function(){
     if (exporting || stemExporting) return;
