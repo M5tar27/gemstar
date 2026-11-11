@@ -25,6 +25,7 @@
 // Optional env var: EMAIL_FROM (defaults to Gemstar <onboarding@resend.dev>)
 
 const crypto = require("crypto");
+const C = require("./_lib/common");
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days — long-lived access token
 const CODE_TTL_SECONDS = 60 * 10;            // 10 minutes — one-time code window
@@ -179,6 +180,11 @@ module.exports = async (req, res) => {
     const custData = await custResp.json();
 
     if (!custData.data || custData.data.length === 0) {
+      // Not a subscriber -- but they did try to unlock export with this
+      // email, so keep it on the list as an unverified lead. marketing_ok
+      // stays false (no opt-in given here), so it won't be in blasts unless
+      // they opt in somewhere else (e.g. the free-demo email card).
+      await C.upsertContact(email, "free", "gate-lookup", false);
       res.status(200).json({ access: false });
       return;
     }
@@ -220,6 +226,11 @@ module.exports = async (req, res) => {
     }
 
     if (!hasActiveSub) {
+      // Not a subscriber -- but they did try to unlock export with this
+      // email, so keep it on the list as an unverified lead. marketing_ok
+      // stays false (no opt-in given here), so it won't be in blasts unless
+      // they opt in somewhere else (e.g. the free-demo email card).
+      await C.upsertContact(email, "free", "gate-lookup", false);
       res.status(200).json({ access: false });
       return;
     }
