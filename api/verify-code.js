@@ -21,6 +21,7 @@
 // Requires env vars: ACCESS_TOKEN_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 const crypto = require("crypto");
+const C = require("./_lib/common");
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 const TIER_RANK = { starter: 1, mix: 2, unlimited: 3 };
@@ -181,6 +182,10 @@ module.exports = async (req, res) => {
     res.status(200).json({ access: false, error: deviceCheck.error });
     return;
   }
+
+  // Verified subscriber (they just proved they own this inbox and have an
+  // active plan) -- keep them on the durable contact list at their tier.
+  await C.upsertContact(email, tier, "subscriber", true);
 
   const token = signToken(email, tier, deviceId);
   res.status(200).json({ access: true, token: token, tier: tier, legacyKnobs: legacyKnobs });
