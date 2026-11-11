@@ -17,6 +17,8 @@
 //   WAITLIST_NOTIFY_EMAIL — where signups get sent (defaults to Gemstaraudio@gmail.com)
 //   EMAIL_FROM             — sender identity (defaults to Gemstar <onboarding@resend.dev>)
 
+const C = require("./_lib/common");
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -48,8 +50,17 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // Save to the durable contact list first -- this is the real record for
+  // email blasts. These are explicit opt-ins (the person typed their email
+  // into a "keep me posted" form), so marketing_ok is true.
+  const source = plan.toLowerCase() === "free-demo" ? "free-demo" : "waitlist";
+  const saved = await C.upsertContact(email, "free", source, true);
+
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
+    // The inbox notification is only a nice-to-have now; if the list save
+    // worked, the signup still counts.
+    if (saved) { res.status(200).json({ ok: true }); return; }
     res.status(500).json({ ok: false, error: "Waitlist not configured" });
     return;
   }
@@ -83,13 +94,13 @@ module.exports = async (req, res) => {
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
       console.error(`Resend waitlist error ${resp.status}: ${errText}`);
-      res.status(200).json({ ok: false, error: "Couldn't save that — try again." });
+      res.status(200).json(saved ? { ok: true } : { ok: false, error: "Couldn't save that — try again." });
       return;
     }
 
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error("Waitlist error:", err);
-    res.status(200).json({ ok: false, error: "Couldn't save that — try again." });
+    res.status(200).json(saved ? { ok: true } : { ok: false, error: "Couldn't save that — try again." });
   }
 };
