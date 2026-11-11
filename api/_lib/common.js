@@ -106,6 +106,31 @@ async function sbRest(cfg, path, opts) {
   return data;
 }
 
+// Records an email in the durable gemstar_contacts list (see
+// supabase/migrations/20261110_gemstar_contacts.sql). Never throws and never
+// blocks the caller's real job -- a failure here just means that one
+// contact wasn't saved this time. tier only ever upgrades; marketingOk only
+// ever turns on (unsubscribes are managed by hand in the table).
+async function upsertContact(email, tier, source, marketingOk) {
+  try {
+    const cfg = sbConfig();
+    if (!cfg || !email) return false;
+    await sbRest(cfg, "rpc/gemstar_upsert_contact", {
+      method: "POST",
+      body: JSON.stringify({
+        p_email: String(email),
+        p_tier: tier || "free",
+        p_source: source || "unknown",
+        p_marketing_ok: !!marketingOk,
+      }),
+    });
+    return true;
+  } catch (e) {
+    console.error("upsertContact failed:", e && e.message);
+    return false;
+  }
+}
+
 // Short-lived URL to download a private file. `bucket` defaults to the
 // Collab bucket for existing callers; pass PROJECTS_BUCKET for project files.
 async function signedDownloadUrl(cfg, path, expiresIn, bucket) {
@@ -176,5 +201,5 @@ async function deleteObject(cfg, path, bucket) {
 module.exports = {
   BUCKET, PROJECTS_BUCKET, UUID_RE, canCollaborate, requireCollab, escapeHtml, siteUrl, sendEmail, deleteObject,
   parseBody, verifyAccessToken, signGuestToken, verifyGuestToken,
-  newInviteToken, sbConfig, sbRest, signedDownloadUrl, signedUploadUrl,
+  newInviteToken, sbConfig, sbRest, upsertContact, signedDownloadUrl, signedUploadUrl,
 };
