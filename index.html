@@ -3457,6 +3457,10 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     buildChain(); // retires the old chain(s) itself and rebuilds on the same context
   }
 
+  // Highest drive the M5tar knob ever asks for (0.1 + 100%*0.5) -- the fixed
+  // WaveShaper curve is built at this, see the m5tarSat comment in buildChain.
+  var M5TAR_SAT_DRIVE_MAX = 0.6;
+
   function makeSoftClipCurve(drive){
     var n = 1024;
     var curve = new Float32Array(n);
@@ -3715,6 +3719,12 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
     this.analysisIntervalSamples = 512;
     this.currentRatio = 1.0;
     this.targetRatio = 1.0;
+    // 0 = raw dry audio, 1 = fully pitch-corrected. Ramped over ~20ms when
+    // Tune crosses zero (see _render) so switching Tune on/off crossfades
+    // instead of hard-cutting between the dry sample and the shifter's
+    // (delayed) output -- that hard cut was an audible click.
+    this.mix = 0;
+    this.mixStep = 1 / Math.max(1, 0.02 * this.sr);
     this.voiced = false;
     this.lfoPhase = 0;
     this.lfoRateHz = 5.5;
@@ -3794,7 +3804,10 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
         this.voiced = pr.confidence > 0.35 && pr.freq > 0;
         this.targetRatio = this.voiced ? nearestScaleFreq(pr.freq, this.scaleMask) / pr.freq : 1.0;
       }
-      if (!speed || speed <= 0) {
+      const wantWet = speed > 0 ? 1 : 0;
+      if (this.mix < wantWet) this.mix = Math.min(wantWet, this.mix + this.mixStep);
+      else if (this.mix > wantWet) this.mix = Math.max(wantWet, this.mix - this.mixStep);
+      if (this.mix <= 0 && wantWet === 0) {
         // Bypassed: the output below is the raw dry sample, not whatever
         // the shifter would have returned, so actually running its granular
         // read (two overlapping grain taps with windowed interpolation,
@@ -3813,7 +3826,7 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
         }
         continue;
       }
-      const tau = this._timeConstantSeconds(speed);
+      const tau = this._timeConstantSeconds(speed > 0 ? speed : 100);
       const dt = 1 / this.sr;
       const alpha = 1 - Math.exp(-dt / tau);
       this.currentRatio += (this.targetRatio - this.currentRatio) * alpha;
@@ -3828,7 +3841,8 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
       for (let ch = 0; ch < numChannels; ch++) {
         const x = input[Math.min(ch, inChannels - 1)][i];
         if (!this.shifters[ch]) this.shifters[ch] = new GranularPitchShifter(this.sr, 80);
-        output[ch][i] = this.shifters[ch].process(x, appliedRatio);
+        const wet = this.shifters[ch].process(x, appliedRatio);
+        output[ch][i] = this.mix >= 1 ? wet : x * (1 - this.mix) + wet * this.mix;
       }
     }
   }
@@ -4156,7 +4170,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     // ---- M5tar: signature grit + low-mid warmth ----
     g.m5tarSat = ctx.createWaveShaper();
-    g.m5tarSat.curve = makeSoftClipCurve(0.1);
+    // The saturation amount used to be changed by swapping this WaveShaper's
+    // curve every time the M5tar knob moved -- and replacing a curve mid-
+    // signal is an instant discontinuity, heard as constant crackle while
+    // turning the knob. Now the curve is fixed at the knob's maximum drive,
+    // and the amount is set by smoothly ramping a gain BEFORE it (m5tarPre)
+    // and a compensating gain AFTER it (m5tarPost). That's mathematically
+    // identical: tanh(kx)/tanh(k) == C(x*k/kMax) * tanh(kMax)/tanh(k) where
+    // C is the kMax curve (see applyParamsTo()). Both are plain gain params,
+    // so they glide with no clicks.
+    g.m5tarSat.curve = makeSoftClipCurve(M5TAR_SAT_DRIVE_MAX);
+    g.m5tarPre = ctx.createGain();
+    g.m5tarPost = ctx.createGain();
+    // Starting values = the knob at 0 (k = 1.6), so there's no level jump
+    // before the first applyParamsTo() lands.
+    g.m5tarPre.gain.value = 1.6/(1 + M5TAR_SAT_DRIVE_MAX*6);
+    g.m5tarPost.gain.value = Math.tanh(1 + M5TAR_SAT_DRIVE_MAX*6)/Math.tanh(1.6);
     g.m5tarWarmth = ctx.createBiquadFilter();
     g.m5tarWarmth.type = "peaking";
     g.m5tarWarmth.frequency.value = 500;
@@ -4274,8 +4303,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // m5tar: dry + saturated/warmed blend (Loud is no longer a mid-chain
     // knob — it's the final Output Gain fader, applied once at the very end)
     g.wideSum.connect(g.m5tarDry);
-    g.wideSum.connect(g.m5tarSat);
-    g.m5tarSat.connect(g.m5tarWarmth);
+    g.wideSum.connect(g.m5tarPre);
+    g.m5tarPre.connect(g.m5tarSat);
+    g.m5tarSat.connect(g.m5tarPost);
+    g.m5tarPost.connect(g.m5tarWarmth);
     g.m5tarWarmth.connect(g.m5tarWet);
     g.m5tarDry.connect(g.m5tarSum);
     g.m5tarWet.connect(g.m5tarSum);
@@ -4706,8 +4737,9 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     // M5tar: signature grit + low-mid warmth (its own light touch, plus
     // the parameter blend above)
-    var newSoftClip = getSoftClipCurve(0.1 + m5*0.5);
-    if (chain.m5tarSat.curve !== newSoftClip) chain.m5tarSat.curve = newSoftClip;
+    var satK = 1 + (0.1 + m5*0.5)*6, satKMax = 1 + M5TAR_SAT_DRIVE_MAX*6;
+    chain.m5tarPre.gain.setTargetAtTime(satK/satKMax, now, 0.02);
+    chain.m5tarPost.gain.setTargetAtTime(Math.tanh(satKMax)/Math.tanh(satK), now, 0.02);
     chain.m5tarWarmth.gain.setTargetAtTime(lerp(v.m5tar,0,100,0,5), now, 0.02);
     chain.m5tarDry.gain.setTargetAtTime(1 - m5*0.5, now, 0.02);
     chain.m5tarWet.gain.setTargetAtTime(m5, now, 0.02);
@@ -4940,8 +4972,16 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
      recorded take should go into the chain at full lossless quality, same
      as an uploaded WAV would, with no extra compression generation baked in
      before the user even starts dialing in the knobs. */
+  // 24-bit PCM (was 16-bit with plain truncation). The take gets normalized
+  // up by as much as +18dB on load (autoNormalizeBuffer), and Punch/Radio
+  // etc. add more gain after that -- all of which also amplify whatever
+  // rounding noise the WAV itself carries. At 16-bit that's a faint grainy
+  // "static" under quiet passages after enough gain; at 24-bit the encoding
+  // noise floor is ~48dB lower, far below any mic's own noise, so what
+  // you hear is the voice and not the file format. Plain PCM, so every
+  // browser's decodeAudioData reads it.
   function encodeWavBlob(samples, sampleRate){
-    var bytesPerSample = 2, blockAlign = bytesPerSample, byteRate = sampleRate * blockAlign;
+    var bytesPerSample = 3, blockAlign = bytesPerSample, byteRate = sampleRate * blockAlign;
     var dataSize = samples.length * bytesPerSample;
     var buffer = new ArrayBuffer(44 + dataSize);
     var view = new DataView(buffer);
@@ -4949,12 +4989,15 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     writeStr(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); writeStr(8, "WAVE");
     writeStr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
     view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
-    view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+    view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 24, true);
     writeStr(36, "data"); view.setUint32(40, dataSize, true);
     var offset = 44;
-    for (var i=0;i<samples.length;i++, offset+=2){
-      var s = Math.max(-1, Math.min(1, samples[i]));
-      view.setInt16(offset, s < 0 ? s*0x8000 : s*0x7FFF, true);
+    for (var i=0;i<samples.length;i++, offset+=3){
+      var x = Math.max(-1, Math.min(1, samples[i]));
+      var v = Math.round(x < 0 ? x*8388608 : x*8388607);
+      view.setUint8(offset, v & 0xFF);
+      view.setUint8(offset+1, (v >> 8) & 0xFF);
+      view.setUint8(offset+2, (v >> 16) & 0xFF);
     }
     return new Blob([view], { type: "audio/wav" });
   }
