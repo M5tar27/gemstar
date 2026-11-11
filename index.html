@@ -9754,7 +9754,14 @@ reader.readAsText(file);
      plan:"free-demo" so those signups are easy to tell apart in the inbox.
      Shown at most once per browser (localStorage), whether submitted or
      skipped -- it never asks twice. */
-  var FREE_EMAIL_PROMPTED_KEY = "gemstar.freeEmailPrompted.v1";
+  // "gemstar.freeEmailGiven.v2" is set only once someone actually submits an
+  // email. Skipping no longer silences the card for good -- it just closes
+  // it for this visit (a per-session flag), and it comes back next visit
+  // until an email is given. (The old v1 "prompted" key, set on first show
+  // even if skipped, is intentionally ignored so people who skipped before
+  // get asked again.)
+  var FREE_EMAIL_GIVEN_KEY = "gemstar.freeEmailGiven.v2";
+  var FREE_EMAIL_SESSION_KEY = "gemstar.freeEmailShownThisSession";
   var freeEmailOverlay = document.getElementById("free-email-overlay");
   var freeEmailForm = document.getElementById("free-email-form");
   var freeEmailStatus = document.getElementById("free-email-status");
@@ -9764,13 +9771,19 @@ reader.readAsText(file);
   function closeFreeEmailCard(){
     if (freeEmailOverlay) freeEmailOverlay.hidden = true;
   }
-  function markFreeEmailPrompted(){
-    try { localStorage.setItem(FREE_EMAIL_PROMPTED_KEY, "1"); } catch(e){}
+  function markFreeEmailGiven(){
+    try { localStorage.setItem(FREE_EMAIL_GIVEN_KEY, "1"); } catch(e){}
   }
   function maybeShowFreeEmailPrompt(){
     if (!freeEmailOverlay || freeEmailPromptScheduled) return;
     if (currentPlan !== "starter" || !audioBuffer) return;
-    try { if (localStorage.getItem(FREE_EMAIL_PROMPTED_KEY)) return; } catch(e){ return; }
+    // Verified subscribers (any paid tier, including Starter) are already
+    // on the contact list via /api/verify-code -- don't nag them.
+    try { if (localStorage.getItem("gemstar_access_token")) return; } catch(e){}
+    try { if (localStorage.getItem(FREE_EMAIL_GIVEN_KEY)) return; } catch(e){ return; }
+    // Once per visit, so skipping is never a dead end but also never nags
+    // repeatedly inside one sitting.
+    try { if (sessionStorage.getItem(FREE_EMAIL_SESSION_KEY)) return; } catch(e){}
     freeEmailPromptScheduled = true;
     // A short delay so it never interrupts the moment someone's vocal
     // first loads/plays -- it shows up a beat later, once they're already
@@ -9778,7 +9791,7 @@ reader.readAsText(file);
     setTimeout(function(){
       if (currentPlan !== "starter") return; // verified to a paid plan in the meantime
       freeEmailOverlay.hidden = false;
-      markFreeEmailPrompted();
+      try { sessionStorage.setItem(FREE_EMAIL_SESSION_KEY, "1"); } catch(e){}
     }, 1800);
   }
   if (freeEmailForm) freeEmailForm.addEventListener("submit", function(e){
@@ -9798,6 +9811,7 @@ reader.readAsText(file);
         freeEmailStatus.className = "form-status err";
         return;
       }
+      markFreeEmailGiven();
       freeEmailStatus.textContent = STR[lang].freeEmailOk;
       freeEmailStatus.className = "form-status ok";
       setTimeout(closeFreeEmailCard, 1300);
