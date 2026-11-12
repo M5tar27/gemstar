@@ -148,6 +148,7 @@
         <p class="sm">Cleans up, evens out and adds air to guest layers. Your original recordings are never changed.</p>
       </div>
       <button class="cta" id="t-dl" type="button" style="margin-top:12px">Download mix (WAV)</button>
+      <button class="btn" id="t-clip" type="button" style="width:100%;margin-top:10px">Share Clip</button>
       <p class="note" id="t-note" role="status"></p>
     </div>
 
@@ -191,6 +192,7 @@
 </main>
 
 <script src="/vocal-polish.js"></script>
+<script src="/collab-clip.js"></script>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
@@ -563,6 +565,63 @@
     }).catch(function () { say("t-note", "Couldn't build the mix. Check that every accepted layer plays, then try again.", "bad"); })
       .then(function () { $("t-dl").disabled = false; });
   });
+
+  // ---- Share Clip host: hands the audio side to /collab-clip.js ------------
+  // begin() plays the real mix (same sources, volumes and polish as Play) and
+  // also feeds it to a recorder, with one analyser per person for the video.
+  window.GemstarCollabHost = {
+    info: function () {
+      var acc = accepted();
+      return {
+        title: S.title || "My collab",
+        startPos: PB.state === "stopped" ? 0 : curPos(),
+        layers: acc.map(function (l) { return { id: l.id, name: l.label || "Guest" }; })
+      };
+    },
+    begin: function (fromPos) {
+      stopAll();
+      var layers = accepted();
+      return prepare(layers).then(function () {
+        var c = getCtx(), items = itemsFor(layers), tl = timeline(items);
+        var keys = ["beat"].concat(layers.filter(function (l) { return l.buffer; }).map(function (l) { return l.id; }));
+        var pos = (fromPos > tl.end - 3) ? 0 : Math.max(0, fromPos);
+        var dest = c.createMediaStreamDestination();
+        var master = c.createGain();
+        // gentle safety limiter so stacked layers can't clip the video's audio
+        var lim = c.createDynamicsCompressor();
+        lim.threshold.value = -2; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.15;
+        master.connect(lim); lim.connect(c.destination); lim.connect(dest);
+        var beatM = c.createGain(), vocM = c.createGain();
+        beatM.gain.value = mixVol.beat; vocM.gain.value = mixVol.voc;
+        beatM.connect(master); vocM.connect(master);
+        var pol = (window.GemstarPolish && polish !== "off") ? window.GemstarPolish.create(c, polish, vocM) : null;
+        var sink = c.createGain(); sink.gain.value = 0; sink.connect(c.destination);
+        var startBase = c.currentTime + 0.2, nodes = [], rows = [];
+        items.forEach(function (i, idx) {
+          var an = c.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = 0; an.connect(sink);
+          rows.push({ key: keys[idx], analyser: an });
+          var at = i.rel - tl.minRel;
+          if (at + i.trimDur <= pos) return;
+          var s = c.createBufferSource(); s.buffer = i.buffer;
+          var g = c.createGain(); g.gain.value = i.gain;
+          s.connect(g); g.connect(an);
+          g.connect(i.kind === "beat" ? beatM : (pol ? pol.channel() : vocM));
+          if (at >= pos) s.start(startBase + (at - pos), i.trimStart, i.trimDur);
+          else s.start(startBase, i.trimStart + (pos - at), i.trimDur - (pos - at));
+          nodes.push(s);
+        });
+        return {
+          ctx: c, dest: dest, master: master, rows: rows, startBase: startBase, dur: tl.end - pos,
+          stop: function () {
+            nodes.forEach(function (n) { try { n.stop(); } catch (e) {} });
+            try { master.disconnect(); } catch (e) {}
+            try { lim.disconnect(); } catch (e) {}
+            try { sink.disconnect(); } catch (e) {}
+          }
+        };
+      });
+    }
+  };
 
   $("t-del").addEventListener("click", function () {
     if (!confirm("Delete \"" + (S.title || "this track") + "\" and every layer on it? This can't be undone.")) return;
