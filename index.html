@@ -543,6 +543,30 @@
     background:rgba(0,245,255,0.22);
     border-left-color:var(--cyan); border-right-color:var(--cyan);
   }
+  /* Big touch-friendly grips on both ends of the highlight: drag either one
+     to fine-tune where the cut starts/ends. Only the grips take pointer
+     events -- the middle stays click-through to the waveform underneath. */
+  .wf-handle{
+    position:absolute; top:0; bottom:0; width:clamp(14px, 36%, 26px);
+    pointer-events:auto; touch-action:none; cursor:ew-resize;
+    background:rgba(255,92,122,0.55);
+  }
+  .wf-handle::after{
+    content:""; position:absolute; top:50%; left:50%; width:3px; height:34px;
+    margin:-17px 0 0 -1.5px; border-radius:2px; background:#fff; opacity:0.9;
+  }
+  .wf-handle-l{left:0;}
+  .wf-handle-r{right:0;}
+  /* The one obvious Cut button, sitting right on the highlighted part. */
+  .wf-cut-float{
+    position:absolute; top:8px; left:50%; transform:translateX(-50%); z-index:3;
+    font:inherit; font-weight:700; font-size:0.9rem; letter-spacing:0.02em;
+    color:#0A0A12; background:var(--danger); border:2px solid #fff; border-radius:999px;
+    padding:8px 18px; min-height:40px; cursor:pointer; white-space:nowrap;
+    box-shadow:0 2px 14px rgba(0,0,0,0.6), 0 0 14px rgba(255,92,122,0.6);
+  }
+  .wf-cut-float:hover{background:#ff3a5e;}
+  .wf-cut-float[hidden]{display:none;}
   /* Moving cursor over the Step 2 waveform while it plays. That canvas
      used to get overwritten every frame by a live oscilloscope trace
      during playback (see runVisualizer()), which flickered the whole
@@ -563,7 +587,7 @@
   /* Bright, filled red for Cut -- it's the one truly destructive action on
      this bar, so it should read louder than the usual outline btn-danger
      style used elsewhere (Remove, etc.). */
-  #btn-wf-cut{background:var(--danger); border-color:var(--danger); color:#0A0A12; font-weight:600;}
+  #btn-wf-cut{background:var(--danger); border-color:var(--danger); color:#0A0A12; font-weight:700; font-size:0.85rem; padding:10px 18px; min-height:40px;}
   #btn-wf-cut:hover{background:#ff3a5e; border-color:#ff3a5e; color:#0A0A12;}
   #btn-wf-cut:disabled{opacity:0.45; cursor:not-allowed;}
 
@@ -1774,7 +1798,8 @@
         <div class="waveform-shell" id="lead-waveform-shell">
           <span class="wf-label" data-i18n="wfLabelVocal">Vocal</span>
           <canvas id="waveform" width="900" height="110"></canvas>
-          <div class="wf-selection" id="wf-selection" hidden></div>
+          <div class="wf-selection" id="wf-selection" hidden><span class="wf-handle wf-handle-l" id="wf-handle-l"></span><span class="wf-handle wf-handle-r" id="wf-handle-r"></span></div>
+          <button type="button" class="wf-cut-float" id="wf-cut-float" hidden data-i18n="cutBtn">✂ Cut</button>
           <div class="wf-playhead" id="wf-playhead" hidden></div>
         </div>
         <div class="wf-cut-bar" id="wf-cut-bar">
@@ -2314,10 +2339,11 @@ calibrateSyncTapBtn:"TAP",
       cleanHint:"Mutes the dead air between phrases (hiss, room noise, stray breaths) on every vocal, without moving anything in time.",
       cleanDone:"Silenced {pct}% dead air across {n} track(s). Timing stays locked to your beat.",
       cleanNone:"No dead air long enough to clean up. Your vocals were already tight.",
-      cutHint:"Drag on the waveform to select a section, then cut it -- or drag the selection itself to move it elsewhere in the track. Keeps everything locked to the beat: cutting silences that part, moving never shifts the rest of the track.",
-      cutSelectedLabel:"{dur}s selected",
+      cutHint:"Drag across the waveform to highlight what you want to cut, then tap Cut. Drag the grips on either end to fine-tune. The highlighted part is removed and the rest of this vocal closes up.",
+      cutSelectedLabel:"{dur}s highlighted — tap ✂ Cut to remove it",
       cutBtn:"✂ Cut", cutClearBtn:"✕ Clear", cutUndoBtn:"↺ Undo Cut",
-      cutDoneToast:'"{name}": section cut',
+      cutDoneToast:'"{name}": section removed',
+      cutAllWarn:"That would remove the whole take -- highlight just the part you want gone.",
       moveDoneToast:'"{name}": section moved',
       tuneKeyLabel:"Auto-Tune Key", tuneChromatic:"Chromatic (all notes)", scaleMajor:"Major", scaleMinor:"Minor",
       tuneKeyHint:"Set your song's key so Tune only snaps to notes that fit it.",
@@ -2557,10 +2583,11 @@ calibrateSyncTapBtn:"TOCAR",
       cleanHint:"Silencia el aire muerto entre frases (siseo, ruido de cuarto, respiraciones) en cada voz, sin mover nada en el tiempo.",
       cleanDone:"Se silenció {pct}% de aire muerto en {n} pista(s). El tiempo sigue alineado con tu beat.",
       cleanNone:"No hay silencios lo bastante largos para limpiar. Tus voces ya estaban limpias.",
-      cutHint:"Arrastra sobre la onda para seleccionar una sección y cortarla -- o arrastra la selección misma para moverla a otra parte de la pista. Todo se mantiene alineado con el beat: cortar silencia esa parte, mover nunca desplaza el resto de la pista.",
-      cutSelectedLabel:"{dur}s seleccionados",
+      cutHint:"Arrastra sobre la onda para resaltar lo que quieres cortar y toca Cortar. Arrastra los agarres de los extremos para ajustar. La parte resaltada se elimina y el resto de esta voz se cierra.",
+      cutSelectedLabel:"{dur}s resaltados — toca ✂ Cortar para eliminarlo",
       cutBtn:"✂ Cortar", cutClearBtn:"✕ Borrar", cutUndoBtn:"↺ Deshacer corte",
-      cutDoneToast:'"{name}": sección cortada',
+      cutDoneToast:'"{name}": sección eliminada',
+      cutAllWarn:"Eso eliminaría toda la toma -- resalta solo la parte que quieres quitar.",
       moveDoneToast:'"{name}": sección movida',
       tuneKeyLabel:"Tono del Auto-Tune", tuneChromatic:"Cromático (todas las notas)", scaleMajor:"Mayor", scaleMinor:"Menor",
       tuneKeyHint:"Elige el tono de tu canción para que Tune solo se ajuste a notas que encajan.",
@@ -10981,6 +11008,10 @@ return {onBeat:onBeat, clear:clear, render:render};
   var btnWfCutClear = document.getElementById("btn-wf-cut-clear");
   var btnWfCut = document.getElementById("btn-wf-cut");
   var btnWfCutUndo = document.getElementById("btn-wf-cut-undo");
+  var wfCutFloatEl = document.getElementById("wf-cut-float");
+  var wfHandleL = document.getElementById("wf-handle-l"), wfHandleR = document.getElementById("wf-handle-r");
+  var cutHandleDragging = null; // "l" | "r" while a grip is being dragged
+  var cutHandleGrab = 0;
   var cutSelStart = null, cutSelEnd = null, cutDragging = false;
   var MIN_CUT_SEC = 0.05; // ignore a stray tap/click -- only a real drag counts
   // Drag-to-move state: starting a NEW drag inside the CURRENT selection
@@ -11073,17 +11104,39 @@ return {onBeat:onBeat, clear:clear, render:render};
   function clearCutSelection(){
     cutSelStart = null; cutSelEnd = null;
     if (wfSelectionEl) wfSelectionEl.hidden = true;
+    updateCutFloat();
     updateCutBar();
   }
   function updateSelectionOverlay(){
     if (!wfSelectionEl) return;
     if (cutSelStart == null || cutSelEnd == null){ wfSelectionEl.hidden = true; return; }
-    var total = currentTotalDuration();
-    if (!total){ wfSelectionEl.hidden = true; return; }
+    // Same basis as timeFromClientX() and the canvas itself: THIS track's own
+    // length. (It used to scale by the whole session length, so with a vocal
+    // shorter than the beat the highlight was drawn in the wrong place --
+    // not where the cut would actually land.)
+    var tb = cutTargetBuffer();
+    var total = tb ? tb.duration : 0;
+    if (!total){ wfSelectionEl.hidden = true; updateCutFloat(); return; }
     var a = Math.min(cutSelStart, cutSelEnd), b = Math.max(cutSelStart, cutSelEnd);
     wfSelectionEl.hidden = false;
     wfSelectionEl.style.left = (a/total*100) + "%";
     wfSelectionEl.style.width = (Math.max(0, b-a)/total*100) + "%";
+    updateCutFloat();
+  }
+  // The big Cut button that sits right on the highlighted part (shown once
+  // you let go, so it never gets in the way of dragging).
+  function updateCutFloat(){
+    if (!wfCutFloatEl) return;
+    var tb = cutTargetBuffer();
+    var hasSel = tb && cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) >= MIN_CUT_SEC;
+    var show = !!hasSel && !cutDragging && !cutHandleDragging;
+    wfCutFloatEl.hidden = !show;
+    if (!show) return;
+    var shell = wfSelectionEl.parentNode, W = shell.getBoundingClientRect().width;
+    var half = (wfCutFloatEl.offsetWidth || 90) / 2;
+    var mid = (Math.min(cutSelStart, cutSelEnd) + Math.max(cutSelStart, cutSelEnd)) / 2 / tb.duration * W;
+    mid = Math.max(half + 4, Math.min(W - half - 4, mid));
+    wfCutFloatEl.style.left = mid + "px";
   }
   function updateCutBar(){
     if (!wfCutBarEl) return;
@@ -11104,22 +11157,11 @@ return {onBeat:onBeat, clear:clear, render:render};
       var buf = cutTargetBuffer();
       if (!buf) return;
       var t0 = timeFromClientX(e.clientX);
-      // Starting the drag INSIDE the selection that's already there moves
-      // that slice instead of replacing the selection with a brand new
-      // (zero-length, at this point) one -- same gesture either way, the
-      // cursor's start position decides which one the user meant.
-      var hasSel = cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) >= MIN_CUT_SEC;
-      var selA = hasSel ? Math.min(cutSelStart, cutSelEnd) : null;
-      var selB = hasSel ? Math.max(cutSelStart, cutSelEnd) : null;
+      // Dragging on the waveform ALWAYS highlights a new section (it used to
+      // grab and move an existing highlight instead, which made highlighting
+      // unpredictable). Fine-tune an existing highlight with its end grips.
       try { canvas.setPointerCapture(e.pointerId); } catch(err){}
       e.preventDefault();
-      if (hasSel && t0 >= selA && t0 <= selB){
-        cutMoveDragging = true;
-        cutMoveOrigA = selA; cutMoveOrigB = selB; cutMoveGrabT = t0;
-        if (wfSelectionEl) wfSelectionEl.classList.add("moving");
-        canvas.style.cursor = "grabbing";
-        return;
-      }
       cutDragging = true;
       cutSelStart = t0; cutSelEnd = t0;
       updateSelectionOverlay();
@@ -11205,11 +11247,45 @@ return {onBeat:onBeat, clear:clear, render:render};
       cutDragging = false;
       if (cutSelStart != null && cutSelEnd != null && Math.abs(cutSelEnd-cutSelStart) < MIN_CUT_SEC){
         clearCutSelection(); // too small to count -- treat as a stray tap
+      } else {
+        updateSelectionOverlay(); // drag finished -- the Cut button appears on the highlight now
       }
     }
     canvas.addEventListener("pointerup", endCutDrag);
     canvas.addEventListener("pointercancel", endCutDrag);
   }
+
+  // Drag either grip to fine-tune the start/end of the highlighted section.
+  function wireCutHandle(el, which){
+    if (!el) return;
+    el.addEventListener("pointerdown", function(e){
+      if (cutSelStart == null || cutSelEnd == null) return;
+      var lo = Math.min(cutSelStart, cutSelEnd), hi = Math.max(cutSelStart, cutSelEnd);
+      cutSelStart = lo; cutSelEnd = hi;
+      // Remember where inside the grip you grabbed, so the edge follows your
+      // finger exactly instead of jumping to its centre.
+      cutHandleGrab = timeFromClientX(e.clientX) - (which === "l" ? lo : hi);
+      cutHandleDragging = which;
+      try { el.setPointerCapture(e.pointerId); } catch(err){}
+      e.preventDefault(); e.stopPropagation();
+      updateCutFloat();
+    });
+    el.addEventListener("pointermove", function(e){
+      if (cutHandleDragging !== which) return;
+      var tb = cutTargetBuffer(); if (!tb) return;
+      var t = timeFromClientX(e.clientX) - cutHandleGrab;
+      if (which === "l") cutSelStart = Math.max(0, Math.min(t, cutSelEnd - MIN_CUT_SEC));
+      else cutSelEnd = Math.min(tb.duration, Math.max(t, cutSelStart + MIN_CUT_SEC));
+      updateSelectionOverlay();
+      updateCutBar();
+    });
+    function done(){ if (cutHandleDragging !== which) return; cutHandleDragging = null; updateSelectionOverlay(); updateCutBar(); }
+    el.addEventListener("pointerup", done);
+    el.addEventListener("pointercancel", done);
+  }
+  wireCutHandle(wfHandleL, "l");
+  wireCutHandle(wfHandleR, "r");
+  if (wfCutFloatEl) wfCutFloatEl.addEventListener("click", function(){ if (btnWfCut) btnWfCut.click(); });
 
   if (btnWfCutClear) btnWfCutClear.addEventListener("click", clearCutSelection);
 
@@ -11303,24 +11379,48 @@ return {onBeat:onBeat, clear:clear, render:render};
     return out;
   }
 
+  // Really removes [startSec, endSec) from a copy of buf and joins the two
+  // sides together (the buffer gets shorter). A few ms of fade on each side of
+  // the join keeps it click-free. Returns null if nothing meaningful would be
+  // left (cutting the entire take).
+  function removeRegion(buf, startSec, endSec){
+    ensureContext();
+    var sr = buf.sampleRate, n = buf.length, nch = buf.numberOfChannels;
+    var a = Math.max(0, Math.min(n, Math.round(startSec * sr)));
+    var b = Math.max(a, Math.min(n, Math.round(endSec * sr)));
+    var newLen = n - (b - a);
+    if (b <= a || newLen < Math.round(sr * 0.05)) return null;
+    var out = ctx.createBuffer(nch, newLen, sr);
+    var fade = Math.max(1, Math.round(sr * 0.006)); // 6ms
+    for (var c = 0; c < nch; c++){
+      var src = buf.getChannelData(c), dst = out.getChannelData(c);
+      dst.set(src.subarray(0, a), 0);
+      dst.set(src.subarray(b), a);
+      if (a > 0){ var fo = Math.min(fade, a); for (var i = 0; i < fo; i++){ dst[a - 1 - i] *= (i + 1) / (fo + 1); } }
+      if (b < n){ var fi = Math.min(fade, newLen - a); for (var j = 0; j < fi; j++){ dst[a + j] *= (j + 1) / (fi + 1); } }
+    }
+    return out;
+  }
+
   if (btnWfCut) btnWfCut.addEventListener("click", function(){
     var buf = cutTargetBuffer();
     if (!buf || cutSelStart == null || cutSelEnd == null) return;
     var a = Math.max(0, Math.min(cutSelStart, cutSelEnd));
     var b = Math.min(buf.duration, Math.max(cutSelStart, cutSelEnd));
     if (b - a < MIN_CUT_SEC) return;
+    var cutBuf = removeRegion(buf, a, b);
+    if (!cutBuf){ if (wfCutLabelEl) wfCutLabelEl.textContent = STR[lang].cutAllWarn; return; }
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
     var prevBuffer = buf; // AudioBuffers are immutable -- holding this costs nothing
     var prevFile = cutTargetFile();
     var name = cutTargetName();
-    var cutBuf = silenceRegion(buf, a, b);
     setCutTargetBuffer(cutBuf);
     setCutTargetFile(fileFromBuffer(cutBuf, "gemstar-cut.wav")); // keeps autosave/cloud-sync (which persist _file, not the live buffer) in sync with the cut
     setCutUndoBuffer(prevBuffer);
     updateCutUndoUI();
     clearCutSelection();
-    drawStaticWaveform();
+    afterVocalSetChanged(); // the track just got shorter -- refresh length, timeline, rows, autosave
     if (wasPlaying) startPlayback();
     showUndoToast(STR[lang].cutDoneToast.replace("{name}", name), function(){
       var wasPlaying2 = isPlaying;
@@ -11328,8 +11428,8 @@ return {onBeat:onBeat, clear:clear, render:render};
       setCutTargetBuffer(prevBuffer);
       setCutTargetFile(prevFile);
       setCutUndoBuffer(null);
-      updateCutUndoUI();
-      drawStaticWaveform();
+      clearCutSelection();
+      afterVocalSetChanged();
       if (wasPlaying2) startPlayback();
     });
   });
@@ -11347,8 +11447,8 @@ return {onBeat:onBeat, clear:clear, render:render};
     // paths it arrived through, with no extra state to keep in sync.
     setCutTargetFile(fileFromBuffer(buf, "gemstar-cut-undo.wav"));
     setCutUndoBuffer(null);
-    updateCutUndoUI();
-    drawStaticWaveform();
+    clearCutSelection();
+    afterVocalSetChanged();
     if (wasPlaying) startPlayback();
   });
 
