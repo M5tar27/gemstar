@@ -9523,6 +9523,20 @@ reader.readAsText(file);
     var clipBusy = false, clipAbort = false;
     var clipBlob = null, clipUrl = null, clipName = "gemstar-clip.mp4";
     var logoImg = new Image(); logoImg.src = CLIP_LOGO_SRC;
+    // QR code for gemstaraudio.com/?ref=clip (29x29 modules, pre-computed so no library is needed)
+    var QR_ROWS = "1fcb4e7f,10481541,174f6a5d,1740865d,174e0c5d,10502741,1fd5557f,5bf00,12d256a0,1518a049,1c7dcaae,173ca486,8454feb,89c780,dd3c15f,e982e1a,775a982,e03d469,14e55d73,59b6983,115631f4,125b17,1fc61152,1053451f,174919f1,17590a7e,1746421d,104c3992,1fd0bdba".split(",");
+    var qrCard = (function(){
+      var n = QR_ROWS.length, cell = 4, pad = 16, size = n*cell + pad*2;
+      var cv = document.createElement("canvas"); cv.width = size; cv.height = size;
+      var x = cv.getContext("2d");
+      x.fillStyle = "#FFFFFF"; rr(x, 0, 0, size, size, 18); x.fill();
+      x.fillStyle = "#0A0A12";
+      for (var r=0;r<n;r++){
+        var bits = parseInt(QR_ROWS[r], 16).toString(2); while (bits.length < n) bits = "0" + bits;
+        for (var k=0;k<n;k++) if (bits.charAt(k) === "1") x.fillRect(pad + k*cell, pad + r*cell, cell, cell);
+      }
+      return cv;
+    })();
 
     function pickMime(){
       if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return "";
@@ -9712,16 +9726,18 @@ reader.readAsText(file);
         rr(c, 60, 850, CW-120, 6, 3); c.fillStyle = "rgba(234,246,255,0.14)"; c.fill();
         if (pr > 0.01){ rr(c, 60, 850, (CW-120)*pr, 6, 3); c.fillStyle = bg; c.fill(); }
 
-        // watermark: Gemstar logo lockup + site
+        // watermark: Gemstar logo lockup + QR code to the site
         if (logoImg.complete && logoImg.naturalWidth){
-          var lw = 190, lh = lw * logoImg.naturalHeight / logoImg.naturalWidth;
-          c.globalAlpha = 0.96; c.drawImage(logoImg, (CW-lw)/2, 892, lw, lh); c.globalAlpha = 1;
-          c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
-          c.fillText("gemstaraudio.com", CW/2, 892 + lh + 44);
+          var lw = 180, lh = lw * logoImg.naturalHeight / logoImg.naturalWidth;
+          c.globalAlpha = 0.96; c.drawImage(logoImg, 90, 892, lw, lh); c.globalAlpha = 1;
         } else {
-          c.fillStyle = "#EAF6FF"; c.font = "700 48px 'Chakra Petch', sans-serif"; c.fillText("GEMSTAR", CW/2, 980);
-          c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', sans-serif"; c.fillText("gemstaraudio.com", CW/2, 1030);
+          c.fillStyle = "#EAF6FF"; c.font = "700 48px 'Chakra Petch', sans-serif"; c.textAlign = "left"; c.fillText("GEMSTAR", 90, 980); c.textAlign = "center";
         }
+        c.drawImage(qrCard, 450, 902);
+        c.fillStyle = "#EAF6FF"; c.font = "700 22px 'Chakra Petch', 'Segoe UI', sans-serif";
+        c.fillText("SCAN TO TRY", 450 + qrCard.width/2, 902 + qrCard.height + 34);
+        c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
+        c.fillText("gemstaraudio.com", CW/2, 1176);
       }
 
       var waitTimer = 0;
