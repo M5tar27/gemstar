@@ -5373,9 +5373,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 // outputLatency/Bluetooth guess for someone who never finds the manual
 // "Calibrate your timing" button.
 function needsFirstRunSyncCal(){
-try {
-return getStoredSyncCal() === null && !localStorage.getItem(SYNC_CAL_OFFERED_KEY);
-} catch(e){ return false; }
+// DISABLED: Record must start instantly, every time. This used to force a
+// "one-time setup" (6 clicks + tap along) the first time anyone recorded on a
+// new browser -- a first-time user (e.g. someone demoing Gemstar) just heard
+// clicking and no recording started. Timing is now handled automatically by
+// the output-latency estimate in finishRecording(); the optional
+// "Calibrate your timing" button is still there for anyone who wants it.
+return false;
 }
 function markSyncCalOffered(){
 try { localStorage.setItem(SYNC_CAL_OFFERED_KEY, "1"); } catch(e){}
