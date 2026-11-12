@@ -279,8 +279,10 @@
       c.drawImage(qrCard, 450, 902);
       c.fillStyle = "#EAF6FF"; c.font = "700 22px 'Chakra Petch', 'Segoe UI', sans-serif";
       c.fillText("SCAN TO TRY", 450 + qrCard.width / 2, 902 + qrCard.height + 34);
+      c.fillStyle = "#FFFFFF"; c.font = "700 38px 'Chakra Petch', 'Segoe UI', sans-serif";
+      c.fillText("MADE WITH GEMSTAR AUDIO", CW / 2, 1154);
       c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
-      c.fillText("gemstaraudio.com", CW / 2, 1176);
+      c.fillText("gemstaraudio.com", CW / 2, 1204);
     }
 
     Promise.resolve().then(function () {
