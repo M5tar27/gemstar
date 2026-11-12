@@ -1527,7 +1527,7 @@
             <button type="button" class="clip-len" data-sec="30">30s</button>
             <button type="button" class="clip-len" data-sec="60">60s</button>
           </div>
-          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (hear your raw vocal, then the Gemstar sound)</span></label>
+          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (dry vocal first, then your full Gemstar mix)</span></label>
           <p class="clip-hint">Starts from where your playhead is. It plays your mix out loud while it records, so a 15s clip takes about 15s.</p>
           <button type="button" class="clip-primary" id="clip-make">Create clip</button>
           <p class="clip-msg err" id="clip-msg-setup"></p>
@@ -9590,6 +9590,15 @@ reader.readAsText(file);
     document.getElementById("clip-close").addEventListener("click", closeModal);
     overlay.addEventListener("click", function(e){ if (e.target === overlay) closeModal(); });
 
+    // Before = the raw vocal only (no knobs, no beat). After = your full mix.
+    function setBefore(on){
+      setBypass(on);
+      try {
+        if (!chain || !ctx) return;
+        if (on) chain.beatGain.gain.setTargetAtTime(0, ctx.currentTime, 0.015);
+        else applyBeatLevel();
+      } catch(e){}
+    }
     function setBypass(v){
       bypassed = !!v;
       try { ensureContext(); applyBypassGains(); updateAbButton(); } catch(e){}
@@ -9655,6 +9664,7 @@ reader.readAsText(file);
         tlCursor = savedCursor; tlRegion = savedRegion; tlLoop = savedLoop;
         try { renderTimeline(); } catch(e){}
         if (bypassed !== savedBypass) setBypass(savedBypass);
+        try { if (chain && ctx) applyBeatLevel(); } catch(e){}
         clipBusy = false;
       }
       function fail(text){
@@ -9678,7 +9688,7 @@ reader.readAsText(file);
           }
           level = level*0.8 + (sum/N)*0.2;
         }
-        var label = ab ? (isAfter ? "AFTER" : "BEFORE") : "VOCALS BY GEMSTAR";
+        var label = ab ? (isAfter ? "AFTER \u00B7 FULL MIX" : "BEFORE \u00B7 DRY VOCAL") : "VOCALS BY GEMSTAR";
         if (label !== lastLabel){ if (lastLabel) flash = 1; lastLabel = label; }
         flash = Math.max(0, flash - 0.06);
 
@@ -9699,7 +9709,7 @@ reader.readAsText(file);
         for (var li=0; li<lines.length; li++) c.fillText(lines[li], CW/2, ty + li*70);
 
         // before/after pill
-        var pw = 330, ph = 66, px = (CW-pw)/2, py = 350;
+        var pw = ab ? 500 : 330, ph = 66, px = (CW-pw)/2, py = 350;
         rr(c, px, py, pw, ph, 33);
         if (ab && !isAfter){ c.fillStyle = "rgba(182,187,200,0.16)"; c.fill(); c.lineWidth = 2; c.strokeStyle = "rgba(182,187,200,0.5)"; c.stroke(); }
         else {
@@ -9748,7 +9758,7 @@ reader.readAsText(file);
       }).catch(function(){}).then(function(){
         if (clipAbort){ cleanup(); return; }
         tlRegion = null; tlLoop = false; tlCursor = start;
-        if (wantAB) setBypass(true); else if (bypassed) setBypass(false);
+        if (wantAB) setBefore(true); else if (bypassed) setBypass(false);
         startPlayback();
         var waited = 0;
         waitTimer = setInterval(function(){
@@ -9797,7 +9807,7 @@ reader.readAsText(file);
             var loop = function(){
               var elapsed = Math.max(0, ctx.currentTime - t0);
               if (clipAbort){ cleanup(); return; }
-              if (wantAB && elapsed >= splitAt && bypassed) setBypass(false);
+              if (wantAB && elapsed >= splitAt && bypassed) setBefore(false);
               drawFrame(Math.min(elapsed, len));
               busyBar.style.width = Math.min(100, elapsed/len*100).toFixed(1) + "%";
               if (elapsed >= len){
