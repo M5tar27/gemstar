@@ -655,7 +655,7 @@
      percentage), so a tick always lines up with the same instant the
      waveforms below it show. */
   .grid-ruler{
-    position:relative; height:20px; margin-bottom:4px;
+    position:relative; height:28px; margin-bottom:4px; user-select:none; -webkit-user-select:none;
     border-bottom:1px solid var(--line-strong);
   }
   .grid-ruler-tick{
@@ -1165,6 +1165,20 @@
   }
   footer a{color:var(--ink-muted); text-decoration:none;}
   footer a:hover{color:var(--cyan);}
+  /* Highlighted cancel-subscription row at the very bottom, so cancelling is never hard to find. */
+  .cancel-sub-row{
+    flex-basis:100%; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:center;
+    padding:16px; margin-bottom:6px; border-radius:14px;
+    border:1px solid rgba(255,46,136,0.45); background:rgba(255,46,136,0.07);
+  }
+  .cancel-sub-btn{
+    font:inherit; font-weight:700; font-size:0.95rem; letter-spacing:0.02em; cursor:pointer;
+    color:#fff; background:linear-gradient(90deg,#FF2E88,#B05CFF); border:0; border-radius:999px;
+    padding:12px 22px; min-height:44px; box-shadow:0 0 18px rgba(255,46,136,0.35);
+  }
+  .cancel-sub-btn:hover{filter:brightness(1.1);}
+  .cancel-sub-btn:disabled{opacity:0.7; cursor:default;}
+  .cancel-sub-note{color:var(--ink-muted); font-size:0.82rem; text-align:center;}
 
   /* ---------------- access gate (export-only) ---------------- */
   .console{position:relative;}
@@ -2072,6 +2086,15 @@
   </section>
 
   <footer>
+    <div class="cancel-sub-row">
+      <button type="button" class="cancel-sub-btn" id="cancel-sub-btn" data-i18n="cancelSubBtn">Cancel subscription</button>
+      <span class="cancel-sub-note" data-i18n="cancelSubNote">Opens your secure billing page (Stripe) where you can cancel anytime.</span>
+    </div>
+    <label class="smooth-row" style="flex-basis:100%; display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:0.85rem; color:var(--ink-muted);">
+      <input type="checkbox" id="smooth-toggle" />
+      <span>Smooth playback &mdash; turn on if you hear static or crackle (for example while screen recording)</span>
+      <a href="#" id="smooth-reload" hidden style="color:var(--cyan);">Reload to apply</a>
+    </label>
     <span data-i18n="footerText">Gemstar &middot; M5tar Studio x Gemsquad Productions</span>
     <span style="display:flex; gap:14px;">
       <a href="/help.html">Help</a>
@@ -2278,6 +2301,7 @@ calibrateSyncTapBtn:"TAP",
       allVocalsLabel:"Everything at once — tap a vocal to pull up its knobs, or mute/solo any track (vocals or beat) right here",
       volumeKnobLabel:"Volume",
       planPreviewLabel:"Your plan", planUnlockLink:"Verify plan →", manageSubLink:"Manage / cancel subscription →",
+      cancelSubBtn:"Cancel subscription", cancelSubNote:"Opens your secure billing page (Stripe) where you can cancel anytime.",
       planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
@@ -2295,7 +2319,7 @@ calibrateSyncTapBtn:"TAP",
       undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
       autoAlignedToast:"Auto-aligned to the beat — drag the waveform anytime to fine-tune",
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
-      tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs",
+      tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoomed in? drag to slide to any part of the song, or hold then drag to pick a loop",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
       tlZoomInAria:"Zoom in", tlZoomOutAria:"Zoom out",
       leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
@@ -2521,6 +2545,7 @@ calibrateSyncTapBtn:"TOCAR",
       allVocalsLabel:"Todo a la vez — toca una voz para ajustar sus perillas, o silencia/solo cualquier pista (voces o beat) aquí mismo",
       volumeKnobLabel:"Volumen",
       planPreviewLabel:"Tu plan", planUnlockLink:"Verificar plan →", manageSubLink:"Gestionar / cancelar suscripción →",
+      cancelSubBtn:"Cancelar suscripción", cancelSubNote:"Abre tu página de facturación segura (Stripe) donde puedes cancelar cuando quieras.",
       planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
@@ -2538,7 +2563,7 @@ calibrateSyncTapBtn:"TOCAR",
       undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
       autoAlignedToast:"Alineado automáticamente al beat — arrastra la forma de onda cuando quieras para ajustar",
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
-      tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle · acerca el zoom para ediciones precisas en canciones largas",
+      tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle · ¿con zoom? arrastra para deslizarte a cualquier parte de la canción, o mantén y arrastra para elegir un bucle",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
       tlZoomInAria:"Acercar", tlZoomOutAria:"Alejar",
       leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
@@ -3446,7 +3471,16 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     // a captured MIC stream, which this project already found causes its
     // own crackle on interfaces. Pinning the OUTPUT/processing context
     // here doesn't touch mic capture at all.
-    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: "interactive", sampleRate: 48000});
+    // "Smooth playback" (opt-in: ?smooth=1, or the switch in the footer) asks for a
+    // bigger output buffer so a busy computer -- screen recording, other apps --
+    // is far less likely to crackle. Default stays "interactive" (snappier knobs).
+    var smoothMode = false;
+    try {
+      var qs = /[?&]smooth=(\d)/.exec(location.search);
+      if (qs) localStorage.setItem("gemstar_smooth", qs[1] === "1" ? "1" : "0");
+      smoothMode = localStorage.getItem("gemstar_smooth") === "1";
+    } catch(e){}
+    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: smoothMode ? "playback" : "interactive", sampleRate: 48000});
     buildChain();
   }
 
@@ -7325,9 +7359,11 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       // you're looking at (including the beat's, with nothing else loaded).
       canvas.style.cursor = "pointer";
       var suppressNextClick = false;
+      var suppressClickUntil = 0; // set when a nudge-drag ends: the release also fires a "click" that must not seek/restart
       canvas.addEventListener("click", function(e){
         e.stopPropagation(); // don't also fire the row's own setEditTarget click
         if (suppressNextClick){ suppressNextClick = false; return; }
+        if (performance.now() < suppressClickUntil) return;
       if (total <= 0) return;
         var r = canvas.getBoundingClientRect();
         if (!r.width) return;
@@ -7387,7 +7423,8 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
             dragging = false;
             try { nudgeCanvas.releasePointerCapture(e.pointerId); } catch(err){}
             if (dragMoved){
-              if (isPlaying) restartPlaybackFromCursor();
+              suppressClickUntil = performance.now() + 400;
+              if (isPlaying && !retimeTrackLive(nudgeTrack)) restartPlaybackFromCursor();
               scheduleSave();
             }
           }
@@ -7398,7 +7435,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
             nudgeTrack.nudgeSec = 0;
             redraw();
             updateTitle();
-            if (isPlaying) restartPlaybackFromCursor();
+            if (isPlaying && !retimeTrackLive(nudgeTrack)) restartPlaybackFromCursor();
             scheduleSave();
           });
         })(opts.track, canvas, buffer);
@@ -8372,6 +8409,39 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     // off that ref-count.
     startPlayback();
   }
+  // Re-times ONE vocal that's playing right now (after a nudge/slide) without
+  // touching the beat or any other track -- the old way restarted the whole
+  // song from the start point (with a ~2s lead-in), so the beat dropped out
+  // and jumped back. Returns false if it can't (caller falls back to a restart).
+  function retimeTrackLive(track){
+    if (!isPlaying || !ctx || !track || isMicRecording || !chain) return false;
+    var idx = -1, i;
+    for (i = 0; i < vocalSourceNodes.length; i++){ if (vocalSourceNodes[i].ref === track){ idx = i; break; } }
+    if (idx < 0) return false;
+    var entry = vocalSourceNodes[idx];
+    var buf = (track === leadTrack) ? audioBuffer : track.buffer;
+    if (!buf) return false;
+    var LEAD = 0.03;
+    var sample = currentPlayPosition() + LEAD - trackNudgeSec(track); // which sample of this take is due right as the new source starts
+    var delay = 0;
+    if (sample < 0){ delay = -sample; sample = 0; }
+    var src = makeTimedSource(buf, sample, playRegion, playLoopWhole);
+    if (!src) return false;
+    var wasPrimary = (primaryEndedSrc === entry.src);
+    try { entry.src.onended = null; } catch(e){}
+    softStop(entry.src, [entry.gain, entry.pan]);
+    var nodes = wireTrackSource(src, track, track === leadTrack ? chain.input : vocalTrackInput(track));
+    track._liveGain = nodes.gain; track._livePan = nodes.pan;
+    vocalSourceNodes[idx] = {src: src, gain: nodes.gain, pan: nodes.pan, ref: track};
+    var startAt = ctx.currentTime + LEAD + delay;
+    src.start(startAt, src._offset);
+    if (wasPrimary){
+      primaryEndedSrc = src;
+      var endAt = startAt + (buf.duration - src._offset);
+      src.onended = function(){ onLeadSourceEnded(src, endAt); };
+    }
+    return true;
+  }
   function stopSourceOnly(){
     vocalSourceNodes.forEach(function(n){
       // Detach onended BEFORE stop() -- an explicit stop (pause, or a
@@ -8785,6 +8855,16 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       var sec = (clientX - r.left) / pxPerSec;
       return Math.max(0, Math.min(currentTotalDuration(), sec));
     }
+    // Zoomed in: dragging SLIDES the timeline (and its time stamp) instead of
+    // drawing a loop region, so you can slide to any part of the song --
+    // e.g. the very end -- and tap to start playback right there. Holding for
+    // a moment before dragging still picks a loop section.
+    var TL_HOLD_MS = 380;
+    function tlShowPanTime(){
+      if (!timelineScrollEl || !tlTimeEl) return;
+      var mid = (timelineScrollEl.scrollLeft + timelineScrollEl.clientWidth / 2) / (tlPxPerSec() || 1);
+      tlTimeEl.textContent = fmtClock(Math.max(0, Math.min(currentTotalDuration(), mid))) + " / " + fmtClock(currentTotalDuration());
+    }
     timelineEl.addEventListener("pointerdown", function(e){
       // Used to also require a lead vocal (audioBuffer) to exist before the
       // timeline would respond at all -- which meant a beat loaded on its
@@ -8793,10 +8873,24 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       if (currentTotalDuration() <= 0) return;
       e.preventDefault();
       try { timelineEl.setPointerCapture(e.pointerId); } catch(err){}
-      tlPress = {id: e.pointerId, x: e.clientX, t: tlTimeAt(e.clientX), dragging: false};
+      tlPress = {id: e.pointerId, x: e.clientX, t: tlTimeAt(e.clientX), dragging: false,
+                 pan: tlZoomIdx > 0, panning: false, startScroll: timelineScrollEl ? timelineScrollEl.scrollLeft : 0, holdTimer: 0};
+      if (tlPress.pan){
+        var pressRef = tlPress;
+        pressRef.holdTimer = setTimeout(function(){ if (tlPress === pressRef && !pressRef.panning) pressRef.pan = false; }, TL_HOLD_MS);
+      }
     });
     timelineEl.addEventListener("pointermove", function(e){
       if (!tlPress || e.pointerId !== tlPress.id) return;
+      if (tlPress.pan){
+        var pdx = e.clientX - tlPress.x;
+        if (!tlPress.panning && Math.abs(pdx) > 6){ tlPress.panning = true; tlPress.dragging = true; clearTimeout(tlPress.holdTimer); }
+        if (tlPress.panning && timelineScrollEl){
+          timelineScrollEl.scrollLeft = Math.max(0, tlPress.startScroll - pdx);
+          tlShowPanTime();
+        }
+        return;
+      }
       if (!tlPress.dragging && Math.abs(e.clientX - tlPress.x) > 6) tlPress.dragging = true;
       if (tlPress.dragging){
         var t = tlTimeAt(e.clientX);
@@ -8807,7 +8901,10 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
     function endPress(e, cancelled){
       if (!tlPress || e.pointerId !== tlPress.id) return;
       var press = tlPress; tlPress = null;
+      clearTimeout(press.holdTimer);
       if (cancelled) { renderTimeline(); return; }
+      if (press.panning){ updatePlayheadUI(); return; } // just slid the view -- no seek, no loop change
+      if (isMicRecording) return; // never seek/loop while a take is being recorded
       if (press.dragging){
         if (tlRegion && tlRegion.end - tlRegion.start >= 0.25){
           tlLoop = true;               // dragging out a section means "loop this"
@@ -8836,6 +8933,48 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
       restartPlaybackFromCursor();
     });
+  }
+  // The ruler above the track grid: drag to slide the (zoomed) waveforms left/
+  // right to any part of the song, tap to start playback from that spot.
+  if (allVocalsRulerEl){
+    var rulerPress = null, rulerRaf = 0;
+    allVocalsRulerEl.style.touchAction = "none";
+    allVocalsRulerEl.style.cursor = "grab";
+    function rulerWin(){
+      var total = currentTotalDuration();
+      var dur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
+      var start = trackZoomIdx > 0 ? Math.max(0, trackZoomCenter - dur / 2) : 0;
+      return {total: total, dur: dur, start: start};
+    }
+    allVocalsRulerEl.addEventListener("pointerdown", function(e){
+      var w = rulerWin(); if (!(w.total > 0)) return;
+      e.preventDefault();
+      try { allVocalsRulerEl.setPointerCapture(e.pointerId); } catch(err){}
+      rulerPress = {id: e.pointerId, x: e.clientX, center: trackZoomCenter, moved: false};
+    });
+    allVocalsRulerEl.addEventListener("pointermove", function(e){
+      if (!rulerPress || e.pointerId !== rulerPress.id) return;
+      var dx = e.clientX - rulerPress.x;
+      if (!rulerPress.moved && Math.abs(dx) > 5) rulerPress.moved = true;
+      if (!rulerPress.moved || trackZoomIdx <= 0) return;
+      var w = rulerWin(), rectW = allVocalsRulerEl.getBoundingClientRect().width;
+      if (rectW <= 0) return;
+      trackZoomCenter = Math.max(0, Math.min(w.total, rulerPress.center - (dx / rectW) * w.dur));
+      if (tlTimeEl) tlTimeEl.textContent = fmtClock(trackZoomCenter) + " / " + fmtClock(w.total);
+      if (!rulerRaf) rulerRaf = requestAnimationFrame(function(){ rulerRaf = 0; renderAllVocalsStrip(); });
+    });
+    function rulerEnd(e, cancelled){
+      if (!rulerPress || e.pointerId !== rulerPress.id) return;
+      var p = rulerPress; rulerPress = null;
+      if (cancelled || p.moved || isMicRecording) return; // slid the view, or recording -- never seek here
+      var w = rulerWin(), r = allVocalsRulerEl.getBoundingClientRect();
+      if (!(r.width > 0)) return;
+      tlCursor = Math.max(0, Math.min(w.total, w.start + ((e.clientX - r.left) / r.width) * w.dur));
+      if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+      restartPlaybackFromCursor();
+    }
+    allVocalsRulerEl.addEventListener("pointerup", function(e){ rulerEnd(e, false); });
+    allVocalsRulerEl.addEventListener("pointercancel", function(e){ rulerEnd(e, true); });
   }
   if (btnLoop){
     btnLoop.addEventListener("click", function(){
@@ -12802,6 +12941,47 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
         manageSubLink.textContent = T().genericErrorRetry;
         setTimeout(function(){ manageSubLink.textContent = original; }, 4000);
       });
+    });
+  }
+
+  // Highlighted "Cancel subscription" button in the footer: same billing-portal
+  // flow as the link above; with no saved login it opens the email verify step.
+  var cancelSubBtn = document.getElementById("cancel-sub-btn");
+  if (cancelSubBtn){
+    cancelSubBtn.addEventListener("click", function(){
+      if (cancelSubBtn.dataset.busy === "1") return;
+      var original = cancelSubBtn.textContent;
+      var saved; try{ saved = localStorage.getItem(STORE_KEY); }catch(err){ saved = null; }
+      if (!saved){ window.gemstarShowGate("plan"); return; }
+      cancelSubBtn.dataset.busy = "1"; cancelSubBtn.disabled = true;
+      cancelSubBtn.textContent = T().openingPortal;
+      fetch("/api/verify-token", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ token: saved, deviceId: getDeviceId(), action: "portal" })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        if (data && data.ok && data.url){ window.location.href = data.url; return; }
+        cancelSubBtn.dataset.busy = ""; cancelSubBtn.disabled = false;
+        cancelSubBtn.textContent = (data && data.error) || T().portalError;
+        setTimeout(function(){ cancelSubBtn.textContent = original; }, 4000);
+      }).catch(function(){
+        cancelSubBtn.dataset.busy = ""; cancelSubBtn.disabled = false;
+        cancelSubBtn.textContent = T().genericErrorRetry;
+        setTimeout(function(){ cancelSubBtn.textContent = original; }, 4000);
+      });
+    });
+  }
+
+  var smoothToggle = document.getElementById("smooth-toggle"), smoothReload = document.getElementById("smooth-reload");
+  if (smoothToggle){
+    try { smoothToggle.checked = localStorage.getItem("gemstar_smooth") === "1"; } catch(e){}
+    smoothToggle.addEventListener("change", function(){
+      try { localStorage.setItem("gemstar_smooth", smoothToggle.checked ? "1" : "0"); } catch(e){}
+      if (smoothReload) smoothReload.hidden = false;
+    });
+    if (smoothReload) smoothReload.addEventListener("click", function(e){
+      e.preventDefault();
+      var go = function(){ location.href = location.pathname; };
+      try { Promise.resolve(saveProjectNow()).then(go, go); } catch(err){ go(); }
     });
   }
 
