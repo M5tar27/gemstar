@@ -4205,9 +4205,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       if (g._dead){ retireWorkletNode(node); return; } // chain was torn down while this loaded
       g.pitchWorkletNode = node;
       sendScaleToNode(node);
-      g.pitchInput.disconnect(g.pitchBypass);
-      g.pitchInput.connect(node);
-      node.connect(g.pitchOutput);
+      // NOT wired in here any more: it only joins the signal path while Tune
+      // is actually in use (see setPitchPath). A JavaScript AudioWorklet that
+      // sits in every vocal's path all the time -- even at Tune 0, the default
+      // -- is a known source of crackle on Safari/WebKit, and it does nothing
+      // at Tune 0 anyway.
       applyAllParams();
     });
 
@@ -4752,6 +4754,57 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     else applyParamsTo(chain, leadValues);
   }
 
+  // Wires the pitch-correction worklet into (or out of) this chain's signal
+  // path. Off (the default, Tune = 0): audio flows through a plain gain and
+  // the worklet isn't pulled by the audio graph at all, so it costs nothing.
+  // On: the worklet is connected but held at "raw pass-through" for ~250ms so
+  // its internal buffer fills with real audio before correction starts
+  // (otherwise turning Tune on would drop out for a moment).
+  function setPitchPath(c, on){
+    if (!c || !c.pitchWorkletNode || c._dead) return;
+    var node = c.pitchWorkletNode;
+    if (on){
+      if (c._pitchOffTimer){ clearTimeout(c._pitchOffTimer); c._pitchOffTimer = null; }
+      if (c._pitchOn) return;
+      c._pitchOn = true; c._pitchWarm = false;
+      try {
+        c.pitchInput.connect(node);
+        node.connect(c.pitchOutput);
+        c.pitchInput.disconnect(c.pitchBypass);
+      } catch(e){}
+      if (c._pitchWarmTimer) clearTimeout(c._pitchWarmTimer);
+      c._pitchWarmTimer = setTimeout(function(){
+        c._pitchWarmTimer = null;
+        if (c._dead || !c._pitchOn) return;
+        c._pitchWarm = true;
+        try {
+          var nw = ctx.currentTime;
+          node.parameters.get("speed").setTargetAtTime(c._pitchWantSpeed || 0, nw, 0.05);
+          node.parameters.get("humanize").setTargetAtTime(c._pitchWantHumanize || 0, nw, 0.05);
+        } catch(e){}
+      }, 250);
+    } else {
+      if (!c._pitchOn) return;
+      c._pitchOn = false; c._pitchWarm = false;
+      if (c._pitchWarmTimer){ clearTimeout(c._pitchWarmTimer); c._pitchWarmTimer = null; }
+      try {
+        var t0 = ctx.currentTime, sp = node.parameters.get("speed"), hu = node.parameters.get("humanize");
+        sp.cancelScheduledValues(t0); sp.setValueAtTime(0, t0);   // worklet crossfades back to raw dry in ~20ms
+        hu.cancelScheduledValues(t0); hu.setValueAtTime(0, t0);
+      } catch(e){}
+      if (c._pitchOffTimer) clearTimeout(c._pitchOffTimer);
+      c._pitchOffTimer = setTimeout(function(){
+        c._pitchOffTimer = null;
+        if (c._dead || c._pitchOn) return;
+        try {
+          c.pitchInput.connect(c.pitchBypass);  // raw path first, then drop the worklet -- no gap
+          c.pitchInput.disconnect(node);
+          node.disconnect(c.pitchOutput);
+        } catch(e){}
+      }, 120);
+    }
+  }
+
   function applyParamsTo(chain, v){
     if (!chain || chain._dead) return;
     var now = ctx.currentTime;
@@ -4798,8 +4851,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // may not have finished loading yet -- if so this is a no-op and the
     // load-complete callback calls applyAllParams() again once it's ready.
     if (chain.pitchWorkletNode){
-      chain.pitchWorkletNode.parameters.get("speed").setTargetAtTime(effTune, now, 0.05);
-      chain.pitchWorkletNode.parameters.get("humanize").setTargetAtTime(v.humanize, now, 0.05);
+      chain._pitchWantSpeed = effTune; chain._pitchWantHumanize = v.humanize;
+      setPitchPath(chain, effTune > 0);
+      if (chain._pitchOn && chain._pitchWarm){
+        chain.pitchWorkletNode.parameters.get("speed").setTargetAtTime(effTune, now, 0.05);
+        chain.pitchWorkletNode.parameters.get("humanize").setTargetAtTime(v.humanize, now, 0.05);
+      }
     }
 
     // Space: room / hall reverb only -- no delay in here anymore
