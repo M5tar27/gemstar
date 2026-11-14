@@ -2120,6 +2120,10 @@
       <span>Smooth playback &mdash; turn on if you hear static or crackle (for example while screen recording)</span>
       <a href="#" id="smooth-reload" hidden style="color:var(--cyan);">Reload to apply</a>
     </label>
+    <label class="smooth-row" style="flex-basis:100%; display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:0.85rem; color:var(--ink-muted);">
+      <input type="checkbox" id="render-toggle" />
+      <span>Pre-render vocals (beta) &mdash; plays your finished, processed vocal instead of running the effects live. Try it if Smooth playback still isn't enough.</span>
+    </label>
     <span data-i18n="footerText">Gemstar &middot; M5tar Studio x Gemsquad Productions</span>
     <span style="display:flex; gap:14px;">
       <a href="/help.html">Help</a>
@@ -3464,6 +3468,34 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     return loudnessFromZ(meanZRel);
   }
 
+  // Safari/WebKit (every browser on iPhone/iPad too) is the browser where the
+  // audio engine crackles under load, so Smooth playback (bigger output
+  // buffer) is ON by default there and OFF everywhere else. Anyone can still
+  // flip the footer switch (or use ?smooth=0 / ?smooth=1) -- an explicit
+  // choice always wins over this default.
+  function isWebKitBrowser(){
+    try {
+      var ua = navigator.userAgent || "";
+      if (/iPad|iPhone|iPod/.test(ua)) return true;
+      if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return true; // iPadOS "desktop" mode
+      return /Safari\//.test(ua) && !/Chrome\/|Chromium\/|CriOS|FxiOS|Edg\/|OPR\/|Android/.test(ua);
+    } catch(e){ return false; }
+  }
+  function smoothPreferred(applyQueryString){
+    try {
+      if (applyQueryString){
+        var qs = /[?&]smooth=(\d)/.exec(location.search);
+        if (qs) localStorage.setItem("gemstar_smooth", qs[1] === "1" ? "1" : "0");
+      }
+      var stored = localStorage.getItem("gemstar_smooth");
+      if (stored === "1") return true;
+      if (stored === "0") return false;
+    } catch(e){}
+    return isWebKitBrowser();
+  }
+  // The footer switch lives in a different script scope, so share the rule.
+  window.gemstarSmoothPreferred = function(){ return smoothPreferred(false); };
+
   function ensureContext(){
     if (ctx) return;
     // latencyHint "interactive" asks the browser for the smallest safe
@@ -3501,12 +3533,7 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     // "Smooth playback" (opt-in: ?smooth=1, or the switch in the footer) asks for a
     // bigger output buffer so a busy computer -- screen recording, other apps --
     // is far less likely to crackle. Default stays "interactive" (snappier knobs).
-    var smoothMode = false;
-    try {
-      var qs = /[?&]smooth=(\d)/.exec(location.search);
-      if (qs) localStorage.setItem("gemstar_smooth", qs[1] === "1" ? "1" : "0");
-      smoothMode = localStorage.getItem("gemstar_smooth") === "1";
-    } catch(e){}
+    var smoothMode = smoothPreferred(true);
     ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: smoothMode ? "playback" : "interactive", sampleRate: 48000});
     buildChain();
   }
@@ -4261,7 +4288,9 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.pitchInput.connect(g.pitchBypass);
     g.pitchBypass.connect(g.pitchOutput);
     g.pitchWorkletNode = null;
-    loadPitchWorklet(ctx).then(function(node){
+    // (A pre-render build never needs the pitch worklet -- groups using Tune
+    // always stay on the live chain, see raGroupRenderable().)
+    (raRenderingOffline ? Promise.resolve(null) : loadPitchWorklet(ctx)).then(function(node){
       if (!node) return;
       if (g._dead){ retireWorkletNode(node); return; } // chain was torn down while this loaded
       g.pitchWorkletNode = node;
@@ -4540,6 +4569,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   var activeMixUsers = 0;
   function wireFinalMixIfNeeded(g){
     if (!g || g._dead) return;
+    if (g._renderOnly) return; // this chain's vocals are playing from a pre-rendered buffer (see "Pre-render vocals")
     if (g._unwireTimer){ clearTimeout(g._unwireTimer); g._unwireTimer = null; }
     if (g._mixWired){
       // Still physically connected from before -- possibly mid fade-out
@@ -4611,7 +4641,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (!chain) return;
     wireFinalMixIfNeeded(chain);
     extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) wireFinalMixIfNeeded(t.chain); });
-    wireSharedReverbIfNeeded();
+    if (!raAllChainsRenderOnly()) wireSharedReverbIfNeeded();
   }
   function disconnectAllFinalMixes(){
     if (!chain) return;
@@ -8171,6 +8201,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
         if (tr._liveGain) tr._liveGain.gain.setTargetAtTime(trackOutGain(tr), now, 0.02);
         if (tr._livePan && tr._livePan.pan) tr._livePan.pan.setTargetAtTime(Math.max(-1, Math.min(1, tr.pan || 0)), now, 0.02);
       });
+      raRefreshMuteForRendered();
       applyBeatLevel(); // a per-track solo toggling on/off should duck/restore the beat too
     }
     scheduleSave();
@@ -8288,6 +8319,474 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     renderTimeline();
   }
 
+  /* ================= Pre-render vocals (opt-in beta) =================
+     Instead of running every vocal's whole effects rack live on the audio
+     thread while you listen (what makes Safari crackle), this processes each
+     vocal group ONCE, offline, with its current knob settings, then plays the
+     finished audio. Knob/level/nudge changes re-render in the background and
+     the new version swaps in a moment later (a long vocal first gets a quick
+     render of just the part around the playhead). Anything it can't render
+     faithfully (A/B bypass, recording, looping the whole song, a nudged take
+     inside a loop, export, or a browser that can't run the pitch worklet
+     offline) just keeps using the normal live chain. Off by default. */
+  var raRenderingOffline = false;   // true only during the synchronous offline graph build
+  var RA_MAX_SEC = 420;             // longer than this: stay live (memory)
+  var RA_TAIL_SEC = 2.8;            // room for the hall-reverb tail past the last vocal sample
+  var RA = { enabled: false, cache: {}, quick: {}, ids: 0, fails: 0, tuneFails: 0, pitchUrl: null };
+  // Quick window renders (see raStartWindow): a short first window so a knob change is heard almost
+  // at once, then longer ones, until the full render lands. Lengths in seconds ahead of the playhead.
+  var RA_QUICK_MIN_SEC = 12, RA_QUICK_BEHIND = 2.5, RA_QUICK_LADDER = [8, 30, 90], RA_QUICK_LADDER_PITCH = [6, 20, 60], RA_QUICK_RUNWAY = 6;
+  function raReadPref(applyQuery){
+    try {
+      if (applyQuery){
+        var qs = /[?&]render=(\d)/.exec(location.search);
+        if (qs) localStorage.setItem("gemstar_render", qs[1] === "1" ? "1" : "0");
+      }
+      return localStorage.getItem("gemstar_render") === "1";
+    } catch(e){ return false; }
+  }
+  RA.enabled = raReadPref(true);
+  window.gemstarSetRenderAhead = function(on){
+    RA.enabled = !!on;
+    try { localStorage.setItem("gemstar_render", on ? "1" : "0"); } catch(e){}
+    if (!on && !raAnyRendered()) RA.cache = {};
+  };
+  window.gemstarRenderAheadOn = function(){ return RA.enabled; };
+  function raEnabled(){ return !!RA.enabled; }
+  // Read-only snapshot for troubleshooting / automated checks.
+  window.gemstarRenderAheadStatus = function(){
+    var groups = {};
+    Object.keys(RA.cache).forEach(function(k){ groups[k] = {hasBuf: !!RA.cache[k].buf, busy: !!RA.cache[k].busy, fresh: false}; });
+    try { raGroups().forEach(function(g){ var c = RA.cache[g.key]; if (c && groups[g.key]) groups[g.key].fresh = !!(c.buf && c.sig === raGroupSig(g)); groups[g.key].sig = raGroupSig(g); groups[g.key].cachedSig = c.sig; }); } catch(e){}
+    return {enabled: RA.enabled, playing: isPlaying, anyRendered: raAnyRendered(), fails: RA.fails,
+            renderOnly: chain ? !!chain._renderOnly : null, mixWired: chain ? !!chain._mixWired : null,
+            sources: vocalSourceNodes.map(function(n){ return {rendered: !!n.rendered, key: n.gkey || null, windowed: !!n.win}; }),
+            cache: groups};
+  };
+  function raId(o){ return o._raId || (o._raId = ++RA.ids); }
+  function raBufTag(b){ return raId(b) + "/" + b.length; }
+  function raNotExporting(){ return !(typeof exporting !== "undefined" && exporting); }
+
+  function raAllowed(){
+    if (!raEnabled() || !ctx || !chain || bypassed || isMicRecording) return false;
+    if (!raNotExporting()) return false;
+    if (!(window.OfflineAudioContext || window.webkitOfflineAudioContext)) return false;
+    if (typeof ctx.createStereoPanner !== "function") return false;
+    if (RA.fails >= 3) return false;
+    return true;
+  }
+
+  // The unit that gets rendered together: everything that shares one effects
+  // chain. The lead chain is shared by the lead vocal plus any extra vocal
+  // without its own chain; each extra with its own chain is a group alone.
+  function raGroups(){
+    var out = [];
+    if (!chain) return out;
+    var leadMembers = [];
+    if (audioBuffer) leadMembers.push({track: leadTrack, buf: audioBuffer});
+    var lead = {key: "lead", owner: chain, values: leadValues, members: leadMembers};
+    out.push(lead);
+    extraVocals.forEach(function(t){
+      if (!t.buffer) return;
+      if (t.chain && !t.chain._dead){
+        out.push({key: "t" + raId(t), owner: t.chain, values: t.values || leadValues, members: [{track: t, buf: t.buffer}]});
+      } else {
+        leadMembers.push({track: t, buf: t.buffer});
+      }
+    });
+    return out.filter(function(g){ return g.members.length; });
+  }
+  function raGroupLen(g){
+    var len = 0;
+    g.members.forEach(function(m){ len = Math.max(len, m.buf.duration + Math.max(0, trackNudgeSec(m.track))); });
+    return len + RA_TAIL_SEC;
+  }
+  function raGroupSig(g){
+    var parts = [ctx.sampleRate, JSON.stringify(g.values)];
+    if (raEffTune(g.values) > 0){ try { parts.push(JSON.stringify(currentScaleMask())); } catch(e){} } // key/scale only matter with pitch correction
+    g.members.forEach(function(m){
+      parts.push(raBufTag(m.buf) + ":" + trackOutGain(m.track).toFixed(4) + ":" + (m.track.pan || 0).toFixed(3) + ":" + trackNudgeSec(m.track).toFixed(4));
+    });
+    return parts.join("|");
+  }
+  // Groups the offline renderer can reproduce (Tune is included when the browser can run the pitch worklet offline).
+  function raGroupRenderable(g){
+    var effTune = raEffTune(g.values);
+    if (effTune > 0){
+      // Needs the pitch worklet inside an OfflineAudioContext -- not every browser has that.
+      if (RA.tuneFails >= 2 || typeof AudioWorkletNode === "undefined") return false;
+      var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!OAC || !("audioWorklet" in OAC.prototype)) return false;
+    }
+    return raGroupLen(g) <= RA_MAX_SEC;
+  }
+  function raGroupSilent(g){
+    return g.members.every(function(m){ return trackOutGain(m.track) === 0; });
+  }
+
+  // ---- offline render of one group -> Promise<AudioBuffer|null> ----
+  function raEffTune(v){
+    v = v || {};
+    return Math.min(100, (v.tune || 0) + ((v.m5tar || 0) / 100) * 20);
+  }
+  function raPitchUrl(){
+    if (!RA.pitchUrl){
+      RA.pitchUrl = URL.createObjectURL(new Blob([PITCH_WORKLET_SOURCE], {type: "application/javascript"}));
+    }
+    return RA.pitchUrl;
+  }
+  function raRenderGroup(g, win){
+    var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    var sr = ctx.sampleRate, off = null;
+    var needPitch = raEffTune(g.values) > 0;
+    var lenSec = win ? (win.end - win.start + RA_TAIL_SEC) : raGroupLen(g);
+    try { off = new OAC(2, Math.max(1, Math.ceil(lenSec * sr)), sr); }
+    catch(err){ return Promise.resolve(null); }
+    var ready = Promise.resolve(true);
+    if (needPitch){
+      // Tune / M5tar use the pitch-correction worklet: load it into the offline
+      // context too (modules are per-context) so the render includes it.
+      if (!off.audioWorklet || typeof AudioWorkletNode === "undefined") { RA.tuneFails++; return Promise.resolve(null); }
+      try { ready = off.audioWorklet.addModule(raPitchUrl()).then(function(){ return true; }, function(){ return false; }); }
+      catch(err){ ready = Promise.resolve(false); }
+    }
+    return ready.then(function(ok){
+      if (!ok){ RA.tuneFails++; return null; }
+      return raBuildAndRender(g, off, needPitch, win);
+    });
+  }
+  function raBuildAndRender(g, off, needPitch, win){
+    return new Promise(function(resolve){
+      var savedCtx = ctx, savedRev = sharedReverb;
+      var origTarget = AudioParam.prototype.setTargetAtTime;
+      function restore(){
+        ctx = savedCtx; sharedReverb = savedRev; raRenderingOffline = false;
+        AudioParam.prototype.setTargetAtTime = origTarget;
+      }
+      var pitchNode = null;
+      try {
+        ctx = off; sharedReverb = null; raRenderingOffline = true;
+        // Offline there's no "gliding" -- apply every knob value instantly.
+        AudioParam.prototype.setTargetAtTime = function(v, t){ return this.setValueAtTime(v, t); };
+        var oc = buildVocalChain();
+        applyBypassTo(oc);
+        applyParamsTo(oc, g.values);
+        if (needPitch){
+          pitchNode = new AudioWorkletNode(off, "gemstar-pitch-processor", {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+            channelCount: 2, channelCountMode: "explicit", channelCountInterpretation: "speakers"
+          });
+          try { pitchNode.port.postMessage({type: "scale", mask: currentScaleMask()}); } catch(e){}
+          oc.pitchInput.connect(pitchNode);
+          pitchNode.connect(oc.pitchOutput);
+          oc.pitchInput.disconnect(oc.pitchBypass);
+          pitchNode.parameters.get("speed").setValueAtTime(raEffTune(g.values), 0);
+          pitchNode.parameters.get("humanize").setValueAtTime((g.values && g.values.humanize) || 0, 0);
+        }
+        var rev = sharedReverb;
+        rev.returnSmall.connect(off.destination);
+        rev.returnHall.connect(off.destination);
+        oc.finalMix.connect(off.destination);
+        g.members.forEach(function(m){
+          var src = off.createBufferSource();
+          src.buffer = m.buf;
+          var gn = off.createGain();
+          gn.gain.value = trackOutGain(m.track);
+          var pn = makePanner(m.track.pan);
+          src.connect(gn); gn.connect(pn); pn.connect(oc.input);
+          // Song time of this take's first sample is its nudge; a window render
+          // starts at song time win.start, so shift everything back by that.
+          var when = trackNudgeSec(m.track) - (win ? win.start : 0);
+          if (when >= 0) src.start(when, 0); else src.start(0, -when);
+        });
+      } catch(err){
+        restore();
+        if (window.console && console.warn) console.warn("Gemstar: pre-render setup failed", err);
+        resolve(null); return;
+      }
+      restore();
+      var done = false;
+      function finish(buf){ if (done) return; done = true; resolve(buf || null); }
+      function go(){
+        try {
+          var pr = off.startRendering();
+          if (pr && pr.then) pr.then(finish, function(){ finish(null); });
+          else off.oncomplete = function(e){ finish(e.renderedBuffer); };
+        } catch(err){ finish(null); }
+      }
+      // Give the worklet a beat to receive the key/scale message before audio flows.
+      if (needPitch) setTimeout(go, 120); else go();
+    });
+  }
+
+  // ---- bookkeeping helpers ----
+  function raClearRenderOnlyFlags(){
+    if (chain) chain._renderOnly = false;
+    extraVocals.forEach(function(t){ if (t.chain) t.chain._renderOnly = false; });
+  }
+  function raAllChainsRenderOnly(){
+    if (!chain || !chain._renderOnly) return false;
+    for (var i = 0; i < extraVocals.length; i++){
+      var c = extraVocals[i].chain;
+      if (c && !c._dead && !c._renderOnly) return false;
+    }
+    return true;
+  }
+  function raAnyRendered(){
+    for (var i = 0; i < vocalSourceNodes.length; i++){ if (vocalSourceNodes[i].rendered) return true; }
+    return false;
+  }
+  function raEntryFor(key){
+    for (var i = 0; i < vocalSourceNodes.length; i++){
+      if (vocalSourceNodes[i].rendered && vocalSourceNodes[i].gkey === key) return vocalSourceNodes[i];
+    }
+    return null;
+  }
+  function raTrackIsRendered(track){
+    for (var i = 0; i < vocalSourceNodes.length; i++){
+      var n = vocalSourceNodes[i];
+      if (n.rendered && n.members && n.members.indexOf(track) >= 0) return true;
+    }
+    return false;
+  }
+  // A rendered group has no per-track gain nodes, so muting/unmuting a whole
+  // group takes effect instantly here; anything subtler waits for the re-render.
+  function raRefreshMuteForRendered(){
+    if (!ctx) return;
+    var now = ctx.currentTime;
+    vocalSourceNodes.forEach(function(n){
+      if (!n.rendered || !n.gain) return;
+      var allMuted = n.members.every(function(t){ return trackOutGain(t) === 0; });
+      try { n.gain.gain.setTargetAtTime(allMuted ? 0 : 1, now, 0.02); } catch(e){}
+    });
+  }
+  function raPosAt(t){
+    var elapsed = Math.max(0, t - playStartCtxTime);
+    if (playRegion){
+      var len = Math.max(0.01, playRegion.end - playRegion.start);
+      return playRegion.start + ((playStartOffset - playRegion.start + elapsed) % len);
+    }
+    var total = currentTotalDuration();
+    if (!playLoopWhole) return total > 0 ? Math.min(total, playStartOffset + elapsed) : 0;
+    return total > 0 ? (playStartOffset + elapsed) % total : 0;
+  }
+  function raFadeOutAt(n, t){
+    var f = n.src && n.src._fade;
+    try { n.src.onended = null; } catch(e){}
+    if (f){
+      try { f.gain.cancelScheduledValues(t); f.gain.setValueAtTime(1, t); f.gain.linearRampToValueAtTime(0, t + 0.02); } catch(e){}
+    }
+    try { n.src.stop(t + 0.025); } catch(e){}
+    setTimeout(function(){
+      try { if (f) f.disconnect(); } catch(e){}
+      try { if (n.gain) n.gain.disconnect(); } catch(e){}
+      try { if (n.pan) n.pan.disconnect(); } catch(e){}
+    }, 300);
+  }
+  function raReconcileWiring(){
+    if (!chain || activeMixUsers <= 0) return;
+    var chains = [chain];
+    extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) chains.push(t.chain); });
+    var anyLive = false;
+    chains.forEach(function(c){
+      if (c._renderOnly){ if (c._mixWired) unwireFinalMix(c); }
+      else { anyLive = true; wireFinalMixIfNeeded(c); }
+    });
+    if (anyLive) wireSharedReverbIfNeeded(); else unwireSharedReverb();
+  }
+
+  // ---- what to do at Play: which groups can start straight from a cached render ----
+  function raPlanForStart(){
+    if (!raAllowed()) return null;
+    if (tlLoop && !tlRegion) return null; // "repeat the whole song" loops each take at its own length -- keep live
+    var plan = {}, any = false;
+    raGroups().forEach(function(g){
+      if (!raGroupRenderable(g) || raGroupSilent(g)) return;
+      if (tlLoop && tlRegion){
+        var nudged = g.members.some(function(m){ return trackNudgeSec(m.track) !== 0; });
+        if (nudged) return; // loop windows would shift with a nudge -- keep live
+      }
+      var c = RA.cache[g.key];
+      if (!c || !c.buf || c.sig !== raGroupSig(g)) return;
+      plan[g.key] = {buf: c.buf, sig: c.sig, owner: g.owner, members: g.members.map(function(m){ return m.track; })};
+      g.owner._renderOnly = true;
+      any = true;
+    });
+    return any ? plan : null;
+  }
+  function raTrackKey(t){ return (t.chain && !t.chain._dead) ? ("t" + raId(t)) : "lead"; }
+
+  // ---- mid-playback swaps ----
+  // win = null for a full-length render; {start,end,toEnd} for a quick window
+  // render (see raStartQuick). Returns true if the swap happened.
+  function raSwapGroupToRendered(g, sig, buf, win){
+    if (!isPlaying || !ctx || isMicRecording) return false;
+    var tStart = Math.max(ctx.currentTime + 0.05, playStartCtxTime);
+    var off = win ? (raPosAt(tStart) - win.start) : raPosAt(tStart);
+    if (win && (off < 0 || off > buf.duration - 1)) return false; // window already passed
+    var src = makeTimedSource(buf, off, win ? null : playRegion, win ? false : playLoopWhole);
+    if (!src) return false;
+    var gn = ctx.createGain();
+    gn.gain.value = raGroupSilent(g) ? 0 : 1;
+    src.connect(gn); gn.connect(chain.mixSum); gn.connect(chain.vocalAnalyser);
+    var oldPrimary = false, keep = [];
+    vocalSourceNodes.forEach(function(n){
+      var mine = (n.rendered && n.gkey === g.key) ||
+                 (!n.rendered && g.members.some(function(m){ return m.track === n.ref; }));
+      if (!mine){ keep.push(n); return; }
+      if (primaryEndedSrc === n.src || n.wasPrimary) oldPrimary = true;
+      raFadeOutAt(n, tStart);
+      if (n.ref && !n.rendered){ n.ref._liveGain = null; n.ref._livePan = null; }
+    });
+    var entry = {src: src, gain: gn, pan: null, ref: g.members[0].track, rendered: true, gkey: g.key, sig: sig,
+                 win: win, dur: buf.duration, members: g.members.map(function(m){ return m.track; })};
+    keep.push(entry);
+    vocalSourceNodes = keep;
+    g.owner._renderOnly = true;
+    src.start(tStart, src._offset);
+    if (oldPrimary){
+      if (!win || win.toEnd){
+        primaryEndedSrc = src;
+        var endAt = tStart + (buf.duration - src._offset);
+        src.onended = function(){ onLeadSourceEnded(src, endAt); };
+      } else {
+        // a partial window can't signal "the song ended" -- remember the duty for the full render
+        entry.wasPrimary = true;
+        primaryEndedSrc = null;
+      }
+    }
+    raReconcileWiring();
+    return true;
+  }
+  function raSwapGroupToLive(g){
+    if (!isPlaying || !ctx) return;
+    var tStart = Math.max(ctx.currentTime + 0.05, playStartCtxTime);
+    g.owner._renderOnly = false;
+    // The pitch worklet sat idle (unwired) while pre-rendered; restart it the same way a Tune
+    // change does -- raw pass-through first, then correction -- so it can't output a silent gap.
+    if (raEffTune(g.values) > 0 && g.owner.pitchWorkletNode){ setPitchPath(g.owner, false); setPitchPath(g.owner, true); }
+    raReconcileWiring(); // wire this chain back in before anything feeds it
+    var oldPrimary = false, keep = [];
+    vocalSourceNodes.forEach(function(n){
+      if (n.rendered && n.gkey === g.key){
+        if (primaryEndedSrc === n.src || n.wasPrimary) oldPrimary = true;
+        raFadeOutAt(n, tStart);
+      } else keep.push(n);
+    });
+    vocalSourceNodes = keep;
+    var pos = raPosAt(tStart), best = null, bestDur = -1, bestEnd = 0;
+    g.members.forEach(function(m){
+      var sample = pos - trackNudgeSec(m.track), delay = 0;
+      if (sample < 0){ delay = -sample; sample = 0; }
+      var src = makeTimedSource(m.buf, sample, playRegion, playLoopWhole);
+      if (!src) return;
+      var nodes = wireTrackSource(src, m.track, g.owner.input);
+      m.track._liveGain = nodes.gain; m.track._livePan = nodes.pan;
+      vocalSourceNodes.push({src: src, gain: nodes.gain, pan: nodes.pan, ref: m.track});
+      src.start(tStart + delay, src._offset);
+      if (m.buf.duration > bestDur){ bestDur = m.buf.duration; best = src; bestEnd = tStart + delay + (m.buf.duration - src._offset); }
+    });
+    if (oldPrimary && best){
+      primaryEndedSrc = best;
+      best.onended = function(){ onLeadSourceEnded(best, bestEnd); };
+    }
+  }
+
+  // A full render of a long vocal can take several seconds, which would make a
+  // knob feel laggy. So while playing, first render just a window around the
+  // playhead (fast), swap that in, and let the full render replace it later.
+  function raGroupSongEnd(g){
+    var end = 0;
+    g.members.forEach(function(m){ end = Math.max(end, m.buf.duration + Math.max(0, trackNudgeSec(m.track))); });
+    return end;
+  }
+  // Renders one window starting just before the playhead, `level` picks how long it is.
+  function raStartWindow(g, sig, q, level){
+    var songEnd = raGroupSongEnd(g);
+    var pos = raPosAt(ctx.currentTime + 0.1);
+    var start = Math.max(0, pos - RA_QUICK_BEHIND);
+    var ladder = raEffTune(g.values) > 0 ? RA_QUICK_LADDER_PITCH : RA_QUICK_LADDER; // pitch correction renders slower, so start smaller
+    var end = Math.min(songEnd, pos + ladder[Math.min(level, ladder.length - 1)]);
+    if (end <= start + 1) return;
+    var e = {win: {start: start, end: end, toEnd: end >= songEnd - 0.01}, buf: null, busy: true};
+    q.list.push(e);
+    if (q.list.length > 4) q.list.shift();
+    raRenderGroup(g, e.win).then(function(buf){ e.busy = false; if (buf) e.buf = buf; else e.failed = true; });
+  }
+
+  // ---- the background check: render when settings settle, swap when ready ----
+  function raTick(){
+    try {
+      if (!raEnabled() && !raAnyRendered()) return;
+      if (!ctx || !chain) return;
+      var allowed = raAllowed();
+      raGroups().forEach(function(g){
+        var key = g.key, sig = raGroupSig(g);
+        var c = RA.cache[key] || (RA.cache[key] = {});
+        var renderable = allowed && raGroupRenderable(g);
+        var silent = raGroupSilent(g);
+        if (renderable && !silent){
+          if (c.seen !== sig){ c.seen = sig; c.stable = 0; } else { c.stable++; }
+          // While playing a long vocal, the short window render goes first so the change is heard
+          // sooner; the full render starts once that first window is ready.
+          var windowFirst = isPlaying && !playRegion && !playLoopWhole && raGroupSongEnd(g) > RA_QUICK_MIN_SEC;
+          var wq = RA.quick[key];
+          // (two windows -- or one reaching the end of the take -- before the heavy full render joins in)
+          var windowReady = !windowFirst || !!(wq && wq.sig === sig &&
+            (wq.list.filter(function(e){ return e.buf; }).length >= 2 || wq.list.some(function(e){ return e.buf && e.win.toEnd; })));
+          if (c.sig !== sig && !c.busy && c.stable >= 1 && windowReady){
+            c.busy = true;
+            raRenderGroup(g, null).then(function(buf){
+              c.busy = false;
+              if (buf){ c.sig = sig; c.buf = buf; RA.fails = 0; } else { RA.fails++; }
+            });
+          }
+        }
+        if (!isPlaying) return;
+        var cur = raEntryFor(key);
+        if (!renderable){ if (cur) raSwapGroupToLive(g); return; }
+        if (silent) return;
+        if (c.buf && c.sig === sig){
+          if (!cur || cur.sig !== sig || cur.win) raSwapGroupToRendered(g, sig, c.buf, null);
+          return;
+        }
+        // No up-to-date full render yet -- bridge with short window renders around the playhead.
+        if (playRegion || playLoopWhole || raGroupSongEnd(g) <= RA_QUICK_MIN_SEC){
+          if (cur && cur.win && !cur.win.toEnd && raPosAt(ctx.currentTime) > cur.win.end - 1) raSwapGroupToLive(g);
+          return;
+        }
+        var q = RA.quick[key];
+        if (!q || q.sig !== sig){ q = RA.quick[key] = {sig: sig, list: []}; }
+        var pos = raPosAt(ctx.currentTime);
+        // best finished window that covers the playhead with some room to spare
+        var best = null;
+        q.list.forEach(function(e){
+          if (!e.buf) return;
+          if (pos - e.win.start < 1 || (!e.win.toEnd && e.win.end - pos < 1.5)) return;
+          if (!best || e.win.end > best.win.end) best = e;
+        });
+        if (best && (!cur || cur.sig !== sig || (cur.win && best.win.end > cur.win.end + 0.5))){
+          if (raSwapGroupToRendered(g, sig, best.buf, best.win)) cur = raEntryFor(key);
+        }
+        // Fallback: the window we're on is nearly out and nothing newer is ready -- go live until one is.
+        if (cur && cur.sig === sig && cur.win && !cur.win.toEnd && cur.win.end - pos < 1){ raSwapGroupToLive(g); cur = null; }
+        // Make sure there is always a window being rendered that covers the next few seconds.
+        if (c.stable >= 1){
+          var covered = false;
+          q.list.forEach(function(e){
+            if (e.failed) return;
+            if (e.win.toEnd ? e.win.start <= pos : (e.win.start <= pos + 0.2 && e.win.end > pos + RA_QUICK_RUNWAY)) covered = true;
+          });
+          var busy = q.list.some(function(e){ return e.busy; });
+          if (!covered && !busy) raStartWindow(g, sig, q, q.list.length);
+        }
+      });
+    } catch(err){
+      if (window.console && console.warn) console.warn("Gemstar: pre-render check", err);
+    }
+  }
+  setInterval(raTick, 80);
+
   function startPlayback(){
     // Used to require a lead vocal specifically -- so a beat loaded on its
     // own (nothing recorded yet) couldn't be previewed at all. Any audio
@@ -8301,6 +8800,9 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // them except explicit user actions that also call stopPlayback first.
       stopSourceOnly();
       stopBeatSourceOnly();
+      // Pre-render (opt-in beta): vocal groups with an up-to-date cached render
+      // start straight from it and skip their live effects chain entirely.
+      var raPlan = raPlanForStart();
       // Wire the convolver/compressor racks back onto the mix bus now that
       // something is actually about to play through them (see buildChain()
       // and wireFinalMixIfNeeded() for why they're disconnected at rest).
@@ -8321,7 +8823,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // No lead vocal loaded yet (beat-only preview) -- skip making a
       // source for it entirely instead of handing makeTimedSource a null
       // buffer, which would throw trying to read its .duration.
-      var leadSrc = audioBuffer ? makeTimedSource(audioBuffer, offset, region, loopWhole) : null;
+      var leadSrc = (audioBuffer && !(raPlan && raPlan.lead)) ? makeTimedSource(audioBuffer, offset, region, loopWhole) : null;
       if (leadSrc){
         var leadNodes = wireTrackSource(leadSrc, leadTrack, chain.input);
         leadTrack._liveGain = leadNodes.gain; leadTrack._livePan = leadNodes.pan;
@@ -8329,12 +8831,25 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       }
 
       extraVocals.forEach(function(t){
+        if (raPlan && raPlan[raTrackKey(t)]) return; // plays from its group's pre-render instead
         var src = makeTimedSource(t.buffer, offset, region, loopWhole);
         if (!src) return;
         var nodes = wireTrackSource(src, t, vocalTrackInput(t));
         t._liveGain = nodes.gain; t._livePan = nodes.pan;
         vocalSourceNodes.push({src:src, gain:nodes.gain, pan:nodes.pan, ref:t});
       });
+
+      if (raPlan){
+        Object.keys(raPlan).forEach(function(key){
+          var pm = raPlan[key];
+          var rsrc = makeTimedSource(pm.buf, offset, region, loopWhole);
+          if (!rsrc) return;
+          var rgn = ctx.createGain();
+          rsrc.connect(rgn); rgn.connect(chain.mixSum); rgn.connect(chain.vocalAnalyser);
+          vocalSourceNodes.push({src:rsrc, gain:rgn, pan:null, ref:pm.members[0], rendered:true, gkey:key,
+                                 sig:pm.sig, dur:pm.buf.duration, members:pm.members});
+        });
+      }
 
       if (beatBuffer){
         beatSourceNode = makeTimedSource(beatBuffer, offset, region, loopWhole);
@@ -8363,8 +8878,9 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
         var longestDur = -1;
         if (leadSrc && audioBuffer.duration > longestDur){ longestDur = audioBuffer.duration; thisPrimarySrc = leadSrc; }
         vocalSourceNodes.forEach(function(n){
-          if (n.src !== leadSrc && n.ref && n.ref.buffer && n.ref.buffer.duration > longestDur){
-            longestDur = n.ref.buffer.duration; thisPrimarySrc = n.src;
+          var nd = n.rendered ? n.dur : ((n.ref && n.ref.buffer) ? n.ref.buffer.duration : -1);
+          if (n.src !== leadSrc && nd > longestDur){
+            longestDur = nd; thisPrimarySrc = n.src;
           }
         });
         if (beatSourceNode && beatBuffer.duration > longestDur){ longestDur = beatBuffer.duration; thisPrimarySrc = beatSourceNode; }
@@ -8395,8 +8911,9 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // never before) right now. The beat itself is never nudged -- it's what
       // every vocal's timing is being hand-aligned against.
       var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
-      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + (n.rendered ? 0 : trackNudgeSec(n.ref)), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
+      raReconcileWiring();
       playStartCtxTime = startAt;
       playStartOffset = offset;
       playRegion = region;
@@ -8442,6 +8959,9 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   // and jumped back. Returns false if it can't (caller falls back to a restart).
   function retimeTrackLive(track){
     if (!isPlaying || !ctx || !track || isMicRecording || !chain) return false;
+    // Playing from a pre-rendered buffer: the new timing is baked into the
+    // next render, which swaps in on its own a moment after the drag ends.
+    if (raTrackIsRendered(track)) return true;
     var idx = -1, i;
     for (i = 0; i < vocalSourceNodes.length; i++){ if (vocalSourceNodes[i].ref === track){ idx = i; break; } }
     if (idx < 0) return false;
@@ -8479,9 +8999,10 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // or seek, stomping on the position stopPlayback() just saved.
       try { n.src.onended = null; } catch(e){}
       softStop(n.src, [n.gain, n.pan]);   // fades out, then disconnects
-      if (n.ref){ n.ref._liveGain = null; n.ref._livePan = null; }
+      if (n.ref && !n.rendered){ n.ref._liveGain = null; n.ref._livePan = null; }
     });
     vocalSourceNodes = [];
+    raClearRenderOnlyFlags();
   }
   function stopBeatSourceOnly(){
     if (beatSourceNode){
@@ -13073,7 +13594,7 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
 
   var smoothToggle = document.getElementById("smooth-toggle"), smoothReload = document.getElementById("smooth-reload");
   if (smoothToggle){
-    try { smoothToggle.checked = localStorage.getItem("gemstar_smooth") === "1"; } catch(e){}
+    try { smoothToggle.checked = window.gemstarSmoothPreferred ? window.gemstarSmoothPreferred() : (localStorage.getItem("gemstar_smooth") === "1"); } catch(e){}
     smoothToggle.addEventListener("change", function(){
       try { localStorage.setItem("gemstar_smooth", smoothToggle.checked ? "1" : "0"); } catch(e){}
       if (smoothReload) smoothReload.hidden = false;
@@ -13082,6 +13603,14 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
       e.preventDefault();
       var go = function(){ location.href = location.pathname; };
       try { Promise.resolve(saveProjectNow()).then(go, go); } catch(err){ go(); }
+    });
+  }
+
+  var renderToggle = document.getElementById("render-toggle");
+  if (renderToggle){
+    try { renderToggle.checked = !!(window.gemstarRenderAheadOn && window.gemstarRenderAheadOn()); } catch(e){}
+    renderToggle.addEventListener("change", function(){
+      try { if (window.gemstarSetRenderAhead) window.gemstarSetRenderAhead(renderToggle.checked); } catch(e){}
     });
   }
 
