@@ -465,8 +465,6 @@
   }
   .record-controls{display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
   /* record-first layout: the big red button leads the panel */
-  #record-panel .record-controls{order:-2; width:100%;}
-  #record-panel #record-hint{order:-1;}
   .pill-btn.rec-big{
     width:100%; max-width:320px; min-height:76px; border-radius:42px; font-size:1.25rem; letter-spacing:0.06em;
     font-weight:800; text-transform:uppercase; color:#fff; cursor:pointer;
@@ -497,6 +495,24 @@
   .record-fx-monitor-row input[type=checkbox]{width:16px; height:16px; cursor:pointer;}
   .record-fx-monitor-hint{color:var(--yellow); font-size:0.72rem; max-width:46ch; text-align:center;}
 
+
+  /* compact record box, sits under the wave and above the knobs */
+  .record-panel.rp-bar{padding:10px 12px; gap:8px; border-radius:10px; align-items:stretch; text-align:left;}
+  .rp-bar .rp-top{display:flex; align-items:center; gap:10px 12px; flex-wrap:wrap; width:100%;}
+  .rp-bar .record-controls{width:auto; flex:0 0 auto; gap:8px;}
+  .rp-bar .pill-btn.rec-big{width:auto; max-width:none; min-height:46px; padding:0 22px; font-size:0.95rem; border-width:2px; letter-spacing:0.05em;}
+  .rp-bar .record-visual{flex:0 0 auto;}
+  .rp-bar .record-meter-shell{flex:1 1 80px; max-width:none; min-width:60px;}
+  .rp-bar .record-waveform-shell{height:44px; margin:0; width:100%;}
+  .rp-bar .rp-opts{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap; width:100%;}
+  .rp-bar .record-device-row{flex:1 1 200px; max-width:none; flex-direction:row; align-items:center; gap:8px; width:auto;}
+  .rp-bar .record-device-row select{width:auto; flex:1 1 150px; padding:7px 12px;}
+  .rp-bar .record-device-hint{min-height:0;}
+  .rp-bar .record-hint{max-width:none; font-size:0.74rem; text-align:left;}
+  .rp-bar .rec-more{width:100%; font-size:0.78rem; color:var(--ink-dim);}
+  .rp-bar .rec-more summary{cursor:pointer; user-select:none; padding:2px 0;}
+  .rp-bar .rec-more > *{margin-top:6px;}
+  .rp-bar #btn-calibrate-tap{align-self:center;}
   .extra-vocal-add-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;}
   .record-panel-compact{padding:16px 14px; margin-top:10px; gap:10px;}
   .record-panel-compact .record-time{font-size:0.95rem;}
@@ -847,6 +863,15 @@
     font-weight:700; animation:save-btn-glow 2.6s ease-in-out infinite;
   }
   #btn-save-project:hover{ background:var(--ok); color:#050508; }
+  /* decorations stand still while audio plays / the page scrolls -- fewer repaints, less crackle */
+  body.gs-playing .pill-btn.rec-big,
+  body.gs-playing #btn-save-project,
+  body.gs-playing .knob-unit.sparkle .knob::before,
+  body.gs-playing .knob-unit.sparkle .knob::after,
+  body.gs-scrolling .pill-btn.rec-big,
+  body.gs-scrolling #btn-save-project,
+  body.gs-scrolling .knob-unit.sparkle .knob::before,
+  body.gs-scrolling .knob-unit.sparkle .knob::after{ animation:none !important; }
   @keyframes save-btn-glow{
     0%{ box-shadow:0 0 0 0 rgba(60,242,160,0.45); }
     50%{ box-shadow:0 0 14px 2px rgba(60,242,160,0.55); }
@@ -1322,14 +1347,16 @@
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:10px;
   }
-  .transport > #input-mode-row{ order:30; margin-top:4px; }
+  .transport > #input-mode-row{ order:21; margin-top:4px; }
   .transport > #input-mode-row::before{
     content:"STEP 3 · HIT RECORD";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:10px;
   }
-  .transport > #dropzone{ order:31; }
-  .transport > #record-panel{ order:31; }
+  /* record box sits right under the wave (order 20) and above the knobs (22) */
+  .transport > #dropzone{ order:21; }
+  .transport > #record-panel{ order:21; }
+  .transport > #extra-record-panel{ order:21; margin-top:0; }
   .transport > #vocal-mixer{ order:40; margin-top:4px; }
   .transport > #vocal-mixer::before{
     content:"STEP 4 · MIX IT IN";
@@ -1667,46 +1694,6 @@
         <input type="file" id="file-input" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.aif,.aiff,.caf,.ogg,.mp4,.m4b,video/mp4,public.audio" multiple />
       </div>
 
-      <div class="record-panel" id="record-panel">
-        <div class="record-visual">
-          <div class="record-dot" id="record-dot"></div>
-          <span class="record-time" id="record-time">00:00</span>
-        </div>
-        <div class="waveform-shell record-waveform-shell">
-          <span class="wf-label" data-i18n="wfLabelRecording">Recording</span>
-          <canvas id="record-waveform" width="900" height="80"></canvas>
-        </div>
-        <div class="record-meter-shell"><div class="record-meter-bar" id="record-meter-bar"></div></div>
-        <div class="record-device-row" id="record-device-row">
-          <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
-          <p class="record-device-hint" id="record-device-hint"></p>
-        </div>
-        <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
-        <label class="record-fx-monitor-row">
-          <input type="checkbox" id="record-fx-monitor" checked />
-          <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
-        </label>
-        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
-        <label class="record-fx-monitor-row">
-          <input type="checkbox" id="record-fx-reverb" />
-          <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
-        </label>
-        <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
-        <button type="button" class="icon-btn small" id="btn-calibrate-sync" data-i18n="calibrateSyncBtn">🎯 Calibrate your timing</button>
-        <p class="record-hint" data-i18n="calibrateSyncHint">Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.</p>
-        <button type="button" class="pill-btn pill-cyan rec-big" id="btn-calibrate-tap" hidden data-i18n="calibrateSyncTapBtn">TAP</button>
-        <p class="record-hint" id="calibrate-sync-result"></p>
-        <div class="record-controls">
-          <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
-          <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
-          <button type="button" class="icon-btn small btn-danger" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
-          <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
-        </div>
-        <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
-        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
-<p class="record-hint record-interface-tip" id="record-interface-tip" hidden data-i18n-html="recordInterfaceMonitorTip">🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record.</p>
-      </div>
-
       <div id="beat-block" hidden>
         <p class="controls-heading" data-i18n="beatMixerHeading">Beat Mixer</p>
         <div class="track-row">
@@ -1754,41 +1741,6 @@
         <div id="extra-vocals-list"></div>
         <p class="vocal-cap-note clean-status" id="clean-status" role="status" aria-live="polite"></p>
         <input type="file" id="extra-vocal-input" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.aif,.aiff,.caf,.ogg,.mp4,.m4b,video/mp4,public.audio" multiple hidden />
-
-        <div class="record-panel record-panel-compact" id="extra-record-panel" hidden>
-          <div class="record-visual">
-            <div class="record-dot" id="extra-record-dot"></div>
-            <span class="record-time" id="extra-record-time">00:00</span>
-          </div>
-          <div class="waveform-shell record-waveform-shell">
-            <span class="wf-label" data-i18n="wfLabelRecording">Recording</span>
-            <canvas id="extra-record-waveform" width="900" height="60"></canvas>
-          </div>
-          <div class="record-meter-shell"><div class="record-meter-bar" id="extra-record-meter-bar"></div></div>
-          <div class="record-device-row">
-            <select id="extra-record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
-            <p class="record-device-hint" id="extra-record-device-hint"></p>
-          </div>
-          <label class="record-fx-monitor-row">
-            <input type="checkbox" id="extra-record-fx-monitor" checked />
-            <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
-          </label>
-          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
-          <label class="record-fx-monitor-row">
-            <input type="checkbox" id="extra-record-fx-reverb" />
-            <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
-          </label>
-          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
-          <div class="record-controls">
-            <button type="button" class="pill-btn pill-cyan" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
-            <button type="button" class="pill-btn pill-purple" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
-            <button type="button" class="icon-btn small btn-danger" id="extra-btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
-            <button type="button" class="icon-btn small" id="extra-btn-record-cancel" data-i18n="recordCancel">Cancel</button>
-          </div>
-          <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
-          <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
-<p class="record-hint record-interface-tip" id="extra-record-interface-tip" hidden data-i18n-html="recordInterfaceMonitorTip">🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record.</p>
-        </div>
 
         <p class="vocal-cap-note" id="vocal-cap-note"></p>
       </div>
@@ -1879,6 +1831,95 @@
             <button class="icon-btn" id="btn-ab" type="button" data-i18n="ab">A/B: After</button>
           </div>
         </div>
+      </div>
+
+      <!-- record boxes live right under the wave, above the knobs -->
+      <div class="record-panel rp-bar" id="record-panel">
+        <div class="rp-top">
+          <div class="record-controls">
+          <button type="button" class="pill-btn pill-cyan rec-big" id="btn-record-start" data-i18n="recordStart">● Record</button>
+          <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="btn-record-stop" hidden data-i18n="recordStop">Stop</button>
+          <button type="button" class="icon-btn small btn-danger" id="btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
+          <button type="button" class="icon-btn small" id="btn-rerecord-cancel" hidden data-i18n="recordCancel">Cancel</button>
+        </div>
+          <div class="record-visual">
+            <div class="record-dot" id="record-dot"></div>
+            <span class="record-time" id="record-time">00:00</span>
+          </div>
+          <div class="record-meter-shell"><div class="record-meter-bar" id="record-meter-bar"></div></div>
+        </div>
+        <div class="waveform-shell record-waveform-shell">
+          <span class="wf-label" data-i18n="wfLabelRecording">Recording</span>
+          <canvas id="record-waveform" width="900" height="80"></canvas>
+        </div>
+        <div class="rp-opts">
+          <div class="record-device-row" id="record-device-row">
+          <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
+          <p class="record-device-hint" id="record-device-hint"></p>
+        </div>
+          <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
+          <label class="record-fx-monitor-row">
+          <input type="checkbox" id="record-fx-monitor" checked />
+          <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
+        </label>
+        </div>
+        <p class="record-hint" id="record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
+        <p class="record-hint record-bt-warn" id="record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+        <p class="record-hint record-interface-tip" id="record-interface-tip" hidden data-i18n-html="recordInterfaceMonitorTip">🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record.</p>
+        <details class="rec-more">
+          <summary data-i18n="recMoreSummary">More recording options</summary>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+          <label class="record-fx-monitor-row">
+          <input type="checkbox" id="record-fx-reverb" />
+          <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
+        </label>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
+          <button type="button" class="icon-btn small" id="btn-calibrate-sync" data-i18n="calibrateSyncBtn">🎯 Calibrate your timing</button>
+          <p class="record-hint" data-i18n="calibrateSyncHint">Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.</p>
+        </details>
+        <button type="button" class="pill-btn pill-cyan rec-big" id="btn-calibrate-tap" hidden data-i18n="calibrateSyncTapBtn">TAP</button>
+        <p class="record-hint" id="calibrate-sync-result"></p>
+      </div>
+      <div class="record-panel record-panel-compact rp-bar" id="extra-record-panel" hidden>
+        <div class="rp-top">
+          <div class="record-controls">
+            <button type="button" class="pill-btn pill-cyan rec-big" id="extra-btn-record-start" data-i18n="recordStart">Start Recording</button>
+            <button type="button" class="pill-btn pill-purple rec-big rec-big-stop" id="extra-btn-record-stop" hidden data-i18n="recordStop">Stop</button>
+            <button type="button" class="icon-btn small btn-danger" id="extra-btn-record-retry" hidden data-i18n="recordRetry">Re-record</button>
+            <button type="button" class="icon-btn small" id="extra-btn-record-cancel" data-i18n="recordCancel">Cancel</button>
+          </div>
+          <div class="record-visual">
+            <div class="record-dot" id="extra-record-dot"></div>
+            <span class="record-time" id="extra-record-time">00:00</span>
+          </div>
+          <div class="record-meter-shell"><div class="record-meter-bar" id="extra-record-meter-bar"></div></div>
+        </div>
+        <div class="waveform-shell record-waveform-shell">
+          <span class="wf-label" data-i18n="wfLabelRecording">Recording</span>
+          <canvas id="extra-record-waveform" width="900" height="60"></canvas>
+        </div>
+        <div class="rp-opts">
+          <div class="record-device-row">
+            <select id="extra-record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
+            <p class="record-device-hint" id="extra-record-device-hint"></p>
+          </div>
+          <label class="record-fx-monitor-row">
+            <input type="checkbox" id="extra-record-fx-monitor" checked />
+            <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
+          </label>
+        </div>
+        <p class="record-hint" id="extra-record-hint" data-i18n="recordHintIdle">Tap Start, allow microphone access, and sing. Your take drops straight into the chain below.</p>
+        <p class="record-hint record-bt-warn" id="extra-record-bt-warn" hidden data-i18n-html="recordBtWarn">⚠️ Bluetooth detected — the delay it adds can drift your vocal out of time with the beat. Wired headphones (or your interface) are much more reliable while recording.</p>
+        <p class="record-hint record-interface-tip" id="extra-record-interface-tip" hidden data-i18n-html="recordInterfaceMonitorTip">🎚️ Audio interface detected — turning off “Hear yourself while tracking” above often clears up crackle or static while you record.</p>
+        <details class="rec-more">
+          <summary data-i18n="recMoreSummary">More recording options</summary>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxMonitorHint">On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.</p>
+          <label class="record-fx-monitor-row">
+            <input type="checkbox" id="extra-record-fx-reverb" />
+            <span data-i18n="recordFxReverbLabel">✨ Add a touch of reverb to your monitor</span>
+          </label>
+          <p class="record-hint record-fx-monitor-hint" data-i18n="recordFxReverbHint">Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.</p>
+        </details>
       </div>
     </div>
 
@@ -2231,6 +2272,7 @@ recordInterfaceMonitorTip:"🎚️ Audio interface detected — turning off “H
       recordFxMonitorHint:"On by default so you can hear yourself while tracking. Headphones only — turn this off if you're on speakers, or you'll get feedback.",
       recordFxReverbLabel:"✨ Add a touch of reverb to your monitor",
       recordFxReverbHint:"Off by default — turn on if you want a little reverb while you track. Never affects your recorded take either way.",
+      recMoreSummary:"More recording options",
       calibrateSyncBtn:"🎯 Calibrate your timing",
       calibrateSyncHint:"Tap this, then tap TAP (or hit spacebar) right when you hear each of the 6 clicks that play. It measures your real delay and uses it for every vocal you record from now on.",
       calibrateSyncRunning:"Tap TAP in time with each click…",
@@ -2476,6 +2518,7 @@ recordInterfaceMonitorTip:"🎚️ Interfaz de audio detectada — apagar “Esc
       recordFxMonitorHint:"Activado de forma predeterminada para que te escuches mientras grabas. Solo con audífonos — apágalo si usas bocinas, o tendrás retroalimentación (feedback).",
       recordFxReverbLabel:"✨ Agregar un toque de reverb a tu monitor",
       recordFxReverbHint:"Desactivado de forma predeterminada — actívalo si quieres un poco de reverb mientras grabas. Nunca afecta tu toma grabada.",
+      recMoreSummary:"Más opciones de grabación",
       calibrateSyncBtn:"🎯 Calibra tu sincronización",
       calibrateSyncHint:"Toca esto y luego toca TOCAR (o la barra espaciadora) justo cuando escuches cada uno de los 6 clics. Mide tu retraso real y lo usa en cada voz que grabes de ahora en adelante.",
       calibrateSyncRunning:"Toca TOCAR al mismo tiempo que cada clic…",
@@ -3094,6 +3137,18 @@ var RECORD_MONITOR_PREROLL = 0.25; // seconds -- the lead-in before the recordin
     return Math.max(-TRACK_NUDGE_MAX, Math.min(TRACK_NUDGE_MAX, v));
   }
   function trackNudgeSec(tr){ return tr ? clampNudge(tr.nudgeSec || 0) : 0; }
+  // Pitch correction (the Tune and M5tar knobs) listens ahead by one grain, so the vocal comes
+  // out of it ~80 ms late. Start such a take that much early so it lands on the beat. Only used
+  // for audio that actually goes through the effects chain (not for the nudge UI or the dry
+  // recording monitor).
+  var PITCH_LATENCY_SEC = 0.08;
+  function trackPitchLatency(tr){
+    var c = (tr && tr !== leadTrack && tr.chain && !tr.chain._dead) ? tr.chain : chain;
+    var v = (c === chain) ? leadValues : (tr.values || leadValues);
+    if (!c || !c.pitchWorkletNode || !v) return 0;
+    return raEffTune(v) > 0 ? PITCH_LATENCY_SEC : 0;
+  }
+  function trackStartSec(tr){ return clampNudge(trackNudgeSec(tr) - trackPitchLatency(tr)); }
 
   /* ---------- Auto-align: automatically nudge a freshly recorded/uploaded
      vocal onto the beat grid, so most takes land close to on-time without
@@ -4944,6 +4999,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     if (chain.pitchWorkletNode){
       chain._pitchWantSpeed = effTune; chain._pitchWantHumanize = v.humanize;
       setPitchPath(chain, effTune > 0);
+      // Tune/M5tar crossing zero adds/removes the ~80 ms pitch latency -- re-time this chain's
+      // playing takes so they stay on the beat (see trackPitchLatency()).
+      var wantLat = effTune > 0;
+      if (chain._latComp !== wantLat){
+        var hadLat = chain._latComp !== undefined;
+        chain._latComp = wantLat;
+        if (hadLat && isPlaying && !raRenderingOffline && !chain._renderOnly) setTimeout(function(){ retimeChainTracks(chain); }, 0);
+      }
       if (chain._pitchOn && chain._pitchWarm){
         chain.pitchWorkletNode.parameters.get("speed").setTargetAtTime(effTune, now, 0.05);
         chain.pitchWorkletNode.parameters.get("humanize").setTargetAtTime(v.humanize, now, 0.05);
@@ -8496,7 +8559,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
           src.connect(gn); gn.connect(pn); pn.connect(oc.input);
           // Song time of this take's first sample is its nudge; a window render
           // starts at song time win.start, so shift everything back by that.
-          var when = trackNudgeSec(m.track) - (win ? win.start : 0);
+          var when = trackStartSec(m.track) - (win ? win.start : 0);
           if (when >= 0) src.start(when, 0); else src.start(0, -when);
         });
       } catch(err){
@@ -8676,7 +8739,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     vocalSourceNodes = keep;
     var pos = raPosAt(tStart), best = null, bestDur = -1, bestEnd = 0;
     g.members.forEach(function(m){
-      var sample = pos - trackNudgeSec(m.track), delay = 0;
+      var sample = pos - trackStartSec(m.track), delay = 0;
       if (sample < 0){ delay = -sample; sample = 0; }
       var src = makeTimedSource(m.buf, sample, playRegion, playLoopWhole);
       if (!src) return;
@@ -8911,7 +8974,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // never before) right now. The beat itself is never nudged -- it's what
       // every vocal's timing is being hand-aligned against.
       var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
-      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + (n.rendered ? 0 : trackNudgeSec(n.ref)), n.src._offset); });
+      vocalSourceNodes.forEach(function(n){ n.src.start(startAt + (n.rendered ? 0 : trackStartSec(n.ref)), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       raReconcileWiring();
       playStartCtxTime = startAt;
@@ -8969,7 +9032,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     var buf = (track === leadTrack) ? audioBuffer : track.buffer;
     if (!buf) return false;
     var LEAD = 0.03;
-    var sample = currentPlayPosition() + LEAD - trackNudgeSec(track); // which sample of this take is due right as the new source starts
+    var sample = currentPlayPosition() + LEAD - trackStartSec(track); // which sample of this take is due right as the new source starts
     var delay = 0;
     if (sample < 0){ delay = -sample; sample = 0; }
     var src = makeTimedSource(buf, sample, playRegion, playLoopWhole);
@@ -8988,6 +9051,17 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       src.onended = function(){ onLeadSourceEnded(src, endAt); };
     }
     return true;
+  }
+  function retimeChainTracks(c){
+    if (!isPlaying || !c || c._dead) return;
+    var list = [];
+    if (c === chain){
+      list.push(leadTrack);
+      extraVocals.forEach(function(t){ if (!(t.chain && !t.chain._dead)) list.push(t); });
+    } else {
+      extraVocals.forEach(function(t){ if (t.chain === c) list.push(t); });
+    }
+    list.forEach(function(t){ try { retimeTrackLive(t); } catch(e){} });
   }
   function stopSourceOnly(){
     vocalSourceNodes.forEach(function(n){
@@ -9886,15 +9960,30 @@ reader.readAsText(file);
     drawBufferWaveform(beatCanvas, beatCctx, beatBuffer, "rgba(194,76,255,0.4)", currentTotalDuration());
   }
 
+  // True while the page is being scrolled (and ~0.2s after) -- the visuals back off, see runVisualizer().
+  var gsScrolling = false, gsScrollTimer = 0, gsPlayingClass = false;
+  window.addEventListener("scroll", function(){
+    if (!gsScrolling){ gsScrolling = true; document.body.classList.add("gs-scrolling"); }
+    if (gsScrollTimer) clearTimeout(gsScrollTimer);
+    gsScrollTimer = setTimeout(function(){ gsScrolling = false; gsScrollTimer = 0; document.body.classList.remove("gs-scrolling"); }, 200);
+  }, {passive: true});
+
   function runVisualizer(){
     if (!chain) return;
     var freqData = new Uint8Array(chain.analyser.frequencyBinCount);
     var binHz = ctx.sampleRate / chain.analyser.fftSize;
     var visFrameCount = 0;
+    var lastUiT = 0;
 
     function frame(){
-      if (!isPlaying) { rafId = null; updatePlayheadUI(); resetKnobMiniMeters(); visFrameCount = 0; return; }
-      updatePlayheadUI();
+      if (!isPlaying) { rafId = null; updatePlayheadUI(); resetKnobMiniMeters(); visFrameCount = 0; if (gsPlayingClass){ gsPlayingClass = false; document.body.classList.remove("gs-playing"); } return; }
+      // Keep the page light while audio plays: the pulsing/glowing decorations pause (see the
+      // "gs-playing" CSS), and the playhead/timeline text updates ~30x a second -- only ~8x a
+      // second while the page is being scrolled, which is when Safari's audio is most likely to
+      // crackle from the main thread being busy repainting.
+      if (!gsPlayingClass){ gsPlayingClass = true; document.body.classList.add("gs-playing"); }
+      var uiNow = performance.now();
+      if (uiNow - lastUiT >= (gsScrolling ? 120 : 33)){ lastUiT = uiNow; updatePlayheadUI(); }
 
       // Used to auto-duck the beat under the vocal here -- watch the
       // processed-vocal envelope and pull the beat down to 40% any time it
@@ -9952,7 +10041,7 @@ reader.readAsText(file);
       // it up during exactly the recording window is what fixes the lag/
       // latency reported while recording. The meters just freeze at their
       // last value and pick back up once recording stops.
-      if (!isMicRecording && visFrameCount % 3 === 0){
+      if (!isMicRecording && !gsScrolling && visFrameCount % 3 === 0){
         chain.analyser.getByteFrequencyData(freqData);
         updateKnobMiniMeters(freqData, binHz);
       }
@@ -10036,7 +10125,7 @@ reader.readAsText(file);
       // Same per-track timing nudge as live playback (see startPlayback())
       // so an exported/auto-mastered file lines up exactly like Play does.
       var startAt = ctx.currentTime + 0.05 + TRACK_NUDGE_MAX;
-      vocalNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref)); });
+      vocalNodes.forEach(function(n){ n.src.start(startAt + trackStartSec(n.ref)); });
       if (beatSrc) beatSrc.start(startAt);
 
       // Beat level stays constant here too, matching live playback (see
