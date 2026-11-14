@@ -3268,6 +3268,18 @@ var RECORD_MONITOR_PREROLL = 0.25; // seconds -- the lead-in before the recordin
 // precise, since drag sensitivity below is tied to this same window.
 var TRACK_ZOOM_LEVELS = [0, 16, 8, 4, 2, 1, 0.6];
 var trackZoomIdx = 0;
+var trackFollowPrevIn = false, trackFollowPrevPlaying = false; // grid auto-follow bookkeeping (see updatePlayheadUI)
+// Keeps the zoomed window fully inside the song so EVERYTHING that maps song-time
+// to pixels (waveforms, ruler, playhead, click-to-seek) uses the same start time.
+// Before this, the waveforms were drawn from (center - dur/2) -- negative near the
+// start -- while the ruler/playhead clamped that to 0, so they disagreed by up to
+// half a window.
+function clampTrackZoomCenter(total){
+  if (!(trackZoomIdx > 0)) { trackZoomCenter = 0; return; }
+  var dur = TRACK_ZOOM_LEVELS[trackZoomIdx];
+  var lo = dur / 2, hi = Math.max(lo, (total || 0) - dur / 2);
+  trackZoomCenter = Math.max(lo, Math.min(hi, trackZoomCenter || 0));
+}
 var trackZoomCenter = 0; // seconds -- absolute song-time center of the zoomed window; lets you pan the zoomed view to any part of the beat/vocal instead of always looking at song-time 0
 // How many seconds a full-width drag moves the nudge by when NOT zoomed
 // in (TRACK_ZOOM_LEVELS[0]) -- a fixed, song-length-independent range,
@@ -7378,6 +7390,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     }
     allVocalsRowsEl.innerHTML = "";
     var total = currentTotalDuration();
+    clampTrackZoomCenter(total);
 
     function miniToggle(cls, label, aria, isOn, onClick){
       var b = document.createElement("button");
@@ -7583,7 +7596,8 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
           if (rectW <= 0) return;
           var winDur = TRACK_ZOOM_LEVELS[trackZoomIdx];
           var deltaSec = -(dx / rectW) * winDur;
-          trackZoomCenter = Math.max(0, Math.min(total, panStartCenter + deltaSec));
+          trackZoomCenter = panStartCenter + deltaSec;
+          clampTrackZoomCenter(total);
           panRedraw();
         });
         function endPanDrag(e){
@@ -9279,9 +9293,16 @@ var btnTrkZoomIn = document.getElementById("btn-trk-zoom-in");
 var btnTrkZoomOut = document.getElementById("btn-trk-zoom-out");
 var trkZoomLevelEl = document.getElementById("trk-zoom-level");
 if (btnTrkZoomOut) btnTrkZoomOut.disabled = true;
-function trkZoomTo(idx){
+function trkZoomTo(idx, keepCenter){
+  var wasOff = trackZoomIdx === 0;
   trackZoomIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, idx));
-if (trackZoomIdx === 0) trackZoomCenter = 0;
+  if (trackZoomIdx === 0) trackZoomCenter = 0;
+  else {
+    // Zooming in from "Off" opens on wherever you are (playhead, or the tap
+    // point when stopped) instead of always snapping to the very start.
+    if (wasOff && !keepCenter) trackZoomCenter = isPlaying ? currentPlayPosition() : (tlCursor || 0);
+    clampTrackZoomCenter(currentTotalDuration());
+  }
   if (trkZoomLevelEl){
     var lvl = TRACK_ZOOM_LEVELS[trackZoomIdx];
     trkZoomLevelEl.textContent = lvl > 0 ? ("Zoom: " + lvl + "s") : "Zoom: Off";
@@ -9315,7 +9336,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
         // screen) -- pure wasted main-thread work piling up right in the
         // middle of an active zoom gesture, the kind of stall that can make
         // playback stutter. Skip the no-op redraws entirely.
-        if (newIdx !== trackZoomIdx) trkZoomTo(newIdx);
+        if (newIdx !== trackZoomIdx) trkZoomTo(newIdx, true);
       }, {passive:false});
     }
 
@@ -9399,6 +9420,26 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       // where the audio is right now.
       var gridWinDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       var gridWinStart = trackZoomIdx > 0 ? Math.max(0, trackZoomCenter - gridWinDur/2) : 0;
+      // Zoomed in while playing: keep the window with the music instead of
+      // letting the playhead run off the edge and the grid sit there looking
+      // like the zoom was lost. Pages forward one window at a time when playback
+      // crosses the right edge; and when Play starts outside the window it jumps
+      // there. Never fights a manual slide (that only moves the window when
+      // the playhead was NOT inside it on the previous tick).
+      if (trackZoomIdx > 0 && isPlaying && gridWinDur > 0){
+        var inNow = pos >= gridWinStart && pos <= gridWinStart + gridWinDur;
+        var pageNow = false;
+        if (!inNow && trackFollowPrevIn && pos > gridWinStart + gridWinDur) pageNow = true;
+        else if (!inNow && !trackFollowPrevPlaying) pageNow = true;
+        if (pageNow){
+          trackZoomCenter = pos - gridWinDur * 0.05 + gridWinDur / 2;
+          clampTrackZoomCenter(total);
+          gridWinStart = Math.max(0, trackZoomCenter - gridWinDur/2);
+          trackFollowPrevIn = true; trackFollowPrevPlaying = true;
+          renderAllVocalsStrip();
+        } else trackFollowPrevIn = inNow;
+      } else if (trackZoomIdx > 0) trackFollowPrevIn = false;
+      trackFollowPrevPlaying = isPlaying;
       var inGridWindow = isPlaying && gridWinDur > 0 && pos >= gridWinStart && pos <= gridWinStart + gridWinDur;
       allVocalsPlayheadEl.hidden = !inGridWindow;
       if (inGridWindow){
@@ -9581,7 +9622,8 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       if (!rulerPress.moved || trackZoomIdx <= 0) return;
       var w = rulerWin(), rectW = allVocalsRulerEl.getBoundingClientRect().width;
       if (rectW <= 0) return;
-      trackZoomCenter = Math.max(0, Math.min(w.total, rulerPress.center - (dx / rectW) * w.dur));
+      trackZoomCenter = rulerPress.center - (dx / rectW) * w.dur;
+      clampTrackZoomCenter(w.total);
       if (tlTimeEl) tlTimeEl.textContent = fmtClock(trackZoomCenter) + " / " + fmtClock(w.total);
       if (!rulerRaf) rulerRaf = requestAnimationFrame(function(){ rulerRaf = 0; renderAllVocalsStrip(); });
     });
