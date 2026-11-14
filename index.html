@@ -8409,7 +8409,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   var raRenderingOffline = false;   // true only during the synchronous offline graph build
   var RA_MAX_SEC = 420;             // longer than this: stay live (memory)
   var RA_TAIL_SEC = 2.8;            // room for the hall-reverb tail past the last vocal sample
-  var RA = { enabled: false, cache: {}, quick: {}, ids: 0, fails: 0, tuneFails: 0, pitchUrl: null };
+  var RA = { enabled: true, cache: {}, quick: {}, ids: 0, fails: 0, tuneFails: 0, pitchUrl: null };
   // Quick window renders (see raStartWindow): a short first window so a knob change is heard almost
   // at once, then longer ones, until the full render lands. Lengths in seconds ahead of the playhead.
   var RA_QUICK_MIN_SEC = 12, RA_QUICK_BEHIND = 2.5, RA_QUICK_LADDER = [8, 30, 90], RA_QUICK_LADDER_PITCH = [6, 20, 60], RA_QUICK_RUNWAY = 6;
@@ -8419,8 +8419,9 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
         var qs = /[?&]render=(\d)/.exec(location.search);
         if (qs) localStorage.setItem("gemstar_render", qs[1] === "1" ? "1" : "0");
       }
-      return localStorage.getItem("gemstar_render") === "1";
-    } catch(e){ return false; }
+      // On by default; only an explicit "0" (footer switch off, or ?render=0) turns it off.
+      return localStorage.getItem("gemstar_render") !== "0";
+    } catch(e){ return true; }
   }
   RA.enabled = raReadPref(true);
   window.gemstarSetRenderAhead = function(on){
@@ -8827,6 +8828,10 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
           if (!cur || cur.sig !== sig || cur.win) raSwapGroupToRendered(g, sig, c.buf, null);
           return;
         }
+        // The knobs just moved: whatever pre-rendered audio is playing now was made with the OLD
+        // settings, so keep hearing it and the knob feels dead until the new render lands. Go back
+        // to the live chain (already on the new settings) right away; the fresh render swaps in later.
+        if (cur && cur.sig !== sig){ raSwapGroupToLive(g); cur = null; }
         // No up-to-date full render yet -- bridge with short window renders around the playhead.
         if (playRegion || playLoopWhole || raGroupSongEnd(g) <= RA_QUICK_MIN_SEC){
           if (cur && cur.win && !cur.win.toEnd && raPosAt(ctx.currentTime) > cur.win.end - 1) raSwapGroupToLive(g);
@@ -8987,7 +8992,12 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       // front, leaving room for any track's nudge to pull it back toward (but
       // never before) right now. The beat itself is never nudged -- it's what
       // every vocal's timing is being hand-aligned against.
-      var startAt = ctx.currentTime + 0.03 + TRACK_NUDGE_MAX;
+      // Only as much lead-in as the earliest-starting live vocal actually needs (0 for a normal
+      // take) -- it used to always be the full +/-2 s nudge range, which made every Play and every
+      // jump-back wait about two seconds in silence before anything sounded.
+      var leadIn = 0;
+      vocalSourceNodes.forEach(function(n){ if (!n.rendered && n.ref) leadIn = Math.max(leadIn, -trackStartSec(n.ref)); });
+      var startAt = ctx.currentTime + 0.03 + Math.min(TRACK_NUDGE_MAX, leadIn);
       vocalSourceNodes.forEach(function(n){ n.src.start(startAt + (n.rendered ? 0 : trackStartSec(n.ref)), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       raReconcileWiring();
