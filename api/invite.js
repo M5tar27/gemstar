@@ -9,7 +9,7 @@
 //
 // POST { action: "create", token, deviceId, trackId, maxUses?, days? }
 //   Mints a shareable invite link for a track the caller owns.
-//   Mix + Unlimited tiers only. Refuses if the track is already full.
+//   Starter / Mix / Unlimited, each with a monthly allowance (COLLAB_MONTHLY). Refuses if the track is already full.
 //   -> { link, expiresAt, spotsLeft }
 //
 // POST { action: "resolve", invite }  (public, no login)
@@ -26,8 +26,8 @@ function fail(res, status, reason, error) {
 async function handleCreate(body, res) {
   const who = C.verifyAccessToken(body.token, body.deviceId);
   if (!who) return res.status(401).json({ error: "Please verify your Gemstar account first." });
-  if (!C.canCollaborate(who.tier)) {
-    return res.status(403).json({ error: "Inviting friends is available on the Mix and Unlimited plans.", upgrade: true });
+  if (!C.canUseCollabTracks(who.tier)) {
+    return res.status(403).json({ error: "Inviting friends is available on paid Gemstar plans.", upgrade: true });
   }
 
   const trackId = String(body.trackId || "");
@@ -58,6 +58,18 @@ async function handleCreate(body, res) {
       return res.status(409).json({ error: `This track already has ${track.max_collaborators} collaborators.` });
     }
 
+    // Monthly allowance: invite links created this calendar month vs. the plan's limit.
+    const limit = C.collabMonthlyLimit(who.tier);
+    const usedInv = await C.sbRest(cfg,
+      `gemstar_track_invites?created_by=eq.${encodeURIComponent(who.email)}&created_at=gte.${encodeURIComponent(C.monthStartISO())}&select=token&limit=${limit + 1}`);
+    const usedCount = Array.isArray(usedInv) ? usedInv.length : 0;
+    if (usedCount >= limit) {
+      return res.status(429).json({
+        error: `You've used all ${limit} collab invites for this month on your plan. They reset on the 1st${who.tier === "unlimited" ? "." : " - or upgrade for more."}`,
+        upgrade: who.tier !== "unlimited", used: usedCount, limit,
+      });
+    }
+
     const inviteToken = C.newInviteToken();
     const expiresAt = new Date(Date.now() + days * 86400 * 1000).toISOString();
     await C.sbRest(cfg, "gemstar_track_invites", {
@@ -70,7 +82,7 @@ async function handleCreate(body, res) {
     });
 
     const site = (process.env.SITE_URL || "https://gemstaraudio.com").replace(/\/+$/, "");
-    return res.status(200).json({ link: `${site}/join.html?t=${inviteToken}`, expiresAt, spotsLeft });
+    return res.status(200).json({ link: `${site}/join.html?t=${inviteToken}`, expiresAt, spotsLeft, invitesUsed: usedCount + 1, invitesLimit: limit });
   } catch (err) {
     return res.status(500).json({ error: "Could not create invite" });
   }
