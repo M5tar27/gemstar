@@ -459,6 +459,12 @@
     width:100%; max-width:280px; height:6px; border-radius:4px; background:#1c1c2a;
     border:1px solid var(--line); overflow:hidden;
   }
+  .record-meter-shell.clip{border-color:var(--danger);}
+  .record-meter-shell.clip .record-meter-bar{background:var(--danger);}
+  .rec-clip-warn{font-size:0.72rem; font-weight:700; letter-spacing:0.04em; color:#fff; background:var(--danger); padding:3px 8px; border-radius:6px; white-space:nowrap;}
+  .rec-clip-warn[hidden]{display:none;}
+  .clip-led{font-size:0.6rem; font-weight:800; letter-spacing:0.1em; padding:2px 7px; border-radius:6px; border:1px solid var(--line); color:var(--ink-dim); opacity:.55; cursor:help;}
+  .clip-led.on{color:#fff; background:var(--danger); border-color:var(--danger); opacity:1;}
   .record-meter-bar{
     height:100%; width:0%; background:linear-gradient(90deg, var(--cyan), var(--gem));
     transition:width .08s linear;
@@ -1343,13 +1349,13 @@
     background:var(--bg-panel-2);
   }
   .transport > #player-block::before{
-    content:"STEP 2 · CHECK THE VIBE";
+    content:"CHECK THE VIBE";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:10px;
   }
   .transport > #input-mode-row{ order:21; margin-top:4px; }
   .transport > #input-mode-row::before{
-    content:"STEP 3 · HIT RECORD";
+    content:"STEP 2 · HIT RECORD";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:10px;
   }
@@ -1357,6 +1363,11 @@
   .transport > #dropzone{ order:21; }
   .transport > #record-panel{ order:21; }
   .transport > #extra-record-panel{ order:21; margin-top:0; }
+  .transport > #extra-record-panel::before{
+    content:"STEP 2 · HIT RECORD";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:2px;
+  }
   .transport > #vocal-mixer{ order:40; margin-top:4px; }
   .transport > #vocal-mixer::before{
     content:"STEP 4 · MIX IT IN";
@@ -1372,6 +1383,11 @@
      relocateControlsLayout() below, which only MOVES these existing
      elements into .transport -- nothing about how they work changes. ---- */
   .transport > #vocal-controls-wrap{ order:22; margin-top:4px; }
+  .transport > #vocal-controls-wrap::before{
+    content:"STEP 3 · DIAL IT IN";
+    display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
+    color:var(--ink-dim); margin-bottom:6px;
+  }
   .transport > .mixers-row{ order:40; margin-top:4px; }
   .mixers-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
   .mixers-row::before{
@@ -1983,6 +1999,7 @@
         <span class="status-label" data-i18n="outputGainLabel">Output Gain</span>
         <input type="range" id="output-gain-fader" min="-24" max="12" step="0.5" value="3" aria-label="Output gain" />
         <span class="gain-readout" id="gain-readout">+3.0 dB</span>
+        <span class="clip-led" id="clip-led" title="Lights up when the mix is pushed hard past full scale (the limiter is squashing it). Turn Output Gain down.">CLIP</span>
       </div>
     </div>
 
@@ -3761,6 +3778,23 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     safetyClipCurveCache = curve;
     return curve;
   }
+  // Soft-knee peak limiter curve for each vocal chain: identity up to 0.80 (-1.9 dBFS), then a smooth
+  // tanh roll-off that tops out at 0.97, so a sudden loud word or a knob-boosted peak is rounded off
+  // instead of jumping out of the mix or hitting the master limiter hard.
+  var vocalLimiterCurveCache = null;
+  function getVocalLimiterCurve(){
+    if (vocalLimiterCurveCache) return vocalLimiterCurveCache;
+    var n = 4096, knee = 0.80, ceil = 0.97;
+    var curve = new Float32Array(n);
+    for (var i=0; i<n; i++){
+      var x = (i/(n-1))*2 - 1;
+      var ax = Math.abs(x), sign = x < 0 ? -1 : 1;
+      if (ax <= knee){ curve[i] = x; continue; }
+      curve[i] = sign * (knee + (ceil - knee) * Math.tanh((ax - knee) / (ceil - knee)));
+    }
+    vocalLimiterCurveCache = curve;
+    return curve;
+  }
   function makeReverbBuffer(duration, decay, seedShift){
     // Raw random-decay noise (the original approach) reads as harsh/metallic —
     // real rooms lose high frequencies faster as the tail decays. We fake that
@@ -4490,10 +4524,19 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.dryBus = ctx.createGain();
     g.wetBus = ctx.createGain();
     g.finalMix = ctx.createGain();
+    // Transparent peak limiter on the vocal only (the beat is left alone). A static soft-knee
+    // curve instead of a compressor node on purpose: DynamicsCompressor has a built-in ~6 ms
+    // look-ahead delay, this adds none, and it is bit-for-bit untouched below about -2 dB.
+    g.vocalLimIn = ctx.createGain();
+    g.vocalLimiter = ctx.createWaveShaper();
+    g.vocalLimiter.curve = getVocalLimiterCurve();
+    g.vocalLimiter.oversample = "none";
+    g.vocalLimIn.connect(g.vocalLimiter);
+    g.vocalLimiter.connect(g.finalMix);
 
     // ===== wiring =====
     g.input.connect(g.dryBus);
-    g.dryBus.connect(g.finalMix);
+    g.dryBus.connect(g.vocalLimIn);
 
     g.input.connect(g.punchComp);
     g.punchComp.connect(g.punchMakeup);
@@ -4583,7 +4626,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.jewelsCompWet.connect(g.jewelsSum);
 
     g.jewelsSum.connect(g.wetBus);
-    g.wetBus.connect(g.finalMix);
+    g.wetBus.connect(g.vocalLimIn);
 
     return g;
   }
@@ -4843,6 +4886,10 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.safetyClip.curve = getSafetyClipCurve();
     g.safetyClip.oversample = "4x";
 
+    // pre-limiter peak tap for the CLIP light
+    g.clipTap = ctx.createAnalyser();
+    g.clipTap.fftSize = 1024;
+    g.outputGain.connect(g.clipTap);
     g.mixSum.connect(g.outputGain);
     g.outputGain.connect(g.finalLimiter);
     g.finalLimiter.connect(g.safetyClip);
@@ -5723,6 +5770,25 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
     function stopTimer(){
       if (recordTimerInterval){ clearInterval(recordTimerInterval); recordTimerInterval = null; }
     }
+    // Input clipping warning: a peak at/near full scale means the mic or interface gain is too hot
+    // and the take will be distorted -- turn the meter red and say so, until it has been quiet a moment.
+    var clipWarnEl = null, clipHoldUntil = 0, CLIP_PEAK = 0.98;
+    function noteInputPeak(peak){
+      if (!opts.meterBar) return;
+      var now = Date.now();
+      if (peak >= CLIP_PEAK) clipHoldUntil = now + 1800;
+      var on = now < clipHoldUntil;
+      var shell = opts.meterBar.parentNode;
+      if (shell && shell.classList) shell.classList.toggle("clip", on);
+      if (on && !clipWarnEl && shell && shell.parentNode){
+        clipWarnEl = document.createElement("span");
+        clipWarnEl.className = "rec-clip-warn";
+        clipWarnEl.textContent = "TOO LOUD \u00b7 lower your mic / interface gain";
+        clipWarnEl.setAttribute("role", "status");
+        shell.parentNode.appendChild(clipWarnEl);
+      }
+      if (clipWarnEl) clipWarnEl.hidden = !on;
+    }
     var wfCtx = opts.waveformCanvas ? opts.waveformCanvas.getContext("2d") : null;
     function clearWaveform(){
       if (!wfCtx) return;
@@ -5776,6 +5842,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
         if (v>peak) peak = v;
       }
       if (opts.meterBar) opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
+      noteInputPeak(peak);
       previewRAF = requestAnimationFrame(micPreviewLoop);
     }
     function startMicPreview(){
@@ -5848,6 +5915,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
         if (v>peak) peak = v;
       }
       opts.meterBar.style.width = Math.min(100, Math.round(peak*140)) + "%";
+      noteInputPeak(peak);
       // The actual waveform traces (shadowBlur'd canvas strokes) are the
       // priciest part of this loop and the one running during exactly the
       // moment CPU headroom matters most -- recording. Redrawing them at a
@@ -6689,6 +6757,15 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
       extraRecordPanel.hidden = true;
       lastCapturedExtraVocal = null;
     }
+    // Keep a record button + box right under the waves whenever another vocal fits, so adding the
+    // next layer is one tap instead of hunting for "Record Vocal Track" first.
+    var mainRecPanelEl = document.getElementById("record-panel");
+    if (audioBuffer && !vocalMixerEl.hidden && count < max && extraRecordPanel && extraRecordPanel.hidden &&
+        (!mainRecPanelEl || mainRecPanelEl.hidden) && !isMicRecording &&
+        typeof extraRecorder !== "undefined" && extraRecorder){
+      extraRecordPanel.hidden = false;
+      try { extraRecorder.refreshIdleHint(); if (typeof extraDeviceSelector !== "undefined" && extraDeviceSelector) extraDeviceSelector.populate(); } catch(e){}
+    }
     if (vocalCapNoteEl){
       var planLabel = planLabelFor(currentPlan);
       vocalCapNoteEl.textContent = STR[lang].vocalCapNote
@@ -7202,6 +7279,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       reRecordExtraTarget = null;
       punchModeTarget = null;
       lastCapturedExtraVocal = null; // panel's closed -- too late to undo via Re-record now
+      updateVocalMixerUI(); // ...and if another vocal still fits, the "record another" box comes straight back
     });
   }
   if (btnUndoLastVocal){
@@ -10025,6 +10103,7 @@ reader.readAsText(file);
     var freqData = new Uint8Array(chain.analyser.frequencyBinCount);
     var binHz = ctx.sampleRate / chain.analyser.fftSize;
     var visFrameCount = 0;
+    var clipBuf = null, clipLedUntil = 0, clipLedShown = false, clipLedEl = document.getElementById("clip-led");
     var lastUiT = 0;
 
     function frame(){
@@ -10087,6 +10166,18 @@ reader.readAsText(file);
       // indistinguishable but cuts that main-thread cost noticeably, on
       // every single playback, not only during a mic recording.
       visFrameCount++;
+      if (visFrameCount % 4 === 0 && chain && chain.clipTap && !gsScrolling){
+        try {
+          if (!clipBuf || clipBuf.length !== chain.clipTap.fftSize) clipBuf = new Float32Array(chain.clipTap.fftSize);
+          chain.clipTap.getFloatTimeDomainData(clipBuf);
+          var cpk = 0;
+          for (var ci=0; ci<clipBuf.length; ci++){ var cv = clipBuf[ci] < 0 ? -clipBuf[ci] : clipBuf[ci]; if (cv > cpk) cpk = cv; }
+          var nowMs = performance.now();
+          if (cpk >= 1.41) clipLedUntil = nowMs + 1500; // > +3 dB past full scale: the limiter is working hard
+          var ledOn = nowMs < clipLedUntil;
+          if (ledOn !== clipLedShown && clipLedEl){ clipLedEl.classList.toggle("on", ledOn); clipLedShown = ledOn; }
+        } catch(e){}
+      }
       // Skip it entirely while a mic recording is in progress (e.g.
       // singing an extra take along to the beat) -- this is the single
       // biggest chunk of the extra per-frame work this adds, and freeing
