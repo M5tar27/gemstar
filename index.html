@@ -14029,6 +14029,17 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     try { localStorage.setItem(key, "1"); } catch(e){}
   }
 
+  // After a tour ends, scroll back to the top -- the steps scroll the page down to AI Mix and then
+  // Export, which used to leave a first-time visitor stranded at the bottom. Skipped if the person
+  // took over (scrolled/touched the page themselves) or tapped the highlighted control.
+  var tourUserTookOver = false, tourTapped = false;
+  ["wheel","touchstart","keydown"].forEach(function(ev){
+    window.addEventListener(ev, function(){ tourUserTookOver = true; }, {passive:true});
+  });
+  function scrollBackToTopAfterTour(){
+    if (tourUserTookOver || tourTapped) return;
+    try { window.scrollTo({top:0, behavior:"smooth"}); } catch(e){ window.scrollTo(0, 0); }
+  }
   var activeBubble = null, activeCleanup = null, currentGen = 0;
   function hideActive(){
     currentGen++;
@@ -14040,6 +14051,9 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
   function showStep(targetEl, text, onDone){
     if (!targetEl) { onDone(); return; }
     hideActive();
+    // Only what happens during the LAST step counts: a tap on its control, or the person scrolling
+    // the page themselves, means "leave the page where it is".
+    tourTapped = false; tourUserTookOver = false;
     var gen = ++currentGen;
     try { targetEl.scrollIntoView({behavior:"smooth", block:"center"}); } catch(e){}
 
@@ -14086,21 +14100,22 @@ if (!st) { leadValues = Object.assign({}, DEFAULT_VALUES); if (editTarget === "l
     position();
     window.addEventListener("scroll", position, true);
     window.addEventListener("resize", position);
-    targetEl.addEventListener("click", finish);
+    function onTargetTap(){ tourTapped = true; finish(); }
+    targetEl.addEventListener("click", onTargetTap);
     closeBtn.addEventListener("click", finish);
     timer = setTimeout(finish, STEP_MS);
 
     activeCleanup = function(){
       window.removeEventListener("scroll", position, true);
       window.removeEventListener("resize", position);
-      targetEl.removeEventListener("click", finish);
+      targetEl.removeEventListener("click", onTargetTap);
     };
   }
 
   function runSteps(steps, doneKey){
     var i = 0;
     function next(){
-      if (i >= steps.length){ markSeen(doneKey); return; }
+      if (i >= steps.length){ markSeen(doneKey); scrollBackToTopAfterTour(); return; }
       var step = steps[i++];
       setTimeout(function(){
         showStep(document.getElementById(step.id), t(step.key), next);
