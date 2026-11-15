@@ -6007,12 +6007,12 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
           // below the Web Audio API, so ctx.outputLatency rarely reflects
           // it -- add a fixed extra trim on top of the measured latency
           // whenever this take's input or output was detected as Bluetooth.
-          // Phone browsers (iOS Safari especially) often report ~0 here even though a
-          // phone's real click-to-ear delay is ~145 ms (measured on the owner's phone).
-          // When the browser gives no usable number, assume that typical phone delay
-          // instead of 0 -- "Calibrate your timing" still overrides it per device.
-          var isPhoneLike = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "") || (/Macintosh/.test(navigator.userAgent || "") && (navigator.maxTouchPoints || 0) > 1);
-          if (outLat < 0.05 && isPhoneLike) outLat = PHONE_DEFAULT_OUTPUT_LATENCY;
+          // Browsers (phones AND desktop) often report ~0 or nothing here even though a
+          // real click-to-ear delay on a phone is ~145 ms (measured on the owner's phone).
+          // When the browser gives no usable number, assume that typical delay instead of
+          // 0 -- "Calibrate your timing" still overrides it per device. A browser that
+          // DOES report a real (positive) output latency, e.g. desktop Chrome, is trusted as-is.
+          if (!(typeof ctx.outputLatency === "number" && ctx.outputLatency > 0)) outLat = PHONE_DEFAULT_OUTPUT_LATENCY;
           var btComp = detectedBluetooth ? 0.18 : 0;
           var inLat = (isFinite(detectedInputLatency) && detectedInputLatency > 0 && detectedInputLatency < 0.3) ? detectedInputLatency : 0;
           // The mic's own input delay (reported by browsers that expose it)
