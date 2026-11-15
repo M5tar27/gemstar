@@ -148,7 +148,7 @@ async function handleSubmit(body, res) {
 }
 
 async function handleUpdate(body, res) {
-  const who = C.requireCollab(body, res);
+  const who = C.requireCollabTracks(body, res);
   if (!who) return;
 
   const layerId = String(body.layerId || "");
