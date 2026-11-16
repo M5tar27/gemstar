@@ -3632,7 +3632,30 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
     // bigger output buffer so a busy computer -- screen recording, other apps --
     // is far less likely to crackle. Default stays "interactive" (snappier knobs).
     var smoothMode = smoothPreferred(true);
-    ctx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: smoothMode ? "playback" : "interactive", sampleRate: 48000});
+    // Safari/WebKit is the exception to the pin above: when the requested
+    // rate differs from the Mac's actual output rate (44.1k on many Macs/
+    // headphones, 48k on others), WebKit's own resampler runs on every buffer
+    // and is a known source of static/crunch that Chrome never has -- Chrome
+    // resamples cleanly at the audio-backend level, Safari doesn't. So on
+    // WebKit let the context run at the device's own rate. The one thing the
+    // pin was really for -- a USB interface set to 192 kHz in macOS making
+    // the whole DSP graph run at 4x load -- is still guarded: if the device
+    // rate comes back above 96 kHz, rebuild at 48 kHz like everyone else.
+    // ?rate=48 forces the old always-48k behavior (A/B test); ?rate=native
+    // forces the device's rate on any browser.
+    var rateMode = "";
+    try { var rq = /[?&]rate=(\w+)/.exec(location.search); if (rq) rateMode = rq[1]; } catch(e){}
+    var wantNative = rateMode === "native" || (rateMode !== "48" && isWebKitBrowser());
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var ctxOpts = {latencyHint: smoothMode ? "playback" : "interactive"};
+    if (wantNative){
+      try { ctx = new AC(ctxOpts); } catch(e){ ctx = null; }
+      if (ctx && ctx.sampleRate > 96000){
+        try { ctx.close(); } catch(e){}
+        ctx = null;
+      }
+    }
+    if (!ctx) ctx = new AC({latencyHint: ctxOpts.latencyHint, sampleRate: 48000});
     buildChain();
   }
 
@@ -10828,6 +10851,16 @@ reader.readAsText(file);
         c.fillText("MADE WITH GEMSTAR AUDIO", CW/2, 1154);
         c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
         c.fillText("gemstaraudio.com", CW/2, 1204);
+
+        // light watermark across the top of every frame -- small, semi-transparent,
+        // away from the platforms' bottom/side UI, and separate from the
+        // bigger lockup below so a crop of the footer doesn't strip it
+        c.save(); c.textAlign = "center"; c.textBaseline = "alphabetic"; c.globalAlpha = 0.55;
+        var wmg = c.createLinearGradient(CW/2 - 120, 0, CW/2 + 120, 0); wmg.addColorStop(0, "#00F5FF"); wmg.addColorStop(1, "#FF2E88");
+        c.fillStyle = wmg; c.font = "700 22px 'Chakra Petch', 'Segoe UI', sans-serif";
+        try { if ("letterSpacing" in c) c.letterSpacing = "4px"; } catch(e){}
+        c.fillText("GEMSTAR AUDIO", CW/2, 54);
+        c.restore();
       }
 
       var waitTimer = 0;

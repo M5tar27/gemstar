@@ -283,6 +283,16 @@
       c.fillText("MADE WITH GEMSTAR AUDIO", CW / 2, 1154);
       c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
       c.fillText("gemstaraudio.com", CW / 2, 1204);
+
+      // light watermark across the top of every frame -- small, semi-transparent,
+      // away from the platforms' bottom/side UI, and separate from the
+      // bigger lockup below so a crop of the footer doesn't strip it
+      c.save(); c.textAlign = "center"; c.textBaseline = "alphabetic"; c.globalAlpha = 0.55;
+      var wmg = c.createLinearGradient(CW / 2 - 120, 0, CW / 2 + 120, 0); wmg.addColorStop(0, "#00F5FF"); wmg.addColorStop(1, "#FF2E88");
+      c.fillStyle = wmg; c.font = "700 22px 'Chakra Petch', 'Segoe UI', sans-serif";
+      try { if ("letterSpacing" in c) c.letterSpacing = "4px"; } catch(e){}
+      c.fillText("GEMSTAR AUDIO", CW / 2, 54);
+      c.restore();
     }
 
     Promise.resolve().then(function () {
