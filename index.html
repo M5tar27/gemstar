@@ -662,6 +662,8 @@
   .all-vocals-row .row-controls .trk-remove:hover{color:var(--gem); border-color:var(--gem);}
   .all-vocals-row .row-controls .trk-rerecord{color:var(--danger); border-color:rgba(255,92,122,0.4);}
   .all-vocals-row .row-controls .trk-rerecord:hover{color:var(--danger); border-color:var(--danger); background:rgba(255,92,122,0.1);}
+  .btn-punch-here{color:var(--yellow); border-color:var(--yellow);}
+  .btn-punch-here:disabled{opacity:.45;}
   .all-vocals-row .row-controls .trk-punch{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-punch:hover{color:var(--yellow); border-color:var(--yellow);}
 
@@ -1838,6 +1840,7 @@
               <button class="icon-btn small" id="btn-tl-zoom-in" type="button" data-i18n-aria="tlZoomInAria" aria-label="Zoom in">+</button>
             </div>
             <div class="transport-btns">
+              <button class="icon-btn small btn-punch-here" id="btn-tl-punch" type="button">🎤 Record from here</button>
               <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
               <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
             </div>
@@ -2407,6 +2410,7 @@ calibrateSyncTapBtn:"TAP",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
       punchInAria:"Punch in on",
+      tlPunchBtn:"🎤 Record from {time}", tlPunchAria:"Keep recording from {time} on the timeline",
       punchArmedHint:"Punching in at {time} — tap Record, sing the new bit, then tap Stop. Only that part gets replaced; everything else stays.",
       trackPunchedToast:'Punched in on "{name}"',
       punchTooShort:"Didn't catch enough there — try the punch again.",
@@ -2414,7 +2418,7 @@ calibrateSyncTapBtn:"TAP",
       undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
       autoAlignedToast:"Auto-aligned to the beat — drag the waveform anytime to fine-tune",
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
-      tlHint:"Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoomed in? drag to slide to any part of the song, or hold then drag to pick a loop",
+      tlHint:"Tap the timeline to choose where playback starts · tap Record from here to keep recording from that spot · drag across it to pick a section to loop · zoomed in? drag to slide to any part of the song, or hold then drag to pick a loop",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
       tlZoomInAria:"Zoom in", tlZoomOutAria:"Zoom out",
       leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
@@ -2655,6 +2659,7 @@ calibrateSyncTapBtn:"TOCAR",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
       punchInAria:"Hacer punch in en",
+      tlPunchBtn:"🎤 Grabar desde {time}", tlPunchAria:"Seguir grabando desde {time} en la línea de tiempo",
       punchArmedHint:"Punch in en {time} — toca Grabar, canta la parte nueva y luego toca Detener. Solo se reemplaza esa parte; el resto se queda igual.",
       trackPunchedToast:'Se hizo punch in en "{name}"',
       punchTooShort:"No se captó suficiente ahí — intenta el punch de nuevo.",
@@ -2662,7 +2667,7 @@ calibrateSyncTapBtn:"TOCAR",
       undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
       autoAlignedToast:"Alineado automáticamente al beat — arrastra la forma de onda cuando quieras para ajustar",
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
-      tlHint:"Toca la línea de tiempo para elegir dónde empieza · arrastra para elegir una sección en bucle · ¿con zoom? arrastra para deslizarte a cualquier parte de la canción, o mantén y arrastra para elegir un bucle",
+      tlHint:"Toca la línea de tiempo para elegir dónde empieza · toca Grabar desde aquí para seguir grabando desde ese punto · arrastra para elegir una sección en bucle · ¿con zoom? arrastra para deslizarte a cualquier parte de la canción, o mantén y arrastra para elegir un bucle",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
       tlZoomInAria:"Acercar", tlZoomOutAria:"Alejar",
       leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
@@ -5438,7 +5443,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var sr = originalBuffer.sampleRate;
     var chCount = originalBuffer.numberOfChannels;
     var origLen = originalBuffer.length;
-    var startSample = Math.max(0, Math.min(origLen, Math.round(punchStartSec * sr)));
+    var startSample = Math.max(0, Math.round(punchStartSec * sr)); // past the end of a short take is fine -- the gap is padded with silence
     var newLen = newSeg.length;
     var fadeSamples = Math.min(Math.round(PUNCH_CROSSFADE_SEC * sr), Math.floor(newLen / 2));
     var endSampleInOrig = startSample + newLen;
@@ -6442,7 +6447,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     if (isMicRecording) return; // a take is already in flight elsewhere -- don't stomp on it
     var buf = (tr === leadTrack) ? audioBuffer : tr.buffer;
     if (!buf) return;
-    var startSec = Math.max(0, Math.min(Math.max(0, buf.duration - 0.05), currentPlayPosition()));
+    var startSec = Math.max(0, Math.min(Math.max(buf.duration, currentTotalDuration()), currentPlayPosition())); // can be at/after the end of a short take: that's "keep recording from here"
     var wasPlaying = isPlaying;
     if (wasPlaying) stopPlayback();
     punchModeTarget = tr;
@@ -9445,6 +9450,27 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   var tlTimeEl = document.getElementById("tl-time");
   var btnLoop = document.getElementById("btn-loop");
   var btnTlStart = document.getElementById("btn-tl-start");
+  // "Record from here": tap the wave (timeline or any track's own strip) to
+  // pick a spot, then this button punches in there on whichever track is
+  // selected -- keep recording a short take, or redo a line mid-song. Same
+  // Punch In pipeline as the scissors icon on each track row (startPunchIn),
+  // just reachable right from the timeline and labeled with the tapped time.
+  var btnTlPunch = document.getElementById("btn-tl-punch");
+  function updatePunchHereButton(){
+    if (!btnTlPunch) return;
+    var t = fmtClock(currentPlayPosition());
+    var label = STR[lang].tlPunchBtn.replace("{time}", t);
+    if (btnTlPunch.textContent !== label){
+      btnTlPunch.textContent = label;
+      btnTlPunch.setAttribute("aria-label", STR[lang].tlPunchAria.replace("{time}", t));
+    }
+    btnTlPunch.disabled = !!isMicRecording;
+  }
+  if (btnTlPunch) btnTlPunch.addEventListener("click", function(){
+    if (isMicRecording) return;
+    var tr = editTargetTrack() || leadTrack;
+    startPunchIn(tr);
+  });
   var btnTlZoomIn = document.getElementById("btn-tl-zoom-in");
   var btnTlZoomOut = document.getElementById("btn-tl-zoom-out");
   var tlZoomLevelEl = document.getElementById("tl-zoom-level");
@@ -9565,6 +9591,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       if (isPlaying) tlPlayheadEl.style.left = tlPx(pos) + "px";
     }
     if (tlTimeEl) tlTimeEl.textContent = fmtClock(pos) + " / " + fmtClock(total);
+    updatePunchHereButton();
     // Same playhead, echoed across the track grid below -- one line
     // sweeping through every lane at once, same left-edge math (left% =
     // position/total) the rows already use to scale their own waveforms.
