@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/log-error?job=storage-check", "schedule": "0 15 * * *" }
+  ]
+}
