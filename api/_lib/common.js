@@ -22,6 +22,23 @@ function canCollaborate(tier) {
   return (TIER_RANK[tier] || 0) >= TIER_RANK[COLLAB_MIN_TIER];
 }
 
+// Collab TRACKS + INVITES (invite-a-friend-to-a-track) are open to every paid
+// plan, with a monthly allowance per plan so Starter gets a real taste while
+// Mix/Unlimited keep more. Sharing a cloud project with another user
+// (projects.js, requireCollab above) stays Mix + Unlimited.
+const COLLAB_MONTHLY = { starter: 3, mix: 15, unlimited: 100 }; // new tracks AND new invite links per calendar month
+function canUseCollabTracks(tier) {
+  return (TIER_RANK[tier] || 0) >= 1;
+}
+function collabMonthlyLimit(tier) {
+  return COLLAB_MONTHLY[tier] || 0;
+}
+// First instant of the current calendar month (UTC), for monthly quota counts.
+function monthStartISO() {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
 function parseBody(req) {
   let body = req.body;
   if (!body || typeof body === "string") {
@@ -195,6 +212,17 @@ function requireCollab(body, res) {
   return who;
 }
 
+// Same as requireCollab, but open to Starter too (collab tracks/invites).
+function requireCollabTracks(body, res) {
+  const who = verifyAccessToken(body.token, body.deviceId);
+  if (!who) { res.status(401).json({ error: "Please verify your Gemstar account first." }); return null; }
+  if (!canUseCollabTracks(who.tier)) {
+    res.status(403).json({ error: "Collaboration is available on paid Gemstar plans.", upgrade: true });
+    return null;
+  }
+  return who;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"\']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "\'": "&#39;" }[c]));
 }
@@ -227,7 +255,7 @@ async function deleteObject(cfg, path, bucket) {
 }
 
 module.exports = {
-  BUCKET, PROJECTS_BUCKET, UUID_RE, canCollaborate, requireCollab, escapeHtml, siteUrl, sendEmail, deleteObject,
+  BUCKET, PROJECTS_BUCKET, UUID_RE, canCollaborate, requireCollab, canUseCollabTracks, collabMonthlyLimit, monthStartISO, requireCollabTracks, COLLAB_MONTHLY, escapeHtml, siteUrl, sendEmail, deleteObject,
   parseBody, verifyAccessToken, signGuestToken, verifyGuestToken,
   newInviteToken, sbConfig, sbRest, upsertContact, getStoreEntitlement, signedDownloadUrl, signedUploadUrl,
 };

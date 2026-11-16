@@ -705,7 +705,7 @@
     api("invite", { action: "create", trackId: S.trackId }).then(function (res) {
       if (!res.ok) throw new Error(res.d.error || "Could not create the invite.");
       $("i-link").value = res.d.link; $("i-box").classList.remove("hidden");
-      $("i-exp").textContent = "Expires " + new Date(res.d.expiresAt).toLocaleDateString() + ". " + res.d.spotsLeft + " spot" + (res.d.spotsLeft === 1 ? "" : "s") + " left.";
+      $("i-exp").textContent = "Expires " + new Date(res.d.expiresAt).toLocaleDateString() + ". " + res.d.spotsLeft + " spot" + (res.d.spotsLeft === 1 ? "" : "s") + " left." + (res.d.invitesLimit ? " Invite " + res.d.invitesUsed + " of " + res.d.invitesLimit + " this month." : "");
       if (navigator.share) $("i-share").classList.remove("hidden");
       say("i-note", "");
     }).catch(function (e) { say("i-note", e.message || "Something went wrong.", "bad"); })
@@ -741,12 +741,12 @@
   }
 
   if (!TOKEN) {
-    blocked("Verify your plan first", "Collab tracks are part of the Mix and Unlimited plans. Open Gemstar and enter your subscriber email so this browser knows who you are, then come back.");
+    blocked("Verify your plan first", "Collab tracks are part of every paid plan. Open Gemstar and enter your subscriber email so this browser knows who you are, then come back.");
     return;
   }
   api("my-tracks").then(function (res) {
     if (res.status === 401) { blocked("Verify your plan first", "Open Gemstar and enter your subscriber email so this browser knows who you are, then come back."); return; }
-    if (res.status === 403) { blocked("Available on Mix and Unlimited", "Inviting friends to record on your tracks is part of the Mix ($49) and Unlimited ($99) plans.", "See plans", "/#pricing"); return; }
+    if (res.status === 403) { blocked("Collab needs a paid plan", "Inviting friends to record on your tracks comes with every paid plan: 3 invites a month on Starter ($19), 15 on Mix ($49), 100 on Unlimited ($99).", "See plans", "/#pricing"); return; }
     if (!res.ok) throw new Error(res.d.error);
     var id = new URLSearchParams(location.search).get("id");
     if (id) return loadTrack(id);

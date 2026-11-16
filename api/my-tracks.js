@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const body = C.parseBody(req);
-  const who = C.requireCollab(body, res);
+  const who = C.requireCollabTracks(body, res);
   if (!who) return;
 
   const cfg = C.sbConfig();

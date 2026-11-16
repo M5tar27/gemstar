@@ -1,7 +1,7 @@
 // Vercel serverless function: /api/create-track
 // Creates a collaborative track owned by the caller and returns a short-lived
 // signed URL the browser uploads the base audio to directly.
-// Mix + Unlimited tiers only.
+// Starter / Mix / Unlimited, each with a monthly allowance (see COLLAB_MONTHLY in _lib/common.js).
 //
 // POST { token, deviceId, title?, bpm?, ext? }
 // -> { trackId, uploadUrl, audioPath }
@@ -17,8 +17,8 @@ module.exports = async (req, res) => {
   const body = C.parseBody(req);
   const who = C.verifyAccessToken(body.token, body.deviceId);
   if (!who) return res.status(401).json({ error: "Please verify your Gemstar account first." });
-  if (!C.canCollaborate(who.tier)) {
-    return res.status(403).json({ error: "Collaboration is available on the Mix and Unlimited plans.", upgrade: true });
+  if (!C.canUseCollabTracks(who.tier)) {
+    return res.status(403).json({ error: "Collaboration is available on paid Gemstar plans.", upgrade: true });
   }
 
   const cfg = C.sbConfig();
@@ -34,9 +34,20 @@ module.exports = async (req, res) => {
   // tier change (up or down) doesn't retroactively reshuffle limits on
   // tracks already shared out. Unlimited gets more headroom per friend
   // since the track itself has no cap; Mix keeps it tighter.
-  const maxLayersPerCollaborator = who.tier === "unlimited" ? 8 : 2;
+  const maxLayersPerCollaborator = who.tier === "unlimited" ? 8 : (who.tier === "mix" ? 2 : 1);
+  const maxCollaborators = who.tier === "starter" ? 2 : 4; // Starter: smaller sessions (column default is 4)
 
   try {
+    // Monthly allowance: new collab tracks this calendar month vs. the plan's limit.
+    const limit = C.collabMonthlyLimit(who.tier);
+    const made = await C.sbRest(cfg,
+      `gemstar_tracks?owner_email=eq.${encodeURIComponent(who.email)}&created_at=gte.${encodeURIComponent(C.monthStartISO())}&select=id&limit=${limit + 1}`);
+    if (Array.isArray(made) && made.length >= limit) {
+      return res.status(429).json({
+        error: `You've used all ${limit} collab tracks for this month on your plan. They reset on the 1st${who.tier === "unlimited" ? "." : " - or upgrade for more."}`,
+        upgrade: who.tier !== "unlimited", used: made.length, limit,
+      });
+    }
     const trackId = crypto.randomUUID();
     const audioPath = `${trackId}/base.${ext}`;
 
@@ -48,7 +59,7 @@ module.exports = async (req, res) => {
       headers: Object.assign({}, cfg.headers, { Prefer: "return=minimal" }),
       body: JSON.stringify({
         id: trackId, owner_email: who.email, title, bpm, base_audio_path: audioPath,
-        max_layers_per_collaborator: maxLayersPerCollaborator,
+        max_layers_per_collaborator: maxLayersPerCollaborator, max_collaborators: maxCollaborators,
       }),
     });
     await C.sbRest(cfg, "gemstar_track_members", {
