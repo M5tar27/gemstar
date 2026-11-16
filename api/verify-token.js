@@ -111,6 +111,14 @@ async function createPortalSession(email) {
   const custData = await custResp.json();
   const customer = custData && custData.data && custData.data[0];
   if (!customer) {
+    // No Stripe billing account: if the plan is billed through the App Store /
+    // Google Play, say so instead of implying something is broken -- those
+    // subscriptions can only be changed or cancelled in the phone's settings.
+    const store = await C.getStoreEntitlement(email);
+    if (store && (store.source === "apple" || store.source === "google")) {
+      const where = store.source === "apple" ? "the App Store" : "Google Play";
+      return { ok: false, error: `Your plan is billed through ${where}. Manage or cancel it in your phone's subscription settings.` };
+    }
     return { ok: false, error: "We couldn't find a billing account for that email -- email Gemstaraudio@gmail.com." };
   }
 
