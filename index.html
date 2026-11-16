@@ -1171,6 +1171,10 @@
   }
   .tier.featured .tier-cta{border-color:var(--gem); color:var(--gem);}
   .tier-cta:hover{border-color:var(--cyan); color:var(--cyan);}
+  .tier-cta.tier-cta-current{border-color:var(--gem); color:var(--gem); cursor:default; opacity:.85;}
+  .tier-cta.tier-cta-current:hover{border-color:var(--gem); color:var(--gem);}
+  .pricing-verify-note{margin:14px auto 0; max-width:640px; text-align:center; font-size:0.8rem; color:var(--ink-muted, #888);}
+  .pricing-verify-note a{color:var(--gem); text-decoration:underline; margin-left:4px;}
 
   /* waitlist */
   .waitlist-box{
@@ -2113,6 +2117,7 @@
         <a class="tier-cta" href="https://buy.stripe.com/6oU7sKaaQc7d9Nod0n1RC03?prefilled_promo_code=UNLIMITED10" target="_blank" rel="noopener" data-i18n="join">Subscribe Now</a>
       </div>
     </div>
+    <p class="pricing-verify-note" id="pricing-verify-note"><span data-i18n="pricingVerifyNote">Already subscribed, on the website or in the app? Verify your plan first so you don't pay twice.</span><a href="#" id="pricing-verify-link" data-i18n="pricingVerifyLink">Verify my plan →</a></p>
   </section>
 
   <hr class="divider" />
@@ -2368,6 +2373,8 @@ calibrateSyncTapBtn:"TAP",
       studioPitch:"Most producers pick this — the M5tar & Jewels signature knobs, more tracks than Mix, and full stem export for your DAW.",
       studioDiscount:"10% off your first 3 months — applied automatically, no code needed",
       bestSeller:"BEST SELLER", join:"Subscribe Now",
+      pricingCurrent:"✓ Your current plan", pricingManage:"Change or cancel plan",
+      pricingVerifyNote:"Already subscribed, on the website or in the app? Verify your plan first so you don't pay twice.", pricingVerifyLink:"Verify my plan →",
       singleExportBtn:"Export 1 track for $3.99 — no commitment",
       wlTitle:"Not ready to subscribe?", wlSub:"Join the list and we'll email you about new features, plans, and updates.",
       emailLabel:"Email", planLabel:"Plan you're interested in", wlSubmit:"Notify Me",
@@ -2614,6 +2621,8 @@ calibrateSyncTapBtn:"TOCAR",
       studioPitch:"La mayoría de los productores elige este — las perillas de firma M5tar y Jewels, más pistas que Mix, y exportación completa de stems.",
       studioDiscount:"10% de descuento tus primeros 3 meses — se aplica automáticamente, sin código",
       bestSeller:"MÁS VENDIDO", join:"Suscribirme Ahora",
+      pricingCurrent:"✓ Tu plan actual", pricingManage:"Cambiar o cancelar plan",
+      pricingVerifyNote:"¿Ya estás suscrito, en la web o en la app? Verifica tu plan primero para no pagar dos veces.", pricingVerifyLink:"Verificar mi plan →",
       singleExportBtn:"Exporta 1 pista por $3.99 — sin compromiso",
       wlTitle:"¿Aún no te suscribes?", wlSub:"Únete a la lista y te avisaremos sobre nuevas funciones, planes y novedades.",
       emailLabel:"Correo", planLabel:"Plan de tu interés", wlSubmit:"Avísenme",
@@ -8193,8 +8202,46 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   // Bridge from the gate IIFE (below), which owns Stripe/email verification —
   // called once a tier is actually confirmed (allowlist, fresh code entry,
   // or a valid stored token on reload).
+  // Once someone is a verified subscriber, the pricing cards must not offer a
+  // second purchase: their own plan says "Your current plan", the others send
+  // them to the billing portal to change/cancel (App Store / Google Play
+  // subscribers get told to use their phone's settings -- see /api/verify-token).
+  function updatePricingCards(tier){
+    var order = ["starter", "mix", "unlimited"];
+    var ctas = document.querySelectorAll("#pricing .tier-cta");
+    for (var i = 0; i < ctas.length; i++){
+      (function(a, key){
+        var mine = order[key] === tier;
+        a.setAttribute("href", "#");
+        a.removeAttribute("target");
+        a.setAttribute("data-i18n", mine ? "pricingCurrent" : "pricingManage");
+        a.textContent = STR[lang][mine ? "pricingCurrent" : "pricingManage"];
+        a.classList.toggle("tier-cta-current", mine);
+        if (!a._subBound){
+          a._subBound = true;
+          a.addEventListener("click", function(e){
+            var k = a.getAttribute("data-i18n");
+            if (k !== "pricingCurrent" && k !== "pricingManage") return;
+            e.preventDefault();
+            if (k === "pricingManage"){ var m = document.getElementById("manage-sub-link"); if (m) m.click(); }
+          });
+        }
+      })(ctas[i], i);
+    }
+    var note = document.getElementById("pricing-verify-note");
+    if (note) note.hidden = true;
+  }
+  var pricingVerifyLink = document.getElementById("pricing-verify-link");
+  if (pricingVerifyLink){
+    pricingVerifyLink.addEventListener("click", function(e){
+      e.preventDefault();
+      if (window.gemstarShowGate) window.gemstarShowGate("plan");
+    });
+  }
+
   window.gemstarApplyTier = function(tier, legacyKnobs){
     currentPlan = (tier === "mix" || tier === "unlimited") ? tier : "starter";
+    updatePricingCards(tier);
     setLegacyKnobsUnlocked(legacyKnobs);
     if (window.gemstarLandingMode) window.gemstarLandingMode();
     updatePlanSelectUI();

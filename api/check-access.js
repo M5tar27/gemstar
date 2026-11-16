@@ -172,6 +172,11 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // 0. A plan bought outside Stripe (App Store / Google Play / manual comp)
+    //    counts exactly like a website subscription -- same email, same tiers.
+    //    Looked up first; the highest tier across both sources wins below.
+    const store = await C.getStoreEntitlement(email);
+
     // 1. Find Stripe customer(s) by email
     const custResp = await fetch(
       `https://api.stripe.com/v1/customers?email=${encodeURIComponent(email)}&limit=10`,
@@ -179,7 +184,7 @@ module.exports = async (req, res) => {
     );
     const custData = await custResp.json();
 
-    if (!custData.data || custData.data.length === 0) {
+    if ((!custData.data || custData.data.length === 0) && !store) {
       // Not a subscriber -- but they did try to unlock export with this
       // email, so keep it on the list as an unverified lead. marketing_ok
       // stays false (no opt-in given here), so it won't be in blasts unless
@@ -192,8 +197,8 @@ module.exports = async (req, res) => {
     // 2. Check each matching customer for an active or trialing subscription,
     //    figure out the highest tier among them, and (for grandfathering)
     //    the earliest `created` timestamp among any Mix subscription found.
-    let hasActiveSub = false;
-    let bestTier = null;
+    let hasActiveSub = !!store;
+    let bestTier = store ? store.tier : null;
     let earliestMixCreated = null;
     function trackSub(sub) {
       const t = bestTierFromSubscription(sub);
@@ -204,7 +209,7 @@ module.exports = async (req, res) => {
         }
       }
     }
-    for (const customer of custData.data) {
+    for (const customer of (custData.data || [])) {
       const subResp = await fetch(
         `https://api.stripe.com/v1/subscriptions?customer=${customer.id}&status=active&limit=10`,
         { headers: { Authorization: `Bearer ${secretKey}` } }

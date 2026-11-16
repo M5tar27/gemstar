@@ -131,6 +131,34 @@ async function upsertContact(email, tier, source, marketingOk) {
   }
 }
 
+// Highest plan this email currently has from a NON-Stripe source (App Store /
+// Google Play / manual comp), from gemstar_entitlements. Returns
+// { tier, source } or null. Never throws: if Supabase or the table is
+// unavailable it returns null, so website access falls back to Stripe-only
+// (fail-safe: never grants access on an error).
+const ENTITLEMENT_RANK = { starter: 1, mix: 2, unlimited: 3 };
+async function getStoreEntitlement(email) {
+  try {
+    const cfg = sbConfig();
+    if (!cfg || !email) return null;
+    const rows = await sbRest(
+      cfg,
+      `gemstar_entitlements?email=eq.${encodeURIComponent(String(email).toLowerCase())}` +
+        `&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=tier,source`
+    );
+    let best = null;
+    (rows || []).forEach(function (r) {
+      if (ENTITLEMENT_RANK[r.tier] && (!best || ENTITLEMENT_RANK[r.tier] > ENTITLEMENT_RANK[best.tier])) {
+        best = { tier: r.tier, source: r.source };
+      }
+    });
+    return best;
+  } catch (e) {
+    console.error("getStoreEntitlement failed:", e && e.message);
+    return null;
+  }
+}
+
 // Short-lived URL to download a private file. `bucket` defaults to the
 // Collab bucket for existing callers; pass PROJECTS_BUCKET for project files.
 async function signedDownloadUrl(cfg, path, expiresIn, bucket) {
@@ -201,5 +229,5 @@ async function deleteObject(cfg, path, bucket) {
 module.exports = {
   BUCKET, PROJECTS_BUCKET, UUID_RE, canCollaborate, requireCollab, escapeHtml, siteUrl, sendEmail, deleteObject,
   parseBody, verifyAccessToken, signGuestToken, verifyGuestToken,
-  newInviteToken, sbConfig, sbRest, upsertContact, signedDownloadUrl, signedUploadUrl,
+  newInviteToken, sbConfig, sbRest, upsertContact, getStoreEntitlement, signedDownloadUrl, signedUploadUrl,
 };
