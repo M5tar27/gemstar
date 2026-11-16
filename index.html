@@ -5760,6 +5760,7 @@ runSyncCalibration();
     var recording = false;
     var capSeconds = 600;
     var detectedBluetooth = false;
+    var detectedInputLatency = 0;
 var detectedInterface = false; // set once mic access is granted and we can read the chosen device's label
 if (opts.fxMonitorCheckbox && opts.interfaceWarnEl){
 opts.fxMonitorCheckbox.addEventListener("change", function(){
@@ -5965,6 +5966,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
       // needs the leading-latency trim below; an a cappella take (nothing
       // playing) has nothing to sync against, so it's left untouched.
       var wasMonitored = recordMonitorOwnsPlayback || !!recordMonitorBeatOnly;
+      var monitorPreroll = recordMonitorPrerollSec;
       stopCapture();
       stopTimer();
       stopMeter();
@@ -5994,7 +5996,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
           // (see runSyncCalibration) -- the real click-to-tap delay, which
           // already captures hardware output latency AND the user's own
           // reaction time, so it's used as-is instead of estimating.
-          compSeconds = 0.03 + calibratedSync;
+          compSeconds = monitorPreroll + calibratedSync;
         } else {
           var outLat = 0;
           try {
@@ -6005,8 +6007,17 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
           // below the Web Audio API, so ctx.outputLatency rarely reflects
           // it -- add a fixed extra trim on top of the measured latency
           // whenever this take's input or output was detected as Bluetooth.
+          // Browsers (phones AND desktop) often report ~0 or nothing here even though a
+          // real click-to-ear delay on a phone is ~145 ms (measured on the owner's phone).
+          // When the browser gives no usable number, assume that typical delay instead of
+          // 0 -- "Calibrate your timing" still overrides it per device. A browser that
+          // DOES report a real (positive) output latency, e.g. desktop Chrome, is trusted as-is.
+          if (!(typeof ctx.outputLatency === "number" && ctx.outputLatency > 0)) outLat = PHONE_DEFAULT_OUTPUT_LATENCY;
           var btComp = detectedBluetooth ? 0.18 : 0;
-          compSeconds = 0.03 + outLat + btComp; // matches the monitor's own start pre-roll
+          var inLat = (isFinite(detectedInputLatency) && detectedInputLatency > 0 && detectedInputLatency < 0.3) ? detectedInputLatency : 0;
+          // The mic's own input delay (reported by browsers that expose it)
+          // is the other half of the round trip.
+          compSeconds = monitorPreroll + outLat + inLat + btComp; // monitorPreroll = when the monitor's beat really started
         }
         var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
         if (trimSamples > 0) merged = merged.subarray(trimSamples);
@@ -6046,6 +6057,8 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
       // this recorder instance has no opts.btWarnEl.
       var micTrack = stream.getAudioTracks()[0];
       detectedBluetooth = looksLikeBluetoothLabel(micTrack && micTrack.label);
+      detectedInputLatency = 0;
+      try { var ms = micTrack && micTrack.getSettings && micTrack.getSettings(); if (ms && typeof ms.latency === "number") detectedInputLatency = ms.latency; } catch(e){}
 detectedInterface = !!(micTrack && micTrack.label) && !/built-?in|internal|default|macbook/i.test(micTrack.label);
 if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox && opts.fxMonitorCheckbox.checked);
       if (opts.btWarnEl) opts.btWarnEl.hidden = !detectedBluetooth;
@@ -9198,6 +9211,15 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
   // this, I should stop it" apart from "playback was already running on
   // its own before recording even began, leave it alone."
   var recordMonitorOwnsPlayback = false;
+  // How long after the mic capture started the monitor's beat actually begins
+  // playing. finishRecording() trims exactly this much (plus the device's
+  // round-trip latency) off the front of the take, so it MUST match whichever
+  // monitor path ran: the beat-only path starts ~0.03 s in, the layered-take
+  // path starts 0.03 + RECORD_MONITOR_PREROLL in. (It used to trim a flat
+  // 0.03 s for both, so every take recorded over an existing vocal landed
+  // ~0.25 s behind the beat.)
+  var recordMonitorPrerollSec = 0.03;
+  var PHONE_DEFAULT_OUTPUT_LATENCY = 0.145; // seconds -- typical phone-browser click-to-ear delay, used only when the browser reports none
   function startRecordMonitor(){
     // Used to bail out entirely unless in Full Song Mix mode -- but the
     // branch right below already monitors every already-recorded vocal
@@ -9254,6 +9276,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
       var src = makeTimedSource(beatBuffer, 0, null, false);   // includes the click-free fade
       src.connect(chain.beatGain);
       var startAt = ctx.currentTime + 0.03;
+      recordMonitorPrerollSec = 0.03;
       src.start(startAt, 0);
       recordMonitorBeatOnly = src;
       playStartCtxTime = startAt;
@@ -9323,6 +9346,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
         if (beatSourceNode) beatSourceNode.connect(chain.beatGain);
       }
       var startAt = ctx.currentTime + 0.03 + RECORD_MONITOR_PREROLL;
+      recordMonitorPrerollSec = 0.03 + RECORD_MONITOR_PREROLL;
       vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
       playStartCtxTime = startAt;
