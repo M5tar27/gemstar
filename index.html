@@ -13,8 +13,9 @@
     --gem-dim:#A31558;
     --ink:#EAF6FF;
     --yellow:#FFE600;
-    --ink-muted:#B6BBC8;
-    --ink-dim:#858DA3;
+    --ink-muted:#FFFFFF;   /* bright white (was grey #B6BBC8) */
+    --ink-dim:#F2F7FF;     /* near-white (was grey #858DA3) */
+    --grey-ui:#858DA3;     /* the old grey, kept ONLY for non-text bits (idle dots, toggle knobs) */
     --line:rgba(0,245,255,0.16);
     --line-strong:rgba(0,245,255,0.4);
     --line-gem:rgba(255,46,136,0.35);
@@ -151,7 +152,7 @@
   .midi-status-line{ display:flex; align-items:center; gap:8px; font-size:0.84rem; color:var(--ink-muted); margin:0; }
   .midi-dot{
     display:inline-block; width:8px; height:8px; border-radius:50%;
-    background:var(--ink-dim); flex-shrink:0;
+    background:var(--grey-ui); flex-shrink:0;
   }
   .midi-dot.connected{background:var(--ok); box-shadow:0 0 6px var(--ok);}
   .midi-dot.unsupported{background:var(--danger);}
@@ -440,7 +441,7 @@
   }
   .record-visual{display:flex; align-items:center; justify-content:center; gap:10px;}
   .record-dot{
-    width:14px; height:14px; border-radius:50%; background:var(--ink-dim);
+    width:14px; height:14px; border-radius:50%; background:var(--grey-ui);
     box-shadow:0 0 0 rgba(255,46,136,0.5); transition:background .2s ease;
   }
   .record-dot.live{
@@ -1066,7 +1067,7 @@
   }
   .track-sw::after{
     content:""; position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:50%;
-    background:var(--ink-dim); transition:transform .18s ease, background .18s ease;
+    background:var(--grey-ui); transition:transform .18s ease, background .18s ease;
   }
   .bypass-switch.on .track-sw{border-color:var(--danger);}
   .bypass-switch.on .track-sw::after{transform:translateX(18px); background:var(--danger);}
@@ -10864,7 +10865,7 @@ reader.readAsText(file);
         c.fillText("SCAN TO TRY", 450 + qrCard.width/2, 902 + qrCard.height + 34);
         c.fillStyle = "#FFFFFF"; c.font = "700 38px 'Chakra Petch', 'Segoe UI', sans-serif";
         c.fillText("MADE WITH GEMSTAR AUDIO", CW/2, 1154);
-        c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
+        c.fillStyle = "#FFFFFF"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
         c.fillText("gemstaraudio.com", CW/2, 1204);
 
         // light watermark across the top of every frame -- small, semi-transparent,

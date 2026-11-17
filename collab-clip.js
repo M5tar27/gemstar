@@ -281,7 +281,7 @@
       c.fillText("SCAN TO TRY", 450 + qrCard.width / 2, 902 + qrCard.height + 34);
       c.fillStyle = "#FFFFFF"; c.font = "700 38px 'Chakra Petch', 'Segoe UI', sans-serif";
       c.fillText("MADE WITH GEMSTAR AUDIO", CW / 2, 1154);
-      c.fillStyle = "#B6BBC8"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
+      c.fillStyle = "#FFFFFF"; c.font = "600 26px 'Manrope', 'Segoe UI', sans-serif";
       c.fillText("gemstaraudio.com", CW / 2, 1204);
 
       // light watermark across the top of every frame -- small, semi-transparent,
