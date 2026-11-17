@@ -698,6 +698,26 @@
      left-edge math as the big timeline above (position/total as a
      percentage) -- the signature "all tracks move together" DAW-grid look. */
   .all-vocals-rows-wrap{position:relative;}
+  /* Timeline lives on the vocal waveforms now: loop section + start marker
+     are drawn across every lane (same left-edge math as the playhead), and
+     the old standalone timeline bar / top cut bar / top waveform are hidden. */
+  #timeline-scroll, #tl-zoom, #lead-waveform-shell, #wf-cut-bar{display:none !important;}
+  .all-vocals-region{
+    position:absolute; top:0; bottom:0; background:rgba(255,230,0,0.16);
+    border-left:2px solid var(--yellow); border-right:2px solid var(--yellow);
+    pointer-events:none; z-index:4;
+  }
+  .all-vocals-cursor{
+    position:absolute; top:0; bottom:0; width:2px; margin-left:-1px; background:var(--gem);
+    box-shadow:0 0 8px var(--gem); pointer-events:none; z-index:4;
+  }
+  .row-cut-float{
+    position:absolute; z-index:7; transform:translateX(-50%); min-height:34px; padding:6px 14px;
+    background:var(--danger); border:1px solid var(--danger); color:#0A0A12; font-weight:700;
+    font-size:0.85rem; border-radius:8px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.5);
+  }
+  .all-vocals-row .row-controls .trk-nudge{color:var(--ink-dim);}
+  .all-vocals-row .row-controls .trk-nudge.on{color:var(--yellow); border-color:var(--yellow); background:rgba(255,230,0,0.12);}
   .all-vocals-playhead{
     position:absolute; top:0; bottom:0; width:2px; background:var(--cyan);
     box-shadow:0 0 8px var(--cyan); pointer-events:none; z-index:5;
@@ -760,6 +780,7 @@
   .tl-zoom .icon-btn.small{padding:4px 10px; font-size:0.85rem; line-height:1;}
   .tl-zoom-level{font-size:0.68rem; color:var(--ink-dim); min-width:1.6em; text-align:center; font-variant-numeric:tabular-nums;}
   .tl-hint{margin:0; font-size:0.72rem; color:var(--ink-dim);}
+  .vocal-tl-hint{margin:2px 0 8px;}
   #btn-loop.on{border-color:var(--yellow); color:var(--yellow); background:rgba(255,230,0,0.08);}
   #btn-loop:disabled{opacity:0.45; cursor:not-allowed;}
 
@@ -1819,6 +1840,7 @@
   <span class="tl-zoom-level" id="trk-zoom-level">Zoom: Off</span>
   <button class="icon-btn small" id="btn-trk-zoom-in" type="button" aria-label="Zoom in on vocal waveforms">+</button>
 </div>
+          <p class="tl-hint vocal-tl-hint" data-i18n="tlHint">Tap a vocal to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
           <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
             <div class="grid-ruler" id="all-vocals-ruler"></div>
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
@@ -1826,7 +1848,10 @@
               <span class="wf-label" data-i18n="gridLiveLabel">● Recording…</span>
               <canvas id="grid-live-waveform" width="900" height="76"></canvas>
             </div>
+            <div class="all-vocals-region" id="all-vocals-region" hidden></div>
+            <div class="all-vocals-cursor" id="all-vocals-cursor" hidden></div>
             <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
+            <button type="button" class="row-cut-float" id="row-cut-float" hidden data-i18n="cutBtn">✂ Cut</button>
           </div>
         </div>
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
@@ -1861,7 +1886,6 @@
               <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
             </div>
           </div>
-          <p class="tl-hint" data-i18n="tlHint">Tap the timeline to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
         </div>
         <p class="input-status" id="input-status" data-i18n="inputReady">INPUT &middot; FILE &middot; READY</p>
         <div class="track-row">
@@ -2425,7 +2449,7 @@ calibrateSyncTapBtn:"TAP",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
-      punchInAria:"Punch in on",
+      punchInAria:"Punch in on", nudgeAria:"Nudge timing of", nudgeTitle:"Nudge: drag this vocal's wave left/right to line it up with the beat",
       tlPunchBtn:"🎤 Record from {time}", tlPunchAria:"Keep recording from {time} on the timeline",
       punchArmedHint:"Punching in at {time} — tap Record, sing the new bit, then tap Stop. Only that part gets replaced; everything else stays.",
       trackPunchedToast:'Punched in on "{name}"',
@@ -2434,7 +2458,7 @@ calibrateSyncTapBtn:"TAP",
       undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
       autoAlignedToast:"Auto-aligned to the beat — drag the waveform anytime to fine-tune",
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
-      tlHint:"Tap the timeline to choose where playback starts · tap Record from here to keep recording from that spot · drag across it to pick a section to loop · zoomed in? drag to slide to any part of the song, or hold then drag to pick a loop",
+      tlHint:"Tap a vocal to choose where playback starts · tap Record from here to keep recording from that spot · drag across a vocal to pick a section to loop (✂ Cut appears on it) · zoomed in? drag to slide to any part of the song, or hold then drag to pick a loop",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
       tlZoomInAria:"Zoom in", tlZoomOutAria:"Zoom out",
       leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
@@ -2674,7 +2698,7 @@ calibrateSyncTapBtn:"TOCAR",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
-      punchInAria:"Hacer punch in en",
+      punchInAria:"Hacer punch in en", nudgeAria:"Ajustar tiempo de", nudgeTitle:"Ajustar: arrastra la onda de esta voz para alinearla con el beat",
       tlPunchBtn:"🎤 Grabar desde {time}", tlPunchAria:"Seguir grabando desde {time} en la línea de tiempo",
       punchArmedHint:"Punch in en {time} — toca Grabar, canta la parte nueva y luego toca Detener. Solo se reemplaza esa parte; el resto se queda igual.",
       trackPunchedToast:'Se hizo punch in en "{name}"',
@@ -2683,7 +2707,7 @@ calibrateSyncTapBtn:"TOCAR",
       undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
       autoAlignedToast:"Alineado automáticamente al beat — arrastra la forma de onda cuando quieras para ajustar",
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
-      tlHint:"Toca la línea de tiempo para elegir dónde empieza · toca Grabar desde aquí para seguir grabando desde ese punto · arrastra para elegir una sección en bucle · ¿con zoom? arrastra para deslizarte a cualquier parte de la canción, o mantén y arrastra para elegir un bucle",
+      tlHint:"Toca una voz para elegir dónde empieza · toca Grabar desde aquí para seguir grabando desde ese punto · arrastra sobre una voz para elegir una sección en bucle (aparece ✂ Cortar) · ¿con zoom? arrastra para deslizarte a cualquier parte de la canción, o mantén y arrastra para elegir un bucle",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
       tlZoomInAria:"Acercar", tlZoomOutAria:"Alejar",
       leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
@@ -7626,6 +7650,63 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   var allVocalsRowsEl = document.getElementById("all-vocals-rows");
   var allVocalsPlayheadEl = document.getElementById("all-vocals-playhead");
   var allVocalsRulerEl = document.getElementById("all-vocals-ruler");
+  var allVocalsRegionEl = document.getElementById("all-vocals-region");
+  var allVocalsCursorEl = document.getElementById("all-vocals-cursor");
+  var rowCutFloatEl = document.getElementById("row-cut-float");
+  var gridRowDraws = [];   // one redraw closure per lane, so sliding the zoomed view never rebuilds the DOM
+  var gridPressActive = false; // a finger is down on a lane: don't auto-page/rebuild the lanes under it
+  var gridSelId = null;    // which vocal lane the current loop/cut section was dragged on
+  var nudgeRowId = null;   // lane currently in "nudge timing" mode (drag moves the vocal vs the beat)
+  // Draws the loop section + start marker across every lane, in the same
+  // time window the lanes (and ruler) are drawn in, and parks the Cut button
+  // on the lane the section was dragged on.
+  function updateGridMarkers(){
+    if (!allVocalsRegionEl || !allVocalsCursorEl) return;
+    var total = currentTotalDuration();
+    var vis = allVocalsStripEl && !allVocalsStripEl.hidden && total > 0;
+    var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
+    var winStart = trackZoomIdx > 0 ? (trackZoomCenter - winDur/2) : 0;
+    if (!vis || !(winDur > 0)){
+      allVocalsRegionEl.hidden = true; allVocalsCursorEl.hidden = true;
+      if (rowCutFloatEl) rowCutFloatEl.hidden = true;
+      return;
+    }
+    var cf = (tlCursor - winStart) / winDur;
+    allVocalsCursorEl.hidden = !(cf >= 0 && cf <= 1);
+    if (!allVocalsCursorEl.hidden) allVocalsCursorEl.style.left = (cf * 100) + "%";
+    var showCut = false;
+    if (tlRegion){
+      var l = (tlRegion.start - winStart) / winDur, r = (tlRegion.end - winStart) / winDur;
+      if (r <= 0 || l >= 1){ allVocalsRegionEl.hidden = true; }
+      else {
+        var cl = Math.max(0, l), cr = Math.min(1, r);
+        allVocalsRegionEl.hidden = false;
+        allVocalsRegionEl.style.left = (cl * 100) + "%";
+        allVocalsRegionEl.style.width = (Math.max(0, cr - cl) * 100) + "%";
+        if (gridSelId && tlRegion.end - tlRegion.start >= 0.25 && !isMicRecording && rowCutFloatEl && allVocalsRowsEl){
+          var rowEl = allVocalsRowsEl.querySelector('[data-track-id="' + gridSelId + '"]');
+          var wrapEl = allVocalsRowsEl.parentNode;
+          if (rowEl && wrapEl){
+            var wr = wrapEl.getBoundingClientRect(), rr = rowEl.getBoundingClientRect();
+            var mid = ((cl + cr) / 2) * wr.width;
+            var half = (rowCutFloatEl.offsetWidth || 80) / 2;
+            mid = Math.max(half + 4, Math.min(wr.width - half - 4, mid));
+            rowCutFloatEl.style.left = mid + "px";
+            rowCutFloatEl.style.top = Math.max(0, rr.top - wr.top + 6) + "px";
+            showCut = true;
+          }
+        }
+      }
+    } else { allVocalsRegionEl.hidden = true; gridSelId = null; }
+    if (rowCutFloatEl) rowCutFloatEl.hidden = !showCut;
+  }
+  function panRedrawAllRows(){
+    for (var i = 0; i < gridRowDraws.length; i++){ try { gridRowDraws[i](); } catch(err){} }
+    var tot = currentTotalDuration();
+    renderAllVocalsRuler(tot);
+    updateGridMarkers();
+    if (tlTimeEl) tlTimeEl.textContent = fmtClock(trackZoomCenter) + " / " + fmtClock(tot);
+  }
   var gridLiveRowEl = document.getElementById("grid-live-row");
   var gridLiveCanvas = document.getElementById("grid-live-waveform");
   var leadTrackRowEl = document.getElementById("lead-track-row");
@@ -7667,6 +7748,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       return;
     }
     allVocalsRowsEl.innerHTML = "";
+    gridRowDraws = [];
     var total = currentTotalDuration();
     clampTrackZoomCenter(total);
 
@@ -7740,16 +7822,23 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         });
         controls.appendChild(reRecBtn);
 
-        var punchBtn = document.createElement("button");
-        punchBtn.type = "button";
-        punchBtn.className = "trk-btn trk-punch";
-        punchBtn.textContent = "✂️";
-        punchBtn.setAttribute("aria-label", STR[lang].punchInAria + " " + name);
-        punchBtn.addEventListener("click", function(e){
+        // Timing nudge (drag the wave to line a vocal up with the beat): a
+        // per-lane toggle now, because plain dragging on a lane picks a loop
+        // section / slides the zoomed view. (Starting a take from a spot is
+        // the "Record from here" button under the lanes.)
+        var nudgeBtn = document.createElement("button");
+        nudgeBtn.type = "button";
+        nudgeBtn.className = "trk-btn trk-nudge" + (nudgeRowId === id ? " on" : "");
+        nudgeBtn.textContent = "\u2194";
+        nudgeBtn.title = STR[lang].nudgeTitle || "";
+        nudgeBtn.setAttribute("aria-label", (STR[lang].nudgeAria || "Nudge timing of") + " " + name);
+        nudgeBtn.setAttribute("aria-pressed", String(nudgeRowId === id));
+        nudgeBtn.addEventListener("click", function(e){
           e.stopPropagation();
-          startPunchIn(tr);
+          nudgeRowId = (nudgeRowId === id) ? null : id;
+          renderAllVocalsStrip();
         });
-        controls.appendChild(punchBtn);
+        controls.appendChild(nudgeBtn);
 
         var removeBtn = document.createElement("button");
         removeBtn.type = "button";
@@ -7764,133 +7853,131 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       }
       row.appendChild(controls);
       if (!opts.beat) row.addEventListener("click", function(){ setEditTarget(id); });
-      // Tap/click anywhere in this row's own waveform to jump playback
-      // straight there -- same seek the main timeline does, just scoped to
-      // this one track's strip so you can seek right from whichever wave
-      // you're looking at (including the beat's, with nothing else loaded).
+      // Every lane (vocals and beat) is the timeline now -- see the gesture
+      // block below. The click listener only keeps a tap on the wave from
+      // also bubbling up to the row's own "select this track" click.
+      row.dataset.trackId = id;
       canvas.style.cursor = "pointer";
-      var suppressNextClick = false;
-      var suppressClickUntil = 0; // set when a nudge-drag ends: the release also fires a "click" that must not seek/restart
-      canvas.addEventListener("click", function(e){
-        e.stopPropagation(); // don't also fire the row's own setEditTarget click
-        if (suppressNextClick){ suppressNextClick = false; return; }
-        if (performance.now() < suppressClickUntil) return;
-      if (total <= 0) return;
-        var r = canvas.getBoundingClientRect();
-        if (!r.width) return;
-        var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
-      var winStart = trackZoomIdx > 0 ? (trackZoomCenter - winDur/2) : 0;
-      tlCursor = winStart + frac * winDur;
-        if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
-        restartPlaybackFromCursor();
-      });
+      canvas.style.touchAction = "none";
+      canvas.addEventListener("click", function(e){ e.stopPropagation(); });
       allVocalsRowsEl.appendChild(row);
       // 0.85 opacity on both -- was 0.55/0.35, too faint to read at a glance
       // in the "Everything at once" grid, especially next to several rows
       // stacked together.
       var rowColor = (!opts.beat && editTarget === id) ? "rgba(255,230,0,0.85)" : "rgba(0,245,255,0.85)";
-      if (trackZoomIdx > 0){ drawBufferWaveformWindowed(canvas, canvas.getContext("2d"), buffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], opts.track ? trackNudgeSec(opts.track) : 0, trackZoomCenter); } else { drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, opts.track ? trackNudgeSec(opts.track) : 0); }
+      function drawRow(){
+        var nz = opts.track ? trackNudgeSec(opts.track) : 0;
+        if (trackZoomIdx > 0){ drawBufferWaveformWindowed(canvas, canvas.getContext("2d"), buffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], nz, trackZoomCenter); }
+        else { drawBufferWaveform(canvas, canvas.getContext("2d"), buffer, rowColor, total, nz); }
+      }
+      drawRow();
+      gridRowDraws.push(drawRow);
 
-      // Drag this track's mini waveform left/right to hand-align its timing
-      // against the beat and every other track -- see trackNudgeSec() and
-      // the extra TRACK_NUDGE_MAX lead-in startPlayback()/exportMix()
-      // schedule every source with. Purely visual while dragging (cheap,
-      // instant); only restarts live audio (if something's playing) once you
-      // let go, so a drag-in-progress never stutters playback.
-      if (opts.track){
-        (function(nudgeTrack, nudgeCanvas, nudgeBuffer){
-          var dragging = false, dragMoved = false, dragStartX = 0, dragStartNudge = 0;
-          var DRAG_TOLERANCE = 4;
-          function redraw(){
-            if (trackZoomIdx > 0){ drawBufferWaveformWindowed(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], trackNudgeSec(nudgeTrack), trackZoomCenter); } else { drawBufferWaveform(nudgeCanvas, nudgeCanvas.getContext("2d"), nudgeBuffer, rowColor, total, trackNudgeSec(nudgeTrack)); }
+      // ONE set of gestures on every lane, same as the old timeline bar had:
+      //  tap            -> start point (and this vocal becomes the one Record-from-here uses)
+      //  drag           -> highlight a section = loop it (a Cut button appears on it)
+      //  zoomed + drag  -> slide the view to any part of the song
+      //  zoomed + hold, then drag -> pick a loop section
+      //  lane in Nudge mode (the arrows button) -> drag moves this vocal against the beat
+      (function(cv, rowId, isBeat, trk, redrawThis){
+        var press = null;
+        var HOLD_MS = 380, MOVE_PX = 6;
+        function winOf(){
+          var wd = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
+          return {dur: wd, start: trackZoomIdx > 0 ? (trackZoomCenter - wd/2) : 0};
+        }
+        function timeAt(clientX){
+          var r = cv.getBoundingClientRect();
+          if (!(r.width > 0)) return 0;
+          var w = winOf();
+          var f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+          return Math.max(0, Math.min(total, w.start + f * w.dur));
+        }
+        function updateNudgeTitle(){
+          if (!trk) return;
+          if (nudgeRowId !== rowId){ cv.title = ""; return; }
+          var ms = Math.round(trackNudgeSec(trk) * 1000);
+          cv.title = ms === 0 ? (STR[lang].nudgeTitle || "") : ((ms > 0 ? ("+" + ms) : String(ms)) + "ms — double-click to reset");
+        }
+        updateNudgeTitle();
+        cv.addEventListener("pointerdown", function(e){
+          if (total <= 0 || isMicRecording) return;
+          e.preventDefault();
+          try { cv.setPointerCapture(e.pointerId); } catch(err){}
+          var pr = {id: e.pointerId, x: e.clientX, t: timeAt(e.clientX), moved: false, mode: "loop",
+                    center: trackZoomCenter, nudge: trk ? trackNudgeSec(trk) : 0, timer: 0};
+          if (trk && nudgeRowId === rowId) pr.mode = "nudge";
+          else if (trackZoomIdx > 0){
+            pr.mode = "pan";
+            pr.timer = setTimeout(function(){ if (press === pr && !pr.moved) pr.mode = "loop"; }, HOLD_MS);
           }
-          function updateTitle(){
-            var ms = Math.round(trackNudgeSec(nudgeTrack) * 1000);
-            nudgeCanvas.title = ms === 0 ? "Drag to nudge this vocal's timing vs. the beat"
-              : ((ms > 0 ? ("+" + ms) : String(ms)) + "ms — double-click to reset");
+          press = pr; gridPressActive = true;
+        });
+        cv.addEventListener("pointermove", function(e){
+          if (!press || e.pointerId !== press.id) return;
+          var dx = e.clientX - press.x;
+          if (!press.moved){
+            if (Math.abs(dx) <= MOVE_PX) return;
+            press.moved = true; clearTimeout(press.timer);
           }
-          updateTitle();
-          nudgeCanvas.addEventListener("pointerdown", function(e){
-            dragging = true; dragMoved = false;
-            dragStartX = e.clientX;
-            dragStartNudge = trackNudgeSec(nudgeTrack);
-            try { nudgeCanvas.setPointerCapture(e.pointerId); } catch(err){}
-            e.preventDefault();
-          });
-          nudgeCanvas.addEventListener("pointermove", function(e){
-            if (!dragging) return;
-            var dx = e.clientX - dragStartX;
-            if (Math.abs(dx) > DRAG_TOLERANCE) dragMoved = true;
-            if (!dragMoved) return;
-            var rectW = nudgeCanvas.getBoundingClientRect().width;
-            if (rectW <= 0) return;
-            var dragRange = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : NUDGE_DRAG_RANGE_SEC; nudgeTrack.nudgeSec = clampNudge(dragStartNudge + (dx / rectW) * dragRange);
-            redraw();
-            updateTitle();
-          });
-          function endDrag(e){
-            if (!dragging) return;
-            dragging = false;
-            try { nudgeCanvas.releasePointerCapture(e.pointerId); } catch(err){}
-            if (dragMoved){
-              suppressClickUntil = performance.now() + 400;
-              if (isPlaying && !retimeTrackLive(nudgeTrack)) restartPlaybackFromCursor();
+          var rw = cv.getBoundingClientRect().width;
+          if (!(rw > 0)) return;
+          if (press.mode === "nudge"){
+            var range = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : NUDGE_DRAG_RANGE_SEC;
+            trk.nudgeSec = clampNudge(press.nudge + (dx / rw) * range);
+            redrawThis(); updateNudgeTitle();
+          } else if (press.mode === "pan"){
+            trackZoomCenter = press.center - (dx / rw) * TRACK_ZOOM_LEVELS[trackZoomIdx];
+            clampTrackZoomCenter(total);
+            panRedrawAllRows();
+          } else {
+            var t = timeAt(e.clientX);
+            tlRegion = {start: Math.min(press.t, t), end: Math.max(press.t, t)};
+            gridSelId = isBeat ? null : rowId;
+            renderTimeline();
+          }
+        });
+        function finish(e, cancelled){
+          if (!press || e.pointerId !== press.id) return;
+          var p = press; press = null; gridPressActive = false;
+          clearTimeout(p.timer);
+          try { cv.releasePointerCapture(e.pointerId); } catch(err){}
+          if (cancelled){ renderAllVocalsStrip(); renderTimeline(); return; }
+          if (p.mode === "nudge"){
+            if (p.moved){
+              if (isPlaying && !retimeTrackLive(trk)) restartPlaybackFromCursor();
               scheduleSave();
             }
+            return;
           }
-          nudgeCanvas.addEventListener("pointerup", endDrag);
-          nudgeCanvas.addEventListener("pointercancel", endDrag);
-          nudgeCanvas.addEventListener("dblclick", function(e){
-            e.stopPropagation();
-            nudgeTrack.nudgeSec = 0;
-            redraw();
-            updateTitle();
-            if (isPlaying && !retimeTrackLive(nudgeTrack)) restartPlaybackFromCursor();
-            scheduleSave();
-          });
-        })(opts.track, canvas, buffer);
-      }
-    if (opts.beat){
-      (function(panCanvas, panBuffer){
-        var panDragging = false, panMoved = false, panStartX = 0, panStartCenter = 0;
-        var PAN_DRAG_TOLERANCE = 4;
-        function panRedraw(){
-          if (trackZoomIdx > 0){ drawBufferWaveformWindowed(panCanvas, panCanvas.getContext("2d"), panBuffer, rowColor, TRACK_ZOOM_LEVELS[trackZoomIdx], 0, trackZoomCenter); }
-        }
-        panCanvas.addEventListener("pointerdown", function(e){
-          if (trackZoomIdx <= 0) return;
-          panDragging = true; panMoved = false;
-          panStartX = e.clientX;
-          panStartCenter = trackZoomCenter;
-          try { panCanvas.setPointerCapture(e.pointerId); } catch(err){}
-        });
-        panCanvas.addEventListener("pointermove", function(e){
-          if (!panDragging) return;
-          var dx = e.clientX - panStartX;
-          if (Math.abs(dx) > PAN_DRAG_TOLERANCE) panMoved = true;
-          if (!panMoved) return;
-          var rectW = panCanvas.getBoundingClientRect().width;
-          if (rectW <= 0) return;
-          var winDur = TRACK_ZOOM_LEVELS[trackZoomIdx];
-          var deltaSec = -(dx / rectW) * winDur;
-          trackZoomCenter = panStartCenter + deltaSec;
-          clampTrackZoomCenter(total);
-          panRedraw();
-        });
-        function endPanDrag(e){
-          if (!panDragging) return;
-          panDragging = false;
-          try { panCanvas.releasePointerCapture(e.pointerId); } catch(err){}
-          if (panMoved){
-            suppressNextClick = true;
-            renderAllVocalsStrip();
+          if (p.mode === "pan" && p.moved){ renderAllVocalsStrip(); return; } // just slid the view
+          if (isMicRecording) return; // never seek/loop while a take is being recorded
+          if (p.moved){
+            if (tlRegion && tlRegion.end - tlRegion.start >= 0.25){
+              tlLoop = true;               // dragging out a section means "loop this"
+              tlCursor = tlRegion.start;
+              gridSelId = isBeat ? null : rowId;
+            } else { tlRegion = null; tlLoop = false; gridSelId = null; }
+          } else {
+            tlCursor = p.t;                // a tap just moves the start point
+            if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; gridSelId = null; }
           }
+          var needSelect = (!isBeat && editTarget !== rowId);
+          if (needSelect) setEditTarget(rowId);
+          restartPlaybackFromCursor();
+          updateGridMarkers();
         }
-        panCanvas.addEventListener("pointerup", endPanDrag);
-        panCanvas.addEventListener("pointercancel", endPanDrag);
-      })(canvas, buffer);
-    }
+        cv.addEventListener("pointerup", function(e){ finish(e, false); });
+        cv.addEventListener("pointercancel", function(e){ finish(e, true); });
+        cv.addEventListener("dblclick", function(e){
+          if (!trk || nudgeRowId !== rowId) return;
+          e.stopPropagation();
+          trk.nudgeSec = 0;
+          redrawThis(); updateNudgeTitle();
+          if (isPlaying && !retimeTrackLive(trk)) restartPlaybackFromCursor();
+          scheduleSave();
+        });
+      })(canvas, id, !!opts.beat, opts.track || null, drawRow);
     }
 
     if (showBeatRow) addRow(STR[lang].wfLabelBeat || "Beat", beatBuffer, "beat", {beat:true});
@@ -7913,6 +8000,7 @@ var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : total;
     if (audioBuffer) addRow(trackNameEl.textContent || STR[lang].leadBadge, audioBuffer, "lead", {track:leadTrack});
     extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id, {track:t}); });
     renderAllVocalsRuler(total);
+    updateGridMarkers();
   }
 
   // Picks a "nice" tick spacing (seconds) for a given span, aiming for
@@ -9785,7 +9873,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       // crosses the right edge; and when Play starts outside the window it jumps
       // there. Never fights a manual slide (that only moves the window when
       // the playhead was NOT inside it on the previous tick).
-      if (trackZoomIdx > 0 && isPlaying && gridWinDur > 0){
+      if (trackZoomIdx > 0 && isPlaying && gridWinDur > 0 && !gridPressActive){
         var inNow = pos >= gridWinStart && pos <= gridWinStart + gridWinDur;
         var pageNow = false;
         if (!inNow && trackFollowPrevIn && pos > gridWinStart + gridWinDur) pageNow = true;
@@ -9828,6 +9916,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
     timelineEl.setAttribute("aria-valuetext", fmtClock(tlCursor) + " / " + fmtClock(total));
     updateLoopButton();
     updatePlayheadUI();
+    if (typeof updateGridMarkers === "function") updateGridMarkers();
   }
 
   function resetTimeline(){
@@ -12666,6 +12755,24 @@ return {onBeat:onBeat, clear:clear, render:render};
       afterVocalSetChanged();
       if (wasPlaying2) startPlayback();
     });
+  });
+
+  // ✂ Cut on the vocal lane itself: the section dragged out on a lane (the
+  // same one that is looping) is cut from THAT vocal -- the lane's section is
+  // in song time, so take back that vocal's timing nudge to land on its audio.
+  if (rowCutFloatEl) rowCutFloatEl.addEventListener("click", function(e){
+    e.stopPropagation();
+    if (!tlRegion || !gridSelId) return;
+    var id = gridSelId, reg = {start: tlRegion.start, end: tlRegion.end};
+    if (editTarget !== id) setEditTarget(id);
+    var tr = editTargetTrack() || leadTrack;
+    var nz = trackNudgeSec(tr);
+    cutSelStart = Math.max(0, reg.start - nz);
+    cutSelEnd = Math.max(0, reg.end - nz);
+    updateCutBar();
+    if (btnWfCut && !btnWfCut.disabled) btnWfCut.click();
+    tlRegion = null; tlLoop = false; gridSelId = null;
+    renderTimeline();
   });
 
   if (btnWfCutUndo) btnWfCutUndo.addEventListener("click", function(){
