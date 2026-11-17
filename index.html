@@ -955,6 +955,18 @@
   }
   #btn-ai-mix-undo:hover{opacity:0.88; color:#050508;}
   .ai-mix-hint{margin-top:-4px;}
+  /* "What AI Mix just did" card -- plain-English summary per track, with Undo right there */
+  .ai-mix-report{border:1px solid var(--line-gem); background:rgba(255,46,136,0.06); border-radius:10px; padding:10px 12px; margin:6px 0 10px;}
+  .ai-mix-report-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px;}
+  .ai-mix-report-head strong{font-size:0.9rem; color:var(--ink);}
+  .ai-mix-report-close{background:transparent; border:0; color:var(--ink-muted); font-size:1rem; cursor:pointer; padding:2px 6px;}
+  .ai-mix-report ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+  .ai-mix-report li{font-size:0.82rem; line-height:1.35; color:var(--ink);}
+  .ai-mix-report li .amr-name{font-weight:700; color:var(--yellow);}
+  .ai-mix-report li .amr-nums{display:block; color:var(--cyan);}
+  .ai-mix-report li .amr-why{display:block; color:var(--ink-muted);}
+  .ai-mix-report-note{margin:8px 0 0; font-size:0.74rem; color:var(--ink-muted);}
+  .ai-mix-report-actions{margin-top:8px;}
   .extra-vocal-row input[type=range]{ flex:1 1 auto; max-width:220px; accent-color:var(--gem); cursor:pointer; }
   .btn-remove-vocal{ padding:6px 10px !important; }
   .vocal-cap-note{
@@ -1787,7 +1799,16 @@
             <button type="button" class="icon-btn small" id="btn-ai-mix-undo" data-i18n="aiMixUndoBtn" data-i18n-aria="aiMixUndoAria" aria-label="Undo AI Mix -- restore the levels, pan and tone from before" hidden>↺ Undo</button>
           </span>
         </div>
-        <p class="vocal-cap-note ai-mix-hint" data-i18n="aiMixHint">Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.</p>
+        <p class="vocal-cap-note ai-mix-hint" data-i18n="aiMixHint">One tap: balances levels, pan and tone across every track, brings your vocal forward and tucks the beat under it so the voice sits clearly on top. Shows exactly what changed. Undoable.</p>
+        <div class="ai-mix-report" id="ai-mix-report" hidden role="status" aria-live="polite">
+          <div class="ai-mix-report-head">
+            <strong id="ai-mix-report-title"></strong>
+            <button type="button" class="ai-mix-report-close" id="ai-mix-report-close" aria-label="Close">&#10005;</button>
+          </div>
+          <ul id="ai-mix-report-list"></ul>
+          <p class="ai-mix-report-note" id="ai-mix-report-note"></p>
+          <div class="ai-mix-report-actions"><button type="button" class="icon-btn small" id="ai-mix-report-undo"></button></div>
+        </div>
         <div class="slider-row vocal-track-row lead-row">
           <span class="vocal-track-label"><span class="lead-badge" data-i18n="leadBadge">★ Lead</span><span class="vocal-track-name" id="lead-track-name"></span></span>
           <input type="range" id="lead-vocal-level" min="0" max="100" value="100" aria-label="Lead vocal level" />
@@ -2443,8 +2464,12 @@ calibrateSyncTapBtn:"TAP",
       planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
-      aiMixHint:"Balances levels, pan and tone across every track (and the beat, if one's loaded) in one tap. Undoable.",
+      aiMixHint:"One tap: balances levels, pan and tone across every track, brings your vocal forward and tucks the beat under it so the voice sits clearly on top. Shows exactly what changed. Undoable.",
       aiMixAppliedToast:"✨ AI Mix applied",
+      aiMixRepTitle:"✨ Here's what AI Mix just did", aiMixRepUndo:"↺ Undo AI Mix", aiMixRepVol:"Volume", aiMixRepKept:"already right, kept", aiMixRepPan:"Pan", aiMixRepBeat:"Beat", aiMixRepBeatWhy:"Set a few dB under your vocals, with its mids dipped a little, so the voice sits clearly on top.",
+      aiMixRepNote:"It measured how loud each take really is, then set every volume so they blend, and gave each track its own tone for its job. Not feeling it? Hit Undo, or tweak any track yourself.",
+      aiMixPanC:"center", aiMixPanL:"left", aiMixPanR:"right",
+      aiMixWhyLead:"The star: clear, forward and centered.", aiMixWhyBackground:"Tucked behind the lead so it supports without competing.", aiMixWhyDoubleL:"A double, panned left to widen the sound.", aiMixWhyDoubleR:"A double, panned right to widen the sound.", aiMixWhyAdlib:"An ad-lib, nudged right so it stays out of the lead's way.",
       aiMixUndoBtn:"↺ Undo", aiMixUndoAria:"Undo AI Mix -- restore the levels, pan and tone from before",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
@@ -2692,8 +2717,12 @@ calibrateSyncTapBtn:"TOCAR",
       planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
-      aiMixHint:"Equilibra niveles, panorama y tono en cada pista (y en la pista instrumental, si hay una) con un toque. Se puede deshacer.",
+      aiMixHint:"Un toque: equilibra niveles, panorama y tono en cada pista, adelanta tu voz y baja el instrumental para que la voz se escuche clara encima. Muestra exactamente qué cambió. Se puede deshacer.",
       aiMixAppliedToast:"✨ Mezcla IA aplicada",
+      aiMixRepTitle:"✨ Esto es lo que hizo la Mezcla IA", aiMixRepUndo:"↺ Deshacer Mezcla IA", aiMixRepVol:"Volumen", aiMixRepKept:"ya estaba bien, se mantiene", aiMixRepPan:"Panorama", aiMixRepBeat:"Instrumental", aiMixRepBeatWhy:"Ajustado unos dB por debajo de tus voces, con los medios un poco bajados, para que la voz quede clara encima.",
+      aiMixRepNote:"Midió qué tan fuerte suena cada toma, ajustó cada volumen para que se mezclen y le dio a cada pista su propio tono según su función. ¿No te gusta? Toca Deshacer o ajusta cualquier pista tú misma.",
+      aiMixPanC:"centro", aiMixPanL:"izquierda", aiMixPanR:"derecha",
+      aiMixWhyLead:"La protagonista: clara, al frente y centrada.", aiMixWhyBackground:"Detrás de la principal: apoya sin competir.", aiMixWhyDoubleL:"Un doble, a la izquierda para ensanchar el sonido.", aiMixWhyDoubleR:"Un doble, a la derecha para ensanchar el sonido.", aiMixWhyAdlib:"Un ad-lib, un poco a la derecha para no estorbar a la principal.",
       aiMixUndoBtn:"↺ Deshacer", aiMixUndoAria:"Deshacer Mezcla IA -- restaura los niveles, panorama y tono anteriores",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
@@ -6836,7 +6865,7 @@ interfaceWarnEl: document.getElementById("record-interface-tip"),
     if (btnVocalSolo) { btnVocalSolo.classList.toggle("on", vocalGroupSolo); btnVocalSolo.setAttribute("aria-pressed", String(vocalGroupSolo)); }
   }
 
-  function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_REFERENCE_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file, opts){
+  function autoLevelBeatForDrop(buf){ if (!beatLevelSlider) return; var activity = analyzeTrackActivity(buf); if (!activity.activeRms) return; var desiredMult = AI_MIX_BEAT_RMS / activity.activeRms; var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(buf))) * 100))); beatLevelSlider.value = String(pct); } function autoLevelVocalToBeat(){ if (!audioBuffer) return; var activity = analyzeTrackActivity(audioBuffer); mainVocalLevel = aiMixLevelFor(leadTrack.role || "lead", activity.activeRms); if (leadVocalLevelSlider) leadVocalLevelSlider.value = String(Math.round(mainVocalLevel * 100)); } function handleBeatFile(file, opts){
     if (!file) return;
     opts = opts || {};
     // The Mix/Unlimited gate used to live on the Vocal Only/Full Song Mix
@@ -8253,7 +8282,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     // vocals get Punch turned down lower since they're meant to sit further
     // back/blended rather than sound as forward as the lead.
     var ROLE_PRESETS = {
-      lead:       {level:0.8,  pan:0,    knobs:{punch:55, bass:45, voice:62, highs:30, smooth:40, space:0, wide:0, radio:0, delay:0}},
+      lead:       {level:0.8,  pan:0,    knobs:{punch:55, bass:45, voice:66, highs:38, smooth:40, space:0, wide:0, radio:0, delay:0}},
       background: {level:0.6,  pan:0,    knobs:{punch:40, bass:20, voice:35, highs:40, smooth:50, space:0, wide:0, radio:0, delay:0}},
       doubleL:    {level:0.6,  pan:-0.8, knobs:{punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:0, radio:0, delay:0}},
       doubleR:    {level:0.6,  pan:0.8,  knobs:{punch:50, bass:25, voice:45, highs:35, smooth:45, space:0, wide:0, radio:0, delay:0}},
@@ -8320,6 +8349,10 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   // in the UI (see buildVolumeKnob/lead-vocal-level) -- an extremely quiet
   // take may still end up topped out rather than reaching the true target.
   var AI_MIX_REFERENCE_RMS = 0.12;
+  // The beat is mixed UNDER the vocal (~4 dB below the reference level a vocal
+  // is brought to), so the voice sits clearly on top instead of fighting it.
+  var AI_MIX_BEAT_RMS = AI_MIX_REFERENCE_RMS * 0.6;
+  var AI_MIX_BEAT_MID_DIP_DB = -3; // carve room in the beat's mids, where the voice lives
   var AI_MIX_MIN_LEVEL = 0.05, AI_MIX_MAX_LEVEL = 1.0;
   function roleHeadroomScale(){
     var n = totalVocalTrackCount();
@@ -8349,6 +8382,9 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       return {t: t, role: t.role, level: t.level, pan: t.pan, values: Object.assign({}, t.values)};
     });
     var beatLevelBefore = beatLevelSlider ? beatLevelSlider.value : null;
+    var beatMidEl = document.getElementById("beat-eq-mid");
+    var beatMidBefore = beatMidEl ? beatMidEl.value : null;
+    var leadLevelBefore = mainVocalLevel, leadPanBefore = leadTrack.pan || 0;
 
     var leadActivity = analyzeTrackActivity(audioBuffer);
 
@@ -8399,9 +8435,16 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     if (beatBuffer && beatLevelSlider){
       var beatActivity = analyzeTrackActivity(beatBuffer);
       if (beatActivity.activeRms){
-        var desiredMult = AI_MIX_REFERENCE_RMS / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies
+        var desiredMult = AI_MIX_BEAT_RMS / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies -- under the vocal, not level with it
         var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(beatBuffer))) * 100)));
         beatLevelSlider.value = String(pct);
+      }
+      // Make room for the voice: a gentle dip in the beat's mids (never boosts, never
+      // overrides a deeper cut you already made).
+      if (beatMidEl){
+        var curMid = parseFloat(beatMidEl.value) || 0;
+        beatMidEl.value = String(Math.min(curMid, AI_MIX_BEAT_MID_DIP_DB));
+        if (typeof applyBeatEQ === "function") applyBeatEQ();
       }
     }
 
@@ -8413,7 +8456,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     scheduleSave();
     if (wasPlaying) startPlayback();
 
-    showAiMixUndoBtn(function(){
+    var aiMixUndoFn = function(){
       var wp = isPlaying;
       if (wp) stopPlayback();
       applyLeadSnapshot(leadSnap);
@@ -8423,13 +8466,70 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         if (s.t.chain) applyParamsTo(s.t.chain, s.t.values);
       });
       if (beatLevelBefore !== null && beatLevelSlider){ beatLevelSlider.value = beatLevelBefore; applyBeatLevel(); }
+      if (beatMidBefore !== null && beatMidEl){ beatMidEl.value = beatMidBefore; if (typeof applyBeatEQ === "function") applyBeatEQ(); }
       if (editTarget === "lead") values = leadValues;
       setEditTarget(editTarget);
       afterVocalSetChanged();
       scheduleSave();
       if (wp) startPlayback();
+      hideAiMixReport();
+    };
+    showAiMixUndoBtn(aiMixUndoFn);
+
+    // Plain-English card: what changed on each track, and why.
+    var repRows = [{name: (trackNameEl && trackNameEl.textContent) || STR[lang].leadBadge, role: leadTrack.role,
+                    before: leadLevelBefore, after: mainVocalLevel, pan: leadTrack.pan || 0}];
+    extraMixSnaps.forEach(function(sn){
+      repRows.push({name: sn.t.name, role: sn.t.role, before: (sn.level == null ? 1 : sn.level), after: (sn.t.level == null ? 1 : sn.t.level), pan: sn.t.pan || 0});
     });
+    var beatRep = null;
+    if (beatBuffer && beatLevelSlider && beatLevelBefore !== null) beatRep = {before: Number(beatLevelBefore), after: Number(beatLevelSlider.value)};
+    showAiMixReport(repRows, beatRep, aiMixUndoFn);
   }
+
+  var aiMixReportEl = document.getElementById("ai-mix-report");
+  var aiMixReportUndoFn = null;
+  function hideAiMixReport(){ if (aiMixReportEl) aiMixReportEl.hidden = true; aiMixReportUndoFn = null; }
+  function showAiMixReport(rows, beatRep, undoFn){
+    if (!aiMixReportEl) return;
+    var T = STR[lang];
+    function pct(v){ return Math.round(Math.max(0, v) * 100) + "%"; }
+    function volTxt(b, a){ return (pct(b) === pct(a)) ? (T.aiMixRepVol + " " + pct(a) + " (" + T.aiMixRepKept + ")") : (T.aiMixRepVol + " " + pct(b) + " \u2192 " + pct(a)); }
+    function panWord(p){
+      var v = Math.round(Math.abs(p) * 100);
+      if (v < 3) return T.aiMixPanC;
+      return (p < 0 ? T.aiMixPanL : T.aiMixPanR) + " " + v + "%";
+    }
+    var whyKey = {lead: "aiMixWhyLead", background: "aiMixWhyBackground", doubleL: "aiMixWhyDoubleL", doubleR: "aiMixWhyDoubleR", adlib: "aiMixWhyAdlib"};
+    var list = document.getElementById("ai-mix-report-list");
+    list.innerHTML = "";
+    function addLi(name, nums, why){
+      var li = document.createElement("li");
+      var n = document.createElement("span"); n.className = "amr-name"; n.textContent = name;
+      var m = document.createElement("span"); m.className = "amr-nums"; m.textContent = nums;
+      li.appendChild(n); li.appendChild(m);
+      if (why){ var w = document.createElement("span"); w.className = "amr-why"; w.textContent = why; li.appendChild(w); }
+      list.appendChild(li);
+    }
+    rows.forEach(function(r){
+      addLi(r.name || "", volTxt(r.before, r.after) + "  \u00B7  " + T.aiMixRepPan + " " + panWord(r.pan), T[whyKey[r.role]] || "");
+    });
+    if (beatRep) addLi(T.aiMixRepBeat, (Math.round(beatRep.before) === Math.round(beatRep.after)) ? (T.aiMixRepVol + " " + Math.round(beatRep.after) + "% (" + T.aiMixRepKept + ")") : (T.aiMixRepVol + " " + Math.round(beatRep.before) + "% \u2192 " + Math.round(beatRep.after) + "%"), T.aiMixRepBeatWhy);
+    document.getElementById("ai-mix-report-title").textContent = T.aiMixRepTitle;
+    document.getElementById("ai-mix-report-note").textContent = T.aiMixRepNote;
+    document.getElementById("ai-mix-report-undo").textContent = T.aiMixRepUndo;
+    aiMixReportUndoFn = undoFn;
+    aiMixReportEl.hidden = false;
+  }
+  (function(){
+    var c = document.getElementById("ai-mix-report-close"), u = document.getElementById("ai-mix-report-undo");
+    if (c) c.addEventListener("click", hideAiMixReport);
+    if (u) u.addEventListener("click", function(){
+      var f = aiMixReportUndoFn; hideAiMixReport();
+      if (typeof hideAiMixUndoBtn === "function") hideAiMixUndoBtn();
+      if (f) f();
+    });
+  })();
 
   function applyPlanLimit(){
     var max = maxVocalTracks();
