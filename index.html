@@ -3928,36 +3928,53 @@ function drawBufferWaveformWindowed(cv, cx, buffer, color, windowDuration, start
   // unit tests before being placed here) so it can be turned into a Blob URL
   // and loaded via ctx.audioWorklet.addModule() with no separate file to host.
   var PITCH_WORKLET_SOURCE = `
-function detectPitch(frame, sampleRate, minFreq, maxFreq, acfScratch) {
-  const n = frame.length;
-  const maxLag = Math.min(n - 1, Math.floor(sampleRate / minFreq));
-  const minLag = Math.max(2, Math.floor(sampleRate / maxFreq));
-  let mean = 0;
-  for (let i = 0; i < n; i++) mean += frame[i];
-  mean /= n;
-  let energy = 0;
-  for (let i = 0; i < n; i++) { const v = frame[i] - mean; energy += v * v; }
-  if (energy < 1e-9) return { freq: 0, confidence: 0 };
-  let bestLag = -1, bestVal = -Infinity;
-  const acf = (acfScratch && acfScratch.length >= maxLag + 2) ? acfScratch : new Float64Array(maxLag + 2);
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    let sum = 0;
-    for (let i = 0; i < n - lag; i++) sum += (frame[i] - mean) * (frame[i + lag] - mean);
-    acf[lag] = sum;
-    if (sum > bestVal) { bestVal = sum; bestLag = lag; }
+// YIN pitch detector (de Cheveigne & Kawahara). Works on a decimated copy of
+// the signal. Much steadier than plain autocorrelation: it picks the FIRST
+// clear dip instead of the tallest peak, so it almost never jumps an octave
+// on a sung vowel. out.freq is in Hz of the decimated rate passed in (dsr).
+function detectPitchYIN(x, W, minLag, maxLag, dsr, d, thr, out) {
+  out.freq = 0; out.conf = 0;
+  let e = 0;
+  for (let i = 0; i < W; i++) e += x[i] * x[i];
+  if (e / W < 2e-7) return;
+  // difference function
+  for (let tau = 1; tau <= maxLag; tau++) {
+    let s = 0;
+    for (let j = 0; j < W; j++) { const df = x[j] - x[j + tau]; s += df * df; }
+    d[tau] = s;
   }
-  const confidence = bestVal / energy;
-  if (bestLag < 0 || confidence < 0.01) return { freq: 0, confidence: 0 };
-  let refinedLag = bestLag;
-  if (bestLag > minLag && bestLag < maxLag) {
-    const y0 = acf[bestLag - 1], y1 = acf[bestLag], y2 = acf[bestLag + 1];
-    const denom = (y0 - 2 * y1 + y2);
-    if (Math.abs(denom) > 1e-12) {
-      const shift = 0.5 * (y0 - y2) / denom;
-      if (shift > -1 && shift < 1) refinedLag = bestLag + shift;
+  // cumulative mean normalised difference (in place)
+  let run = 0;
+  d[0] = 1;
+  for (let tau = 1; tau <= maxLag; tau++) {
+    run += d[tau];
+    d[tau] = run > 1e-12 ? d[tau] * tau / run : 1;
+  }
+  let best = -1;
+  for (let t = minLag; t < maxLag; t++) {
+    if (d[t] < thr) {
+      while (t + 1 < maxLag && d[t + 1] < d[t]) t++;
+      best = t;
+      break;
     }
   }
-  return { freq: sampleRate / refinedLag, confidence: Math.max(0, Math.min(1, confidence)) };
+  if (best < 0) {
+    let mv = Infinity;
+    for (let t = minLag; t < maxLag; t++) if (d[t] < mv) { mv = d[t]; best = t; }
+  }
+  if (best < 0) return;
+  const dm = d[best];
+  let lag = best;
+  if (best > 1 && best < maxLag) {
+    const a0 = d[best - 1], b0 = d[best], c0 = d[best + 1];
+    const den = a0 - 2 * b0 + c0;
+    if (Math.abs(den) > 1e-12) {
+      const sh = 0.5 * (a0 - c0) / den;
+      if (sh > -1 && sh < 1) lag = best + sh;
+    }
+  }
+  out.freq = dsr / lag;
+  out.conf = Math.max(0, Math.min(1, 1 - dm));
 }
 function freqToMidi(freq) { return 69 + 12 * Math.log2(freq / 440); }
 function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
@@ -4031,21 +4048,42 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
     super();
     this.sr = sampleRate;
     this.shifters = [new GranularPitchShifter(this.sr, 80), new GranularPitchShifter(this.sr, 80)];
-    this.analysisWinSize = 1024;
-    this.analysisBuf = new Float32Array(this.analysisWinSize);
-    // Reused every analysis pass instead of allocating a fresh one each
-    // time -- this is an AudioWorklet on the real-time audio thread, where
-    // GC pressure from repeated allocation (every ~512 samples while Tune
-    // is on) can itself cause the pauses/glitches this whole pass is about
-    // eliminating.
-    this.orderedScratch = new Float32Array(this.analysisWinSize);
-    // Upper bound for detectPitch()'s internal autocorrelation array
-    // (maxLag is always <= analysisWinSize-1, so +2 is always enough) --
-    // same reused-buffer idea, for the heaviest allocation of all.
-    this.acfScratch = new Float64Array(this.analysisWinSize + 2);
-    this.analysisWritePos = 0;
+    // Pitch analysis runs on a decimated copy (boxcar average of dec samples)
+    // so the YIN search stays cheap on the audio thread.
+    this.dec = this.sr >= 88000 ? 4 : 2;
+    this.dsr = this.sr / this.dec;
+    this.minLag = Math.max(2, Math.floor(this.dsr / 900));
+    this.maxLag = Math.floor(this.dsr / 75);
+    this.yinW = Math.max(256, this.maxLag);
+    this.dn = this.yinW + this.maxLag + 2;
+    // control-delay line: pitch correction is computed ~tens of ms after the
+    // audio it describes, but the shifter plays audio from ~80ms ago, so the
+    // correction is read back from the matching moment (keeps vibrato in step)
+    this.ctlC = new Float32Array(32);
+    this.ctlA = new Uint8Array(32);
+    this.hopIdx = 0;
+    this.ctlLat = Math.round(0.040 * this.sr);
+    this.lastC = 0;
+    this.lastActive = false;
+    this.dbuf = new Float32Array(this.dn);
+    this.dpos = 0;
+    this.decAcc = 0;
+    this.decCount = 0;
+    this.yinOrdered = new Float32Array(this.dn);
+    this.yinD = new Float32Array(this.maxLag + 2);
+    this.yinOut = { freq: 0, conf: 0 };
     this.samplesSinceAnalysis = 0;
     this.analysisIntervalSamples = 512;
+    this.hopSec = this.analysisIntervalSamples / this.sr;
+    // note tracking state
+    this.hist = new Float32Array(5);
+    this.histN = 0;
+    this.heldNote = null;
+    this.slowMidi = 0;
+    this.slowInit = false;
+    this.voicedRun = 0;
+    this.unvoicedHops = 0;
+    this.activeTarget = false;
     this.currentRatio = 1.0;
     this.targetRatio = 1.0;
     // 0 = raw dry audio, 1 = fully pitch-corrected. Ramped over ~20ms when
@@ -4072,6 +4110,102 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
         this.scaleMask = (Array.isArray(d.mask) && d.mask.length === 12 && d.mask.some(Boolean)) ? d.mask.slice() : null;
       }
     };
+  }
+  _analyse(speed) {
+    const ord = this.yinOrdered, dn = this.dn;
+    for (let k = 0; k < dn; k++) ord[k] = this.dbuf[(this.dpos + k) % dn];
+    const out = this.yinOut;
+    detectPitchYIN(ord, this.yinW, this.minLag, this.maxLag, this.dsr, this.yinD, 0.15, out);
+    const voicedNow = out.freq > 0 && out.conf > 0.72;
+    if (!voicedNow) {
+      this.voicedRun = 0;
+      this.unvoicedHops++;
+      // short gaps (consonants, breaths between vowels): keep the last
+      // correction; longer: let go and glide back to the raw voice
+      if (this.unvoicedHops * this.hopSec > 0.07) {
+        this.voiced = false;
+        this.histN = 0;
+        this.heldNote = null;
+        this.slowInit = false;
+        this.lastActive = false;
+      }
+      this._push(this.lastC, this.lastActive);
+      return;
+    }
+    this.unvoicedHops = 0;
+    this.voicedRun++;
+    let m = freqToMidi(out.freq);
+    // median of the last 5 estimates kills single-frame octave/jitter spikes
+    const h = this.hist;
+    if (this.histN < 5) { h[this.histN++] = m; }
+    else { for (let i = 0; i < 4; i++) h[i] = h[i + 1]; h[4] = m; }
+    if (this.histN >= 3) {
+      const tmp = [];
+      for (let i = 0; i < this.histN; i++) tmp.push(h[i]);
+      tmp.sort((p, q) => p - q);
+      m = tmp[tmp.length >> 1];
+    }
+    // a new voiced region needs a couple of agreeing frames before we trust it
+    if (this.voicedRun < 3) { this.voiced = true; this._push(0, false); return; }
+    this.voiced = true;
+    // nearest allowed note, with hysteresis so a held note does not flip
+    // back and forth when the singer sits near a boundary
+    const cand = freqToMidi(nearestScaleFreq(midiToFreq(m), this.scaleMask));
+    let note = this.heldNote;
+    if (note === null) {
+      note = cand;
+    } else if (cand !== note) {
+      if (Math.abs(m - note) - Math.abs(m - cand) > 0.6) note = cand;
+    }
+    const noteChanged = (this.heldNote !== null && note !== this.heldNote);
+    this.heldNote = note;
+    // slow-moving average of the singer's pitch: what is left over (the
+    // vibrato / natural movement) can be kept, so it still sounds sung
+    if (!this.slowInit || noteChanged) { this.slowMidi = m; this.slowInit = true; }
+    else {
+      const a = 1 - Math.exp(-this.hopSec / 0.12);
+      this.slowMidi += (m - this.slowMidi) * a;
+    }
+    const keep = Math.pow(Math.max(0, 1 - speed / 100), 1.5);
+    let dev = m - this.slowMidi;
+    if (dev > 0.7) dev = 0.7; else if (dev < -0.7) dev = -0.7;
+    // where the output pitch should land (semitones): the note, plus the
+    // kept portion of the natural wobble
+    const wanted = note + keep * dev;
+    const c = wanted - m;
+    this.lastC = c; this.lastActive = true;
+    this._push(c, true);
+  }
+  _push(c, active) {
+    const i = this.hopIdx & 31;
+    this.ctlC[i] = c; this.ctlA[i] = active ? 1 : 0;
+    this.hopIdx++;
+  }
+  // pick the correction that belongs to the audio the shifter is playing now
+  _readControl() {
+    const sh = this.shifters[0];
+    const g = sh.grainSize;
+    let wsum = 0, dsum = 0;
+    for (let h = 0; h < 2; h++) {
+      const d = sh.delay[h];
+      const ph = Math.round(d - g * 0.5);
+      const w = sh.window[Math.max(0, Math.min(g, ph))];
+      wsum += w; dsum += w * d;
+    }
+    const D = wsum > 1e-6 ? dsum / wsum : g;
+    let back = (D - this.ctlLat - this.analysisIntervalSamples * 0.5) / this.analysisIntervalSamples;
+    if (back < 0) back = 0; if (back > 30) back = 30;
+    const top = this.hopIdx - 1;
+    if (top < 1) { this.targetRatio = 1; this.activeTarget = false; return; }
+    const pos = top - back;
+    const i0 = Math.floor(pos), fr = pos - i0;
+    const a0 = this.ctlA[i0 & 31], a1 = this.ctlA[Math.min(top, i0 + 1) & 31];
+    const near = fr < 0.5 ? a0 : a1;
+    if (!near) { this.targetRatio = 1; this.activeTarget = false; return; }
+    const c0 = this.ctlC[i0 & 31], c1 = this.ctlC[Math.min(top, i0 + 1) & 31];
+    const c = (a0 && a1) ? c0 + (c1 - c0) * fr : (a0 ? c0 : c1);
+    this.targetRatio = Math.pow(2, c / 12);
+    this.activeTarget = true;
   }
   _timeConstantSeconds(speed) {
     const s = Math.max(1, Math.min(100, speed));
@@ -4110,28 +4244,28 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
     // so writing output[ch] for every INPUT channel threw on the missing
     // channel -- that exception killed the processor and muted everything.
     const numChannels = output.length;
+    if (speed > 0) this._readControl(); else { this.activeTarget = false; }
     const frameLen = output[0].length;
     for (let i = 0; i < frameLen; i++) {
       let monoSample = 0;
       for (let ch = 0; ch < inChannels; ch++) monoSample += input[ch][i];
       monoSample /= inChannels;
-      this.analysisBuf[this.analysisWritePos] = monoSample;
-      this.analysisWritePos = (this.analysisWritePos + 1) % this.analysisWinSize;
+      // decimate into the analysis ring (always, so detection is warm the
+      // instant Tune is turned up)
+      this.decAcc += monoSample;
+      if (++this.decCount >= this.dec) {
+        this.dbuf[this.dpos] = this.decAcc / this.dec;
+        this.dpos = (this.dpos + 1) % this.dn;
+        this.decAcc = 0; this.decCount = 0;
+      }
       this.samplesSinceAnalysis++;
-      // Autocorrelation pitch detection is by far the heaviest thing on the
-      // audio thread (~hundreds of thousands of multiply-adds every 512
-      // samples). It's only needed while Tune is actually correcting, so skip
-      // it entirely at Tune = 0 -- the rolling buffer above stays filled, so
-      // detection picks up instantly the moment Tune is turned up.
+      // Pitch detection is the heaviest thing on the audio thread, so it is
+      // skipped entirely at Tune = 0.
       if (speed > 0 && this.samplesSinceAnalysis >= this.analysisIntervalSamples) {
         this.samplesSinceAnalysis = 0;
-        const ordered = this.orderedScratch;
-        for (let k = 0; k < this.analysisWinSize; k++) {
-          ordered[k] = this.analysisBuf[(this.analysisWritePos + k) % this.analysisWinSize];
-        }
-        const pr = detectPitch(ordered, this.sr, 70, 1000, this.acfScratch);
-        this.voiced = pr.confidence > 0.35 && pr.freq > 0;
-        this.targetRatio = this.voiced ? nearestScaleFreq(pr.freq, this.scaleMask) / pr.freq : 1.0;
+        this._analyse(speed);
+      } else if (speed <= 0) {
+        this.activeTarget = false;
       }
       const wantWet = speed > 0 ? 1 : 0;
       if (this.mix < wantWet) this.mix = Math.min(wantWet, this.mix + this.mixStep);
@@ -4155,7 +4289,7 @@ class GemstarPitchProcessor extends AudioWorkletProcessor {
         }
         continue;
       }
-      const tau = this._timeConstantSeconds(speed > 0 ? speed : 100);
+      const tau = this.activeTarget ? this._timeConstantSeconds(speed > 0 ? speed : 100) : 0.01;
       const dt = 1 / this.sr;
       const alpha = 1 - Math.exp(-dt / tau);
       this.currentRatio += (this.targetRatio - this.currentRatio) * alpha;
