@@ -1430,6 +1430,16 @@
     color:var(--ink-dim); margin-bottom:2px;
   }
   .transport > #beat-block{ order:50; }
+  /* Step labels glow green (same green as the record controls) so the flow reads 1 -> 2 -> 3 -> 4 */
+  .transport > #beat-drop::before,
+  .transport > #player-block::before,
+  .transport > #input-mode-row::before,
+  .transport > #extra-record-panel::before,
+  .transport > #vocal-controls-wrap::before,
+  .transport > #vocal-mixer::before,
+  .mixers-row::before{
+    color:var(--ok) !important; font-weight:700; text-shadow:0 0 10px rgba(60,242,160,0.55);
+  }
 
   /* ---- Mixer redesign: the knob grid now sits right under the recorded
      tracks (#player-block, order:20) instead of far below the page, and
