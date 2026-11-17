@@ -498,7 +498,13 @@
   .record-device-row select{width:100%; padding:9px 14px; font-size:0.74rem;}
   .record-device-hint{margin:0; color:var(--cyan); font-size:0.72rem; letter-spacing:0.02em; min-height:1em;}
   .record-fx-monitor-row{display:flex; align-items:center; gap:8px; font-size:0.8rem; cursor:pointer; user-select:none;}
-  .record-fx-monitor-row input[type=checkbox]{width:16px; height:16px; cursor:pointer;}
+  .record-fx-monitor-row input[type=checkbox]{width:16px; height:16px; cursor:pointer; accent-color:var(--ok);}
+  /* Green "this is live" look for the two record-panel controls people reach for most:
+     Choose microphone, and Hear yourself while tracking (glows only while it's ON). */
+  .icon-btn.btn-green{color:var(--ok); border-color:var(--ok); background:rgba(60,242,160,0.10); box-shadow:0 0 12px rgba(60,242,160,0.28);}
+  .icon-btn.btn-green:hover{color:#fff; border-color:var(--ok); background:rgba(60,242,160,0.2);}
+  .rec-glow-row{padding:6px 12px; border:1px solid var(--line-strong); border-radius:999px; color:var(--ink-dim); transition:box-shadow .2s, border-color .2s, color .2s, background .2s;}
+  .rec-glow-row:has(input:checked){color:var(--ok); border-color:var(--ok); background:rgba(60,242,160,0.10); box-shadow:0 0 12px rgba(60,242,160,0.28);}
   .record-fx-monitor-hint{color:var(--yellow); font-size:0.72rem; max-width:46ch; text-align:center;}
 
 
@@ -871,6 +877,14 @@
     font-weight:700; animation:save-btn-glow 2.6s ease-in-out infinite;
   }
   #btn-save-project:hover{ background:var(--ok); color:#050508; }
+  /* Save Project As + My Projects get the same green, lit look (static glow, no animation) */
+  #btn-save-as-project, #btn-open-projects{
+    border:1px solid var(--ok); color:var(--ok); background:rgba(60,242,160,0.10);
+    font-weight:700; box-shadow:0 0 12px rgba(60,242,160,0.35);
+  }
+  #btn-save-as-project:hover, #btn-open-projects:hover{ background:var(--ok); color:#050508; }
+  /* keep Save Project visibly lit even when its breathing animation is paused during playback */
+  #btn-save-project{ box-shadow:0 0 12px rgba(60,242,160,0.35); }
   /* decorations stand still while audio plays / the page scrolls -- fewer repaints, less crackle */
   body.gs-playing .pill-btn.rec-big,
   body.gs-playing #btn-save-project,
@@ -1346,7 +1360,7 @@
 /* ---- Guided Steps: recording-flow reorder (visual order only, DOM unchanged) ---- */
   .transport > #beat-drop{ order:10; }
   .transport > #beat-drop::before{
-    content:"STEP 1 · DROP YOUR BEAT";
+    content:"STEP 1 · DROP YOUR BEAT  \25BC";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:10px; text-align:left;
   }
@@ -1361,7 +1375,8 @@
   }
   .transport > #input-mode-row{ order:21; margin-top:4px; }
   .transport > #input-mode-row::before{
-    content:"STEP 2 · HIT RECORD";
+    content:"STEP 2 · HIT RECORD  \25BC";
+    white-space:nowrap;
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:10px;
   }
@@ -1370,13 +1385,13 @@
   .transport > #record-panel{ order:21; }
   .transport > #extra-record-panel{ order:21; margin-top:0; }
   .transport > #extra-record-panel::before{
-    content:"STEP 2 · HIT RECORD";
+    content:"STEP 2 · HIT RECORD  \25BC";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:2px;
   }
   .transport > #vocal-mixer{ order:40; margin-top:4px; }
   .transport > #vocal-mixer::before{
-    content:"STEP 4 · MIX IT IN";
+    content:"STEP 4 · MIX IT IN  \25BC";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:2px;
   }
@@ -1390,14 +1405,14 @@
      elements into .transport -- nothing about how they work changes. ---- */
   .transport > #vocal-controls-wrap{ order:22; margin-top:4px; }
   .transport > #vocal-controls-wrap::before{
-    content:"STEP 3 · DIAL IT IN";
+    content:"STEP 3 · DIAL IT IN  \25BC";
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:6px;
   }
   .transport > .mixers-row{ order:40; margin-top:4px; }
   .mixers-row{ display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
   .mixers-row::before{
-    content:"STEP 4 · MIX IT IN"; flex-basis:100%;
+    content:"STEP 4 · MIX IT IN  \25BC"; flex-basis:100%;
     display:block; font-family:var(--font-display); font-size:0.62rem; letter-spacing:0.18em;
     color:var(--ink-dim); margin-bottom:2px;
   }
@@ -1880,8 +1895,8 @@
           <select id="record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
           <p class="record-device-hint" id="record-device-hint"></p>
         </div>
-          <button type="button" class="icon-btn small" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
-          <label class="record-fx-monitor-row">
+          <button type="button" class="icon-btn small btn-green" id="btn-pick-mic" hidden data-i18n="pickMicBtn">🎚 Choose microphone</button>
+          <label class="record-fx-monitor-row rec-glow-row">
           <input type="checkbox" id="record-fx-monitor" checked />
           <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
         </label>
@@ -1926,7 +1941,7 @@
             <select id="extra-record-device-select" class="pill-btn pill-cyan" aria-label="Input device"></select>
             <p class="record-device-hint" id="extra-record-device-hint"></p>
           </div>
-          <label class="record-fx-monitor-row">
+          <label class="record-fx-monitor-row rec-glow-row">
             <input type="checkbox" id="extra-record-fx-monitor" checked />
             <span data-i18n="recordFxMonitorLabel">🎧 Hear yourself while tracking</span>
           </label>
