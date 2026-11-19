@@ -11186,7 +11186,7 @@ reader.readAsText(file);
 
       var canvas = document.createElement("canvas"); canvas.width = CW; canvas.height = CH;
       var c = canvas.getContext("2d");
-      var tapGain = null, dest = null, rec = null, chunks = [], drawRaf = 0, guard = 0, started = false, t0 = 0;
+      var tapGain = null, dest = null, muteG = null, muteChain = null, rec = null, chunks = [], drawRaf = 0, guard = 0, started = false, t0 = 0;
       var bars = new Array(36); for (var bi=0; bi<bars.length; bi++) bars[bi] = 0;
       var freq = null, binHz = 1, level = 0, flash = 0, lastLabel = "", replayed = false, switching = false, paused = false, segBase = 0;
 
@@ -11194,6 +11194,9 @@ reader.readAsText(file);
         cancelAnimationFrame(drawRaf); clearTimeout(guard); clearInterval(waitTimer);
         try { if (rec && rec.state !== "inactive") rec.stop(); } catch(e){}
         try { if (tapGain){ chain.safetyClip.disconnect(tapGain); tapGain.disconnect(); } } catch(e){}
+        // give the speakers their normal output back (the clip is recorded silently while it's made)
+        try { if (muteG && muteChain){ muteChain.analyser.connect(ctx.destination); muteChain.analyser.disconnect(muteG); muteG.disconnect(); } } catch(e){}
+        muteG = null; muteChain = null;
         try { stopPlayback(); } catch(e){}
         tlCursor = savedCursor; tlRegion = savedRegion; tlLoop = savedLoop;
         try { renderTimeline(); } catch(e){}
@@ -11321,6 +11324,13 @@ reader.readAsText(file);
               dest = ctx.createMediaStreamDestination();
               tapGain = ctx.createGain();
               chain.safetyClip.connect(tapGain); tapGain.connect(dest);
+              // Record silently: the clip is made without playing out loud -- the user plays it
+              // themselves once it's done. The analyser still runs (it drives the clip's visuals).
+              try {
+                muteG = ctx.createGain(); muteG.gain.value = 0; muteChain = chain;
+                chain.analyser.connect(muteG); muteG.connect(ctx.destination);
+                chain.analyser.disconnect(ctx.destination);
+              } catch(e){ muteG = null; muteChain = null; }
               freq = new Uint8Array(chain.analyser.frequencyBinCount);
               binHz = ctx.sampleRate / chain.analyser.fftSize;
               t0 = ctx.currentTime;
