@@ -10312,6 +10312,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
   // Spacebar toggles play/pause from anywhere on the page, as long as focus
   // isn't in a text field, a native form control (sliders included), or a
   // button -- those keep their own normal space-bar behavior.
+  var spaceLastTapAt = 0;
   document.addEventListener("keydown", function(e){
     if (e.code !== "Space" && e.key !== " " && e.key !== "Spacebar") return;
 if (isMicRecording) return; // never toggle the main transport while a take is being recorded -- a stray spacebar press here (e.g. after focus slips off the Record button) used to fire a second, overlapping playback of the beat on top of the one already running for the monitor
@@ -10320,6 +10321,17 @@ if (isMicRecording) return; // never toggle the main transport while a take is b
     var isFormEl = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON" || (el && el.isContentEditable);
     if (isFormEl) return;
     e.preventDefault();
+    if (e.repeat) return; // holding the key down shouldn't flip play/pause over and over
+    // Double-tap space = start the track over from the top (or the loop start) and play.
+    var nowSp = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (nowSp - spaceLastTapAt < 350 && currentTotalDuration() > 0){
+      spaceLastTapAt = 0;
+      tlCursor = (tlLoop && tlRegion) ? tlRegion.start : 0;
+      if (tlRegion && (tlCursor < tlRegion.start || tlCursor > tlRegion.end)){ tlRegion = null; tlLoop = false; }
+      if (isPlaying) restartPlaybackFromCursor(); else startPlayback();
+      return;
+    }
+    spaceLastTapAt = nowSp;
     btnPlay.click();
   });
 
