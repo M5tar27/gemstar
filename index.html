@@ -11176,6 +11176,18 @@ reader.readAsText(file);
       var savedCursor = tlCursor, savedRegion = tlRegion, savedLoop = tlLoop, savedBypass = bypassed;
       if (isPlaying) stopPlayback();
       var start = tlCursor;
+      // Nothing chosen on the timeline (cursor at the very top) and the vocal doesn't begin right away:
+      // start the clip where the vocal actually starts, so both the dry half and the mix half have the singing in them.
+      if (start < 0.05 && audioBuffer){
+        try {
+          var vd = audioBuffer.getChannelData(0), vsr = audioBuffer.sampleRate, vw = Math.floor(vsr * 0.05), vn = Math.floor(vd.length / vw);
+          var vr = new Array(vn), vmx = 0, vi, vj, vs2;
+          for (vi = 0; vi < vn; vi++){ vs2 = 0; for (vj = 0; vj < vw; vj++){ var vx = vd[vi*vw + vj]; vs2 += vx*vx; } vr[vi] = Math.sqrt(vs2 / vw); if (vr[vi] > vmx) vmx = vr[vi]; }
+          var vth = Math.max(0.01, vmx * 0.2), vonset = 0;
+          for (vi = 0; vi < vn - 3; vi++){ if (vr[vi] > vth && vr[vi+1] > vth && vr[vi+2] > vth){ vonset = vi * 0.05; break; } }
+          if (vonset > 1) start = Math.max(0, vonset + trackStartSec(leadTrack) - 0.3);
+        } catch(e){}
+      }
       if (start > total - 3) start = 0;
       var len = Math.min(clipSec, total - start);
       if (len < 3){ start = 0; len = Math.min(clipSec, total); }
