@@ -1693,7 +1693,7 @@
             <button type="button" class="clip-len" data-sec="30">30s</button>
             <button type="button" class="clip-len" data-sec="60">60s</button>
           </div>
-          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (the same moment twice: dry vocal first, then your full Gemstar mix)</span></label>
+          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (6 seconds of dry vocal, then the same vocal again with your full Gemstar mix)</span></label>
           <p class="clip-hint">Starts from where your playhead is. It plays your mix out loud while it records, so a 15s clip takes about 15s.</p>
           <button type="button" class="clip-primary" id="clip-make">Create clip</button>
           <p class="clip-msg err" id="clip-msg-setup"></p>
@@ -11180,7 +11180,7 @@ reader.readAsText(file);
       var len = Math.min(clipSec, total - start);
       if (len < 3){ start = 0; len = Math.min(clipSec, total); }
       var wantAB = !!abEl.checked && !!audioBuffer && len >= 6;
-      var splitAt = len / 2; // before-half, then the SAME stretch again for the after-half
+      var splitAt = Math.min(6, len / 2); // 6 s of dry vocal, then straight back to the same spot with the full mix
       var title = (titleEl.value || "").trim() || "My Gemstar vocal";
       clipName = (title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0,40) || "gemstar-clip");
 
@@ -11188,7 +11188,7 @@ reader.readAsText(file);
       var c = canvas.getContext("2d");
       var tapGain = null, dest = null, rec = null, chunks = [], drawRaf = 0, guard = 0, started = false, t0 = 0;
       var bars = new Array(36); for (var bi=0; bi<bars.length; bi++) bars[bi] = 0;
-      var freq = null, binHz = 1, level = 0, flash = 0, lastLabel = "", replayed = false;
+      var freq = null, binHz = 1, level = 0, flash = 0, lastLabel = "", replayed = false, switching = false, paused = false, segBase = 0;
 
       function cleanup(){
         cancelAnimationFrame(drawRaf); clearTimeout(guard); clearInterval(waitTimer);
@@ -11326,8 +11326,10 @@ reader.readAsText(file);
               t0 = ctx.currentTime;
               tapGain.gain.setValueAtTime(0, t0);
               tapGain.gain.linearRampToValueAtTime(1, t0 + 0.05);
-              tapGain.gain.setValueAtTime(1, t0 + len - 0.7);
-              tapGain.gain.linearRampToValueAtTime(0, t0 + len);
+              if (!wantAB){
+                tapGain.gain.setValueAtTime(1, t0 + len - 0.7);
+                tapGain.gain.linearRampToValueAtTime(0, t0 + len);
+              }
               var vs = canvas.captureStream(FPS);
               var stream = new MediaStream(vs.getVideoTracks().concat(dest.stream.getAudioTracks()));
               var opts = { mimeType: mime, videoBitsPerSecond: 4000000, audioBitsPerSecond: 192000 };
@@ -11349,15 +11351,33 @@ reader.readAsText(file);
               rec.start(250);
             } catch(err){ fail("Couldn't start recording: " + (err && err.message || err)); return; }
             var loop = function(){
-              var elapsed = Math.max(0, ctx.currentTime - t0);
+              var elapsed = segBase + Math.max(0, ctx.currentTime - t0);
               if (clipAbort){ cleanup(); return; }
               if (wantAB && !replayed && elapsed >= splitAt){
-                // Same part of the song, twice: jump back to where the clip started and play it again
-                // with the knobs and beat on, so Before and After are the same vocal moment.
-                replayed = true;
+                // Hard cut: mute + pause the recorder (so no dead air is captured), jump back to where the clip
+                // started and play the SAME stretch again with the knobs and beat on.
+                replayed = true; switching = true; segBase = splitAt;
+                try { var nw = ctx.currentTime; tapGain.gain.cancelScheduledValues(nw); tapGain.gain.setValueAtTime(0, nw); } catch(e){}
+                try { if (rec && rec.state === "recording" && rec.pause){ rec.pause(); paused = true; } } catch(e){}
                 setBefore(false);
                 tlCursor = start;
                 try { restartPlaybackFromCursor(); } catch(e){}
+              }
+              if (switching){
+                if (ctx.currentTime >= playStartCtxTime - 0.005){
+                  switching = false;
+                  t0 = Math.max(ctx.currentTime, playStartCtxTime);
+                  var rem = len - splitAt, tg = tapGain.gain;
+                  try {
+                    tg.cancelScheduledValues(t0); tg.setValueAtTime(0, t0); tg.linearRampToValueAtTime(1, t0 + 0.02);
+                    tg.setValueAtTime(1, t0 + rem - 0.6); tg.linearRampToValueAtTime(0, t0 + rem);
+                  } catch(e){}
+                  if (paused){ try { rec.resume(); } catch(e){} paused = false; }
+                } else {
+                  drawFrame(splitAt);
+                  drawRaf = requestAnimationFrame(loop);
+                  return;
+                }
               }
               drawFrame(Math.min(elapsed, len));
               busyBar.style.width = Math.min(100, elapsed/len*100).toFixed(1) + "%";
