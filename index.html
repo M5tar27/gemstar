@@ -1676,7 +1676,7 @@
             <button type="button" class="clip-len" data-sec="30">30s</button>
             <button type="button" class="clip-len" data-sec="60">60s</button>
           </div>
-          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (dry vocal first, then your full Gemstar mix)</span></label>
+          <label class="clip-check"><input type="checkbox" id="clip-ab" checked /> <span>Before &rarr; After (the same moment twice: dry vocal first, then your full Gemstar mix)</span></label>
           <p class="clip-hint">Starts from where your playhead is. It plays your mix out loud while it records, so a 15s clip takes about 15s.</p>
           <button type="button" class="clip-primary" id="clip-make">Create clip</button>
           <p class="clip-msg err" id="clip-msg-setup"></p>
@@ -11110,7 +11110,7 @@ reader.readAsText(file);
       var len = Math.min(clipSec, total - start);
       if (len < 3){ start = 0; len = Math.min(clipSec, total); }
       var wantAB = !!abEl.checked && !!audioBuffer && len >= 6;
-      var splitAt = len * 0.4;
+      var splitAt = len / 2; // before-half, then the SAME stretch again for the after-half
       var title = (titleEl.value || "").trim() || "My Gemstar vocal";
       clipName = (title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0,40) || "gemstar-clip");
 
@@ -11118,7 +11118,7 @@ reader.readAsText(file);
       var c = canvas.getContext("2d");
       var tapGain = null, dest = null, rec = null, chunks = [], drawRaf = 0, guard = 0, started = false, t0 = 0;
       var bars = new Array(36); for (var bi=0; bi<bars.length; bi++) bars[bi] = 0;
-      var freq = null, binHz = 1, level = 0, flash = 0, lastLabel = "";
+      var freq = null, binHz = 1, level = 0, flash = 0, lastLabel = "", replayed = false;
 
       function cleanup(){
         cancelAnimationFrame(drawRaf); clearTimeout(guard); clearInterval(waitTimer);
@@ -11281,7 +11281,14 @@ reader.readAsText(file);
             var loop = function(){
               var elapsed = Math.max(0, ctx.currentTime - t0);
               if (clipAbort){ cleanup(); return; }
-              if (wantAB && elapsed >= splitAt && bypassed) setBefore(false);
+              if (wantAB && !replayed && elapsed >= splitAt){
+                // Same part of the song, twice: jump back to where the clip started and play it again
+                // with the knobs and beat on, so Before and After are the same vocal moment.
+                replayed = true;
+                setBefore(false);
+                tlCursor = start;
+                try { restartPlaybackFromCursor(); } catch(e){}
+              }
               drawFrame(Math.min(elapsed, len));
               busyBar.style.width = Math.min(100, elapsed/len*100).toFixed(1) + "%";
               if (elapsed >= len){
