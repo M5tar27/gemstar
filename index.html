@@ -358,6 +358,15 @@
     -webkit-background-clip:text; background-clip:text; color:transparent;
   }
   .sub-headline{color:var(--ink-muted); max-width:44ch; margin:0 auto; font-size:1rem;}
+  .install-app-btn{margin:14px auto 0; display:inline-flex; align-items:center; gap:8px; padding:9px 16px; border-radius:999px; border:1px solid var(--ok); background:rgba(60,242,160,0.08); color:var(--ok); font-family:var(--font-display); font-weight:700; font-size:0.78rem; letter-spacing:0.08em; cursor:pointer;}
+  .install-app-btn[hidden]{display:none;}
+  .install-app-btn:hover{background:rgba(60,242,160,0.18);}
+  .install-help{position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(5,5,10,0.78);}
+  .install-help[hidden]{display:none;}
+  .install-help-card{max-width:360px; width:100%; background:var(--bg-panel); border:1px solid var(--line-strong); border-radius:14px; padding:18px 18px 16px; color:var(--ink);}
+  .install-help-card h3{margin:0 0 8px; font-size:1.05rem; color:var(--ok);}
+  .install-help-card p{margin:0 0 14px; font-size:0.9rem; line-height:1.5; color:var(--ink-muted);}
+  .install-help-card button{width:100%; padding:10px; border-radius:9px; border:none; cursor:pointer; background:var(--ok); color:#03191b; font-weight:700;}
 
   /* ---------------- before/after demo ---------------- */
   /* A quick "hear the difference" proof point, placed right under the
@@ -1633,7 +1642,15 @@
     <p class="eyebrow" data-i18n="eyebrow">M5tar Studio x Gemsquad Productions</p>
     <h1 class="headline" data-i18n-html="headline">Your beat. Your voice. <em>Our ears.</em></h1>
     <p class="sub-headline" data-i18n="subheadline">Drop both in and hear them sit together. AI mixing, studio polish without the studio wait — collaborate with anyone, anywhere in the world.</p>
+    <button type="button" class="install-app-btn" id="btn-install-app" data-i18n="installBtn" hidden>📲 Install Gemstar app</button>
   </header>
+  <div class="install-help" id="install-help" hidden role="dialog" aria-modal="true" aria-labelledby="install-help-title">
+    <div class="install-help-card">
+      <h3 id="install-help-title" data-i18n="installTitle">Install Gemstar</h3>
+      <p id="install-help-text"></p>
+      <button type="button" id="install-help-close" data-i18n="installClose">Got it</button>
+    </div>
+  </div>
 
   <section class="before-after" aria-label="Before and after example">
     <p class="ba-label">Hear the difference</p>
@@ -2479,6 +2496,7 @@ calibrateSyncTapBtn:"TAP",
       planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
+      installBtn:"📲 Install Gemstar app", installTitle:"Install Gemstar", installIos:"Tap the Share button at the bottom of Safari, then tap Add to Home Screen. Gemstar will show up as an app on your home screen.", installMac:"In Safari, open the File menu (or the Share button) and choose Add to Dock. Gemstar will open in its own window like an app.", installOther:"Open your browser menu and choose Install app (or Add to Home Screen). Gemstar will open in its own window like an app.", installClose:"Got it",
       aiMixHowQ:"How does AI Mix work?", aiMixHowA:"AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) It adds no effects: no reverb, delay, widening or radio. 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.",
       aiMixHint:"One tap: balances levels, pan and tone across every track, brings your vocal forward and tucks the beat under it so the voice sits clearly on top. Shows exactly what changed. Undoable.",
       aiMixAppliedToast:"✨ AI Mix applied",
@@ -2733,6 +2751,7 @@ calibrateSyncTapBtn:"TOCAR",
       planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
+      installBtn:"📲 Instalar la app Gemstar", installTitle:"Instalar Gemstar", installIos:"Toca el botón Compartir en la parte inferior de Safari y luego Añadir a pantalla de inicio. Gemstar aparecerá como una app en tu pantalla de inicio.", installMac:"En Safari, abre el menú Archivo (o el botón Compartir) y elige Añadir al Dock. Gemstar se abrirá en su propia ventana como una app.", installOther:"Abre el menú de tu navegador y elige Instalar app (o Añadir a pantalla de inicio). Gemstar se abrirá en su propia ventana como una app.", installClose:"Entendido",
       aiMixHowQ:"¿Cómo funciona AI Mix?", aiMixHowA:"AI Mix es un ajuste de equilibrio con un toque. 1) Escucha: mide qué tan fuerte suena cada toma, ignorando el silencio entre frases. 2) Ajusta cada volumen para que las pistas se mezclen, con la principal al frente y el resto detrás. 3) Le da a cada pista su función (principal, coro, doble a la izquierda o derecha, o ad-lib) y ajusta su panorama y tono (Punch, Bass, Voice, Highs, Smooth) según corresponda. 4) No agrega efectos: nada de reverb, delay, ensanchado ni radio. 5) Si hay un beat cargado, lo baja unos dB por debajo de tus voces y reduce un poco sus medios para que tu voz se escuche clara encima. Luego una tarjeta muestra exactamente qué cambió en cada pista, y Deshacer lo devuelve todo. Es un punto de partida, así que puedes ajustar cualquier perilla después. Incluido en los planes Mix y Unlimited.",
       aiMixHint:"Un toque: equilibra niveles, panorama y tono en cada pista, adelanta tu voz y baja el instrumental para que la voz se escuche clara encima. Muestra exactamente qué cambió. Se puede deshacer.",
       aiMixAppliedToast:"✨ Mezcla IA aplicada",
@@ -8546,6 +8565,36 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       if (typeof hideAiMixUndoBtn === "function") hideAiMixUndoBtn();
       if (f) f();
     });
+  })();
+
+  // "Install Gemstar app": uses the browser's own install box where it exists (Chrome, Edge,
+  // Android); on iPhone/iPad Safari and Mac Safari there is no install box, so show how-to steps.
+  (function(){
+    var btn = document.getElementById("btn-install-app"), help = document.getElementById("install-help");
+    var helpText = document.getElementById("install-help-text"), helpClose = document.getElementById("install-help-close");
+    if (!btn || !help) return;
+    var standalone = false;
+    try { standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true; } catch(e){}
+    if (standalone) return; // already running as an installed app
+    var ua = navigator.userAgent || "";
+    var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var isMacSafari = !isIOS && /Macintosh/.test(ua) && /Safari/.test(ua) && !/Chrome|Chromium|Edg|OPR|Firefox/.test(ua);
+    var deferred = null;
+    window.addEventListener("beforeinstallprompt", function(e){ e.preventDefault(); deferred = e; btn.hidden = false; });
+    window.addEventListener("appinstalled", function(){ deferred = null; btn.hidden = true; });
+    if (isIOS || isMacSafari) btn.hidden = false;
+    btn.addEventListener("click", function(){
+      if (deferred){
+        var d = deferred; deferred = null;
+        try { d.prompt(); if (d.userChoice) d.userChoice.then(function(c){ if (c && c.outcome === "accepted") btn.hidden = true; else if (!deferred) { /* dismissed: keep button, prompt can fire again later */ } }); } catch(e){}
+        return;
+      }
+      var T = STR[lang] || STR.en;
+      helpText.textContent = isIOS ? T.installIos : (isMacSafari ? T.installMac : T.installOther);
+      help.hidden = false;
+    });
+    helpClose.addEventListener("click", function(){ help.hidden = true; });
+    help.addEventListener("click", function(e){ if (e.target === help) help.hidden = true; });
   })();
 
   function applyPlanLimit(){
