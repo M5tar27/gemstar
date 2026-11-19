@@ -8584,14 +8584,23 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     window.addEventListener("appinstalled", function(){ deferred = null; btn.hidden = true; });
     if (isIOS || isMacSafari) btn.hidden = false;
     btn.addEventListener("click", function(){
+      function showHelp(){
+        var T = STR[lang] || STR.en;
+        helpText.textContent = isIOS ? T.installIos : (isMacSafari ? T.installMac : T.installOther);
+        help.hidden = false;
+      }
       if (deferred){
         var d = deferred; deferred = null;
-        try { d.prompt(); if (d.userChoice) d.userChoice.then(function(c){ if (c && c.outcome === "accepted") btn.hidden = true; else if (!deferred) { /* dismissed: keep button, prompt can fire again later */ } }); } catch(e){}
+        // If the browser refuses or fails to open its own install box, fall back to the how-to steps
+        // so the button never looks dead.
+        try {
+          var pr = d.prompt();
+          if (pr && pr.catch) pr.catch(showHelp);
+          if (d.userChoice) d.userChoice.then(function(c){ if (c && c.outcome === "accepted") btn.hidden = true; }).catch(showHelp);
+        } catch(e){ showHelp(); }
         return;
       }
-      var T = STR[lang] || STR.en;
-      helpText.textContent = isIOS ? T.installIos : (isMacSafari ? T.installMac : T.installOther);
-      help.hidden = false;
+      showHelp();
     });
     helpClose.addEventListener("click", function(){ help.hidden = true; });
     help.addEventListener("click", function(e){ if (e.target === help) help.hidden = true; });
