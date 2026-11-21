@@ -725,6 +725,12 @@
     background:var(--danger); border:1px solid var(--danger); color:#0A0A12; font-weight:700;
     font-size:0.85rem; border-radius:8px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.5);
   }
+  .row-copy-float{
+    position:absolute; z-index:7; transform:translateX(-50%); min-height:28px; padding:4px 12px;
+    background:var(--cyan); border:1px solid var(--cyan); color:#0A0A12; font-weight:700;
+    font-size:0.8rem; border-radius:8px; cursor:pointer; box-shadow:0 2px 10px rgba(0,0,0,0.5);
+  }
+  .btn-paste-here{color:var(--cyan); border-color:var(--cyan);}
   .all-vocals-row .row-controls .trk-nudge{color:var(--ink-dim);}
   .all-vocals-row .row-controls .trk-nudge.on{color:var(--yellow); border-color:var(--yellow); background:rgba(255,230,0,0.12);}
   .all-vocals-playhead{
@@ -1922,6 +1928,7 @@
             <div class="all-vocals-cursor" id="all-vocals-cursor" hidden></div>
             <div class="all-vocals-playhead" id="all-vocals-playhead" hidden></div>
             <button type="button" class="row-cut-float" id="row-cut-float" hidden data-i18n="cutBtn">✂ Cut</button>
+            <button type="button" class="row-copy-float" id="row-copy-float" hidden data-i18n="copyBtn">⧉ Copy</button>
           </div>
         </div>
         <div class="waveform-shell beat-waveform-shell" id="beat-waveform-shell" hidden>
@@ -1952,6 +1959,7 @@
             </div>
             <div class="transport-btns">
               <button class="icon-btn small btn-punch-here" id="btn-tl-punch" type="button">🎤 Record from here</button>
+              <button class="icon-btn small btn-paste-here" id="btn-tl-paste" type="button" hidden>📋 Paste here</button>
               <button class="icon-btn small" id="btn-tl-start" type="button" data-i18n="tlToStart">⏮ Start</button>
               <button class="icon-btn small" id="btn-loop" type="button">⟲ Loop: Off</button>
             </div>
@@ -2557,6 +2565,7 @@ calibrateSyncTapBtn:"TAP",
       cleanNone:"No dead air long enough to clean up. Your vocals were already tight.",
       cutHint:"Drag across the waveform to highlight what you want to cut, then tap Cut. Drag the grips on either end to fine-tune. The highlighted part is removed and the rest of this vocal closes up.",
       cutSelectedLabel:"{dur}s highlighted — tap ✂ Cut to remove it",
+      copyBtn:"⧉ Copy", pasteBtn:"📋 Paste at {time}", pasteAria:"Paste the copied vocal section at {time} on a new track", copiedToast:"Copied {dur}s — move the playhead where you want it, then tap Paste", pastedToast:'Pasted as new track "{name}"', pasteTrackName:"Paste {time}", pasteNeedsTrack:"Nothing to paste yet — highlight a vocal section and tap Copy first.",
       cutBtn:"✂ Cut", cutClearBtn:"✕ Clear", cutUndoBtn:"↺ Undo Cut",
       cutDoneToast:'"{name}": section removed',
       cutAllWarn:"That would remove the whole take -- highlight just the part you want gone.",
@@ -2813,6 +2822,7 @@ calibrateSyncTapBtn:"TOCAR",
       cleanNone:"No hay silencios lo bastante largos para limpiar. Tus voces ya estaban limpias.",
       cutHint:"Arrastra sobre la onda para resaltar lo que quieres cortar y toca Cortar. Arrastra los agarres de los extremos para ajustar. La parte resaltada se elimina y el resto de esta voz se cierra.",
       cutSelectedLabel:"{dur}s resaltados — toca ✂ Cortar para eliminarlo",
+      copyBtn:"⧉ Copiar", pasteBtn:"📋 Pegar en {time}", pasteAria:"Pegar la sección de voz copiada en {time} en una pista nueva", copiedToast:"Copiado {dur}s — mueve el cursor adonde la quieras y toca Pegar", pastedToast:'Pegado como pista nueva "{name}"', pasteTrackName:"Pegado {time}", pasteNeedsTrack:"Aún no hay nada que pegar — resalta una sección de voz y toca Copiar primero.",
       cutBtn:"✂ Cortar", cutClearBtn:"✕ Borrar", cutUndoBtn:"↺ Deshacer corte",
       cutDoneToast:'"{name}": sección eliminada',
       cutAllWarn:"Eso eliminaría toda la toma -- resalta solo la parte que quieres quitar.",
@@ -7139,7 +7149,10 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     hideUndoToast();
     undoToastAction = onUndo;
     if (undoToastTextEl) undoToastTextEl.textContent = message;
+    if (undoToastBtnEl) undoToastBtnEl.hidden = !onUndo; // info-only message (e.g. "Copied") has nothing to undo
     undoToastEl.classList.add("show");
+    clearTimeout(showUndoToast._t);
+    if (!onUndo) showUndoToast._t = setTimeout(function(){ if (!undoToastAction) hideUndoToast(); }, 6000);
     // Used to auto-dismiss after 8s -- people are often still mid-edit
     // (checking another track, tweaking something else) when a remove/
     // re-record fires, and the Undo would disappear before they'd actually
@@ -7752,6 +7765,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   var allVocalsRegionEl = document.getElementById("all-vocals-region");
   var allVocalsCursorEl = document.getElementById("all-vocals-cursor");
   var rowCutFloatEl = document.getElementById("row-cut-float");
+  var rowCopyFloatEl = document.getElementById("row-copy-float");
   var gridRowDraws = [];   // one redraw closure per lane, so sliding the zoomed view never rebuilds the DOM
   var gridPressActive = false; // a finger is down on a lane: don't auto-page/rebuild the lanes under it
   var gridSelId = null;    // which vocal lane the current loop/cut section was dragged on
@@ -7768,6 +7782,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     if (!vis || !(winDur > 0)){
       allVocalsRegionEl.hidden = true; allVocalsCursorEl.hidden = true;
       if (rowCutFloatEl) rowCutFloatEl.hidden = true;
+      if (rowCopyFloatEl) rowCopyFloatEl.hidden = true;
       return;
     }
     var cf = (tlCursor - winStart) / winDur;
@@ -7792,12 +7807,14 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
             mid = Math.max(half + 4, Math.min(wr.width - half - 4, mid));
             rowCutFloatEl.style.left = mid + "px";
             rowCutFloatEl.style.top = Math.max(0, rr.top - wr.top + 6) + "px";
+            if (rowCopyFloatEl){ rowCopyFloatEl.style.left = mid + "px"; rowCopyFloatEl.style.top = Math.max(0, rr.top - wr.top + 44) + "px"; }
             showCut = true;
           }
         }
       }
     } else { allVocalsRegionEl.hidden = true; gridSelId = null; }
     if (rowCutFloatEl) rowCutFloatEl.hidden = !showCut;
+    if (rowCopyFloatEl) rowCopyFloatEl.hidden = !showCut;
   }
   function panRedrawAllRows(){
     for (var i = 0; i < gridRowDraws.length; i++){ try { gridRowDraws[i](); } catch(err){} }
@@ -9963,6 +9980,87 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   // selected -- keep recording a short take, or redo a line mid-song. Same
   // Punch In pipeline as the scissors icon on each track row (startPunchIn),
   // just reachable right from the timeline and labeled with the tapped time.
+  /* ---- Copy / Paste a vocal section ----
+     Highlight a section on a vocal lane (hold, then drag), tap Copy, move the playhead to where you want it,
+     tap Paste. The copy lands on its OWN new track at that spot (silent before it, so it sits exactly on the
+     timeline) with the same level / pan / FX settings as the vocal it came from -- nothing is overwritten. */
+  var pasteClip = null; // {chans:[Float32Array], sr, dur, values, level, pan, role}
+  var btnTlPaste = document.getElementById("btn-tl-paste");
+  function gridTrackById(id){
+    if (id === "lead") return leadTrack;
+    for (var i = 0; i < extraVocals.length; i++) if (String(extraVocals[i].id) === String(id)) return extraVocals[i];
+    return null;
+  }
+  function copySelectedSection(){
+    if (!tlRegion || !gridSelId || isMicRecording) return false;
+    var tr = gridTrackById(gridSelId);
+    var buf = tr === leadTrack ? audioBuffer : (tr && tr.buffer);
+    if (!tr || !buf) return false;
+    var nz = trackNudgeSec(tr);
+    var a = Math.max(0, tlRegion.start - nz), b = Math.min(buf.duration, tlRegion.end - nz);
+    if (b - a < 0.05) return false;
+    var sr = buf.sampleRate, i0 = Math.round(a * sr), i1 = Math.min(buf.length, Math.round(b * sr));
+    var chans = [];
+    for (var c = 0; c < buf.numberOfChannels; c++) chans.push(new Float32Array(buf.getChannelData(c).subarray(i0, i1)));
+    pasteClip = {chans: chans, sr: sr, dur: (i1 - i0) / sr,
+                 values: Object.assign({}, tr === leadTrack ? leadValues : (tr.values || {})),
+                 level: (typeof tr.level === "number") ? tr.level : 1, pan: tr.pan || 0, role: tr.role || ""};
+    showUndoToast(STR[lang].copiedToast.replace("{dur}", pasteClip.dur.toFixed(1)), null);
+    updatePunchHereButton();
+    return true;
+  }
+  function pasteClipHere(){
+    if (!pasteClip || isMicRecording) return false;
+    if (totalVocalTrackCount() >= maxVocalTracks()){
+      alert(STR[lang].recordCapReached.replace("{max}", String(maxVocalTracks())).replace("{plan}", planLabelFor(currentPlan)));
+      return false;
+    }
+    var pos = Math.max(0, currentPlayPosition());
+    var sr = pasteClip.sr, pad = Math.round(pos * sr), segLen = pasteClip.chans[0].length;
+    var out = ctx.createBuffer(pasteClip.chans.length, pad + segLen, sr);
+    var fade = Math.min(Math.round(0.008 * sr), Math.floor(segLen / 2));
+    for (var c = 0; c < pasteClip.chans.length; c++){
+      var d = out.getChannelData(c);
+      d.set(pasteClip.chans[c], pad);
+      for (var f = 0; f < fade; f++){ var g = (f + 1) / (fade + 1); d[pad + f] *= g; d[d.length - 1 - f] *= g; }
+    }
+    var name = STR[lang].pasteTrackName.replace("{time}", fmtRecordTime(pos));
+    var wasPlaying = isPlaying;
+    if (wasPlaying) stopPlayback();
+    var t = pushExtraVocal(name, out);
+    t._file = fileFromBuffer(out, name + ".wav");
+    t.values = Object.assign({}, pasteClip.values);
+    t.level = pasteClip.level; t.pan = pasteClip.pan; t.role = pasteClip.role;
+    if (t.chain) applyParamsTo(t.chain, t.values);
+    renderExtraVocals();
+    afterVocalSetChanged();
+    if (wasPlaying) startPlayback();
+    showUndoToast(STR[lang].pastedToast.replace("{name}", name), function(){
+      var wp = isPlaying;
+      if (wp) stopPlayback();
+      removeExtraVocal(t, {silent: true});
+      afterVocalSetChanged();
+      if (wp) startPlayback();
+    });
+    return true;
+  }
+  if (rowCopyFloatEl) rowCopyFloatEl.addEventListener("click", function(e){ e.stopPropagation(); copySelectedSection(); });
+  if (btnTlPaste) btnTlPaste.addEventListener("click", function(){ if (!pasteClipHere()) showUndoToast(STR[lang].pasteNeedsTrack, null); });
+  document.addEventListener("keydown", function(e){
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    var k = (e.key || "").toLowerCase();
+    if (k !== "c" && k !== "v") return;
+    var el = document.activeElement, tag = el && el.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el && el.isContentEditable)) return;
+    if (k === "c"){
+      var selTxt = window.getSelection ? String(window.getSelection()) : "";
+      if (selTxt) return; // real text is selected -- let the browser copy it
+      if (copySelectedSection()) e.preventDefault();
+    } else if (pasteClip){
+      if (pasteClipHere()) e.preventDefault();
+    }
+  });
+
   var btnTlPunch = document.getElementById("btn-tl-punch");
   function updatePunchHereButton(){
     if (!btnTlPunch) return;
@@ -9973,6 +10071,14 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       btnTlPunch.setAttribute("aria-label", STR[lang].tlPunchAria.replace("{time}", t));
     }
     btnTlPunch.disabled = !!isMicRecording;
+    if (btnTlPaste){
+      btnTlPaste.hidden = !pasteClip;
+      if (pasteClip){
+        var pl = STR[lang].pasteBtn.replace("{time}", t);
+        if (btnTlPaste.textContent !== pl){ btnTlPaste.textContent = pl; btnTlPaste.setAttribute("aria-label", STR[lang].pasteAria.replace("{time}", t)); }
+        btnTlPaste.disabled = !!isMicRecording;
+      }
+    }
   }
   if (btnTlPunch) btnTlPunch.addEventListener("click", function(){
     if (isMicRecording) return;
