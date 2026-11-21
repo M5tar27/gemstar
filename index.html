@@ -958,6 +958,7 @@
   .vocal-mixer .controls-heading{ text-align:left; margin:0; }
   .ai-mix-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
   .ai-mix-actions{display:flex; align-items:center; gap:8px; flex-shrink:0;}
+  .ai-mix-style{background:var(--bg-panel-2); color:var(--ink); border:1px solid var(--line-strong); border-radius:8px; padding:5px 8px; font-size:0.78rem; margin-right:6px; max-width:120px;}
   .icon-btn.btn-ai-mix{
     background:linear-gradient(90deg, var(--cyan), var(--gem)); border:none; color:#050508; font-weight:700;
     flex-shrink:0;
@@ -1836,12 +1837,20 @@
         <div class="ai-mix-row">
           <p class="controls-heading" data-i18n="vocalMixerHeading">Vocal Mixer</p>
           <span class="ai-mix-actions">
+            <select id="ai-mix-style" class="ai-mix-style" data-i18n-aria="aiMixStyleAria" aria-label="AI Mix style">
+              <option value="balanced" data-i18n="aiStyleBalanced">Balanced</option>
+              <option value="rnb" data-i18n="aiStyleRnb">R&amp;B</option>
+              <option value="pop" data-i18n="aiStylePop">Pop</option>
+              <option value="hiphop" data-i18n="aiStyleHiphop">Hip-hop</option>
+              <option value="rock" data-i18n="aiStyleRock">Rock</option>
+              <option value="afrobeat" data-i18n="aiStyleAfrobeat">Afrobeat</option>
+            </select>
             <button type="button" class="icon-btn small btn-ai-mix" id="btn-ai-mix" data-i18n="aiMixBtn" data-i18n-aria="aiMixAria" aria-label="AI Mix: automatically balance levels, pan and tone across every track">✨ AI Mix</button>
             <button type="button" class="icon-btn small" id="btn-ai-mix-undo" data-i18n="aiMixUndoBtn" data-i18n-aria="aiMixUndoAria" aria-label="Undo AI Mix -- restore the levels, pan and tone from before" hidden>↺ Undo</button>
           </span>
         </div>
         <p class="vocal-cap-note ai-mix-hint" data-i18n="aiMixHint">One tap: balances levels, pan and tone across every track, brings your vocal forward and tucks the beat under it so the voice sits clearly on top. Shows exactly what changed. Undoable.</p>
-        <details class="ai-mix-how"><summary data-i18n="aiMixHowQ">How does AI Mix work?</summary><p data-i18n="aiMixHowA">AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) It adds no effects: no reverb, delay, widening or radio. 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.</p></details>
+        <details class="ai-mix-how"><summary data-i18n="aiMixHowQ">How does AI Mix work?</summary><p data-i18n="aiMixHowA">AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) On Balanced it adds no effects: no reverb, delay, widening or radio. Pick R&B, Pop, Hip-hop, Rock or Afrobeat and it also tilts the tone, the beat balance and a light touch of space and width toward that genre (starting points, not magic: tweak any knob afterwards). 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.</p></details>
         <div class="ai-mix-report" id="ai-mix-report" hidden role="status" aria-live="polite">
           <div class="ai-mix-report-head">
             <strong id="ai-mix-report-title"></strong>
@@ -2288,7 +2297,7 @@
         <details class="faq-item"><summary data-i18n="faqQ7">I press Play but hear nothing.</summary><p data-i18n="faqA7">Check your volume and that the browser tab isn't muted, then reload. If you use an audio interface, make sure your computer's sound output is set to what you're listening on. Still stuck? Email Gemstaraudio@gmail.com.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ8">What do the plans include?</summary><p data-i18n="faqA8">Starter ($19/mo): the full core vocal chain, 3 vocal tracks, and Collab (3 invites a month). Mix ($49/mo): Full Song Mix with your beat, 5 vocal tracks with their own effects chains, one-tap AI Mix, and Collab (15 invites a month to have friends record on your tracks). Unlimited ($99/mo): everything in Mix (including AI Mix), up to 100 Collab invites a month, the M5tar & Jewels signature knobs, 8 vocal tracks, unlimited songs, and 10% off your first 3 months. Every plan includes auto key detection for your beat.</p></details>
         <details class="faq-item"><summary data-i18n="faqQCollab">What is Collab?</summary><p data-i18n="faqACollab">Collab lets you invite a friend to record a layer over one of your tracks, from their phone or computer, with no account needed. You get an email, listen, accept or mute their layer, adjust its volume and timing, and download the full mix. Collab is included on every paid plan: 3 invites a month on Starter, 15 on Mix, 100 on Unlimited. Your friend never needs a paid plan.</p></details>
-        <details class="faq-item"><summary data-i18n="aiMixHowQ">How does AI Mix work?</summary><p data-i18n="aiMixHowA">AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) It adds no effects: no reverb, delay, widening or radio. 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.</p></details>
+        <details class="faq-item"><summary data-i18n="aiMixHowQ">How does AI Mix work?</summary><p data-i18n="aiMixHowA">AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) On Balanced it adds no effects: no reverb, delay, widening or radio. Pick R&B, Pop, Hip-hop, Rock or Afrobeat and it also tilts the tone, the beat balance and a light touch of space and width toward that genre (starting points, not magic: tweak any knob afterwards). 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.</p></details>
         <details class="faq-item"><summary data-i18n="faqQ9">Does Gemstar remember my settings?</summary><p data-i18n="faqA9">Yes, in the same browser. Your knobs, output gain, Auto-Tune key and language are saved automatically. Audio files aren't stored, but drop the same files again and each one picks its level, pan and knob settings back up.</p></details>
       </div>
       <p class="faq-contact" data-i18n-html="faqContact">Still have a question? Email <a href="mailto:Gemstaraudio@gmail.com">Gemstaraudio@gmail.com</a> and we'll help.</p>
@@ -2522,8 +2531,9 @@ calibrateSyncTapBtn:"TAP",
       planOptStarter:"Starter · 3 vocal tracks", planOptMix:"Mix · 5 vocal tracks", planOptUnlimited:"Unlimited · 8 vocal tracks",
       vocalMixerHeading:"Vocal Mixer", leadVocalLabel:"Lead Vocal Level", addVocalBtn:"+ Add Vocal Track",
       aiMixBtn:"✨ AI Mix", aiMixAria:"AI Mix: automatically balance levels, pan and tone",
+      aiMixStyleAria:"AI Mix style", aiStyleBalanced:"Balanced", aiStyleRnb:"R&B", aiStylePop:"Pop", aiStyleHiphop:"Hip-hop", aiStyleRock:"Rock", aiStyleAfrobeat:"Afrobeat", aiMixRepStyle:"style",
       installBtn:"📲 Install Gemstar app", installTitle:"Install Gemstar", installIos:"Tap the Share button at the bottom of Safari, then tap Add to Home Screen. Gemstar will show up as an app on your home screen.", installMac:"In Safari, open the File menu (or the Share button) and choose Add to Dock. Gemstar will open in its own window like an app.", installOther:"Open your browser menu and choose Install app (or Add to Home Screen). Gemstar will open in its own window like an app.", installClose:"Got it",
-      aiMixHowQ:"How does AI Mix work?", aiMixHowA:"AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) It adds no effects: no reverb, delay, widening or radio. 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.",
+      aiMixHowQ:"How does AI Mix work?", aiMixHowA:"AI Mix is a one-tap balancing pass. 1) It listens: it measures how loud each take really is, ignoring the silence between phrases. 2) It sets every volume so the tracks blend, with the lead forward and everything else behind it. 3) It gives each track a job (lead, background, double panned left or right, or ad-lib) and sets that track's pan and tone (Punch, Bass, Voice, Highs, Smooth) to suit it. 4) On Balanced it adds no effects: no reverb, delay, widening or radio. Pick R&B, Pop, Hip-hop, Rock or Afrobeat and it also tilts the tone, the beat balance and a light touch of space and width toward that genre (starting points, not magic: tweak any knob afterwards). 5) If a beat is loaded, it sets the beat a few dB under your vocals and dips the beat's mids a little so your voice sits clearly on top. A card then shows exactly what changed on each track, and Undo puts everything back. It's a starting point, so tweak any knob afterwards. Included in the Mix and Unlimited plans.",
       aiMixHint:"One tap: balances levels, pan and tone across every track, brings your vocal forward and tucks the beat under it so the voice sits clearly on top. Shows exactly what changed. Undoable.",
       aiMixAppliedToast:"✨ AI Mix applied",
       aiMixRepTitle:"✨ Here's what AI Mix just did", aiMixRepUndo:"↺ Undo AI Mix", aiMixRepVol:"Volume", aiMixRepKept:"already right, kept", aiMixRepPan:"Pan", aiMixRepBeat:"Beat", aiMixRepBeatWhy:"Set a few dB under your vocals, with its mids dipped a little, so the voice sits clearly on top.",
@@ -2779,8 +2789,9 @@ calibrateSyncTapBtn:"TOCAR",
       planOptStarter:"Inicial · 3 pistas vocales", planOptMix:"Mix · 5 pistas vocales", planOptUnlimited:"Ilimitado · 8 pistas vocales",
       vocalMixerHeading:"Mezclador Vocal", leadVocalLabel:"Nivel De Voz Principal", addVocalBtn:"+ Agregar Pista Vocal",
       aiMixBtn:"✨ Mezcla IA", aiMixAria:"Mezcla IA: equilibra niveles, panorama y tono automáticamente",
+      aiMixStyleAria:"Estilo de la Mezcla IA", aiStyleBalanced:"Equilibrada", aiStyleRnb:"R&B", aiStylePop:"Pop", aiStyleHiphop:"Hip-hop", aiStyleRock:"Rock", aiStyleAfrobeat:"Afrobeat", aiMixRepStyle:"estilo",
       installBtn:"📲 Instalar la app Gemstar", installTitle:"Instalar Gemstar", installIos:"Toca el botón Compartir en la parte inferior de Safari y luego Añadir a pantalla de inicio. Gemstar aparecerá como una app en tu pantalla de inicio.", installMac:"En Safari, abre el menú Archivo (o el botón Compartir) y elige Añadir al Dock. Gemstar se abrirá en su propia ventana como una app.", installOther:"Abre el menú de tu navegador y elige Instalar app (o Añadir a pantalla de inicio). Gemstar se abrirá en su propia ventana como una app.", installClose:"Entendido",
-      aiMixHowQ:"¿Cómo funciona AI Mix?", aiMixHowA:"AI Mix es un ajuste de equilibrio con un toque. 1) Escucha: mide qué tan fuerte suena cada toma, ignorando el silencio entre frases. 2) Ajusta cada volumen para que las pistas se mezclen, con la principal al frente y el resto detrás. 3) Le da a cada pista su función (principal, coro, doble a la izquierda o derecha, o ad-lib) y ajusta su panorama y tono (Punch, Bass, Voice, Highs, Smooth) según corresponda. 4) No agrega efectos: nada de reverb, delay, ensanchado ni radio. 5) Si hay un beat cargado, lo baja unos dB por debajo de tus voces y reduce un poco sus medios para que tu voz se escuche clara encima. Luego una tarjeta muestra exactamente qué cambió en cada pista, y Deshacer lo devuelve todo. Es un punto de partida, así que puedes ajustar cualquier perilla después. Incluido en los planes Mix y Unlimited.",
+      aiMixHowQ:"¿Cómo funciona AI Mix?", aiMixHowA:"AI Mix es un ajuste de equilibrio con un toque. 1) Escucha: mide qué tan fuerte suena cada toma, ignorando el silencio entre frases. 2) Ajusta cada volumen para que las pistas se mezclen, con la principal al frente y el resto detrás. 3) Le da a cada pista su función (principal, coro, doble a la izquierda o derecha, o ad-lib) y ajusta su panorama y tono (Punch, Bass, Voice, Highs, Smooth) según corresponda. 4) En Equilibrada no agrega efectos: nada de reverb, delay, ensanchado ni radio. Elige R&B, Pop, Hip-hop, Rock o Afrobeat y además inclina el tono, el balance del beat y un toque ligero de espacio y amplitud hacia ese género (puntos de partida, no magia: ajusta cualquier perilla después). 5) Si hay un beat cargado, lo baja unos dB por debajo de tus voces y reduce un poco sus medios para que tu voz se escuche clara encima. Luego una tarjeta muestra exactamente qué cambió en cada pista, y Deshacer lo devuelve todo. Es un punto de partida, así que puedes ajustar cualquier perilla después. Incluido en los planes Mix y Unlimited.",
       aiMixHint:"Un toque: equilibra niveles, panorama y tono en cada pista, adelanta tu voz y baja el instrumental para que la voz se escuche clara encima. Muestra exactamente qué cambió. Se puede deshacer.",
       aiMixAppliedToast:"✨ Mezcla IA aplicada",
       aiMixRepTitle:"✨ Esto es lo que hizo la Mezcla IA", aiMixRepUndo:"↺ Deshacer Mezcla IA", aiMixRepVol:"Volumen", aiMixRepKept:"ya estaba bien, se mantiene", aiMixRepPan:"Panorama", aiMixRepBeat:"Instrumental", aiMixRepBeatWhy:"Ajustado unos dB por debajo de tus voces, con los medios un poco bajados, para que la voz quede clara encima.",
@@ -8449,6 +8460,45 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   var AI_MIX_BEAT_RMS = AI_MIX_REFERENCE_RMS * 0.6;
   var AI_MIX_BEAT_MID_DIP_DB = -3; // carve room in the beat's mids, where the voice lives
   var AI_MIX_MIN_LEVEL = 0.05, AI_MIX_MAX_LEVEL = 1.0;
+  // Style recipes for AI Mix: a light tilt on top of the Balanced role recipe, per role group
+  // (lead / background+doubles / ad-lib): tone knobs, a touch of space/width/delay, and how loud
+  // the beat sits under the vocal (beatRel: 1 = Balanced) plus how far its mids are dipped.
+  // They are starting points for the genre, not a replacement for your ears -- Undo and every knob still apply.
+  var AI_MIX_STYLES = {
+    balanced: null,
+    rnb:      {lead:{punch:45,bass:50,voice:62,highs:42,smooth:62,space:22,wide:10},
+               bg:{smooth:65,highs:38,space:30,wide:20}, adlib:{smooth:55,space:32,delay:12},
+               beatRel:0.95, midDip:-3},
+    pop:      {lead:{punch:62,bass:38,voice:68,highs:52,smooth:48,space:14,wide:10},
+               bg:{punch:50,highs:50,space:18,wide:25}, adlib:{highs:48,space:20,delay:10},
+               beatRel:1.0, midDip:-3},
+    hiphop:   {lead:{punch:72,bass:55,voice:66,highs:30,smooth:42,space:0,wide:0,radio:8},
+               bg:{punch:60,voice:50,space:0}, adlib:{punch:65,space:12,delay:15},
+               beatRel:1.15, midDip:-2},
+    rock:     {lead:{punch:68,bass:35,voice:72,highs:34,smooth:30,space:12,wide:0},
+               bg:{punch:55,voice:55,space:14,wide:8}, adlib:{space:16},
+               beatRel:1.2, midDip:-4},
+    afrobeat: {lead:{punch:52,bass:42,voice:62,highs:46,smooth:50,space:16,wide:8,delay:8},
+               bg:{punch:45,bass:22,voice:42,highs:44,smooth:50,space:22,wide:25}, adlib:{highs:42,space:22,delay:18},
+               beatRel:1.1, midDip:-3}
+  };
+  var AI_MIX_STYLE_KEY = "gemstarAiMixStyle";
+  function currentAiMixStyle(){
+    var sel = document.getElementById("ai-mix-style");
+    var v = sel && sel.value;
+    return (v && Object.prototype.hasOwnProperty.call(AI_MIX_STYLES, v)) ? v : "balanced";
+  }
+  function styleKnobsFor(style, role){
+    var rec = AI_MIX_STYLES[style];
+    if (!rec) return null;
+    return role === "lead" ? rec.lead : (role === "adlib" ? rec.adlib : rec.bg);
+  }
+  (function(){
+    var sel = document.getElementById("ai-mix-style");
+    if (!sel) return;
+    try { var saved = localStorage.getItem(AI_MIX_STYLE_KEY); if (saved && Object.prototype.hasOwnProperty.call(AI_MIX_STYLES, saved)) sel.value = saved; } catch(e){}
+    sel.addEventListener("change", function(){ try { localStorage.setItem(AI_MIX_STYLE_KEY, sel.value); } catch(e){} });
+  })();
   function roleHeadroomScale(){
     var n = totalVocalTrackCount();
     return n > 1 ? 1 / Math.sqrt(n) : 1;
@@ -8506,9 +8556,12 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     // 2) Re-level/re-pan/re-knob everything, including tracks you've
     // already hand-tuned -- this is a full recalculation, not a fill-in,
     // and the Undo toast at the end is what makes that safe to do.
+    var aiStyle = currentAiMixStyle();
     function applyRoleRecipe(role, values){
       var preset = ROLE_PRESETS[role] || ROLE_PRESETS.background;
       Object.keys(preset.knobs).forEach(function(k){ values[k] = preset.knobs[k]; });
+      var tilt = styleKnobsFor(aiStyle, role);
+      if (tilt) Object.keys(tilt).forEach(function(k){ values[k] = tilt[k]; });
       return preset;
     }
     var leadPreset = applyRoleRecipe(leadTrack.role, leadValues);
@@ -8530,7 +8583,8 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     if (beatBuffer && beatLevelSlider){
       var beatActivity = analyzeTrackActivity(beatBuffer);
       if (beatActivity.activeRms){
-        var desiredMult = AI_MIX_BEAT_RMS / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies -- under the vocal, not level with it
+        var styleRec = AI_MIX_STYLES[aiStyle];
+        var desiredMult = AI_MIX_BEAT_RMS * (styleRec ? styleRec.beatRel : 1) / beatActivity.activeRms; // the (slider/100)*1.1 multiplier beatOutLevel() applies -- under the vocal, not level with it
         var pct = Math.max(10, Math.min(100, Math.round((desiredMult / (1.1 * beatTrimFor(beatBuffer))) * 100)));
         beatLevelSlider.value = String(pct);
       }
@@ -8538,7 +8592,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       // overrides a deeper cut you already made).
       if (beatMidEl){
         var curMid = parseFloat(beatMidEl.value) || 0;
-        beatMidEl.value = String(Math.min(curMid, AI_MIX_BEAT_MID_DIP_DB));
+        beatMidEl.value = String(Math.min(curMid, (AI_MIX_STYLES[aiStyle] ? AI_MIX_STYLES[aiStyle].midDip : AI_MIX_BEAT_MID_DIP_DB)));
         if (typeof applyBeatEQ === "function") applyBeatEQ();
       }
     }
@@ -8579,9 +8633,11 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     });
     var beatRep = null;
     if (beatBuffer && beatLevelSlider && beatLevelBefore !== null) beatRep = {before: Number(beatLevelBefore), after: Number(beatLevelSlider.value)};
+    aiMixReportStyle = aiStyle;
     showAiMixReport(repRows, beatRep, aiMixUndoFn);
   }
 
+  var aiMixReportStyle = "balanced";
   var aiMixReportEl = document.getElementById("ai-mix-report");
   var aiMixReportUndoFn = null;
   function hideAiMixReport(){ if (aiMixReportEl) aiMixReportEl.hidden = true; aiMixReportUndoFn = null; }
@@ -8610,7 +8666,8 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       addLi(r.name || "", volTxt(r.before, r.after) + "  \u00B7  " + T.aiMixRepPan + " " + panWord(r.pan), T[whyKey[r.role]] || "");
     });
     if (beatRep) addLi(T.aiMixRepBeat, (Math.round(beatRep.before) === Math.round(beatRep.after)) ? (T.aiMixRepVol + " " + Math.round(beatRep.after) + "% (" + T.aiMixRepKept + ")") : (T.aiMixRepVol + " " + Math.round(beatRep.before) + "% \u2192 " + Math.round(beatRep.after) + "%"), T.aiMixRepBeatWhy);
-    document.getElementById("ai-mix-report-title").textContent = T.aiMixRepTitle;
+    var styleNames = {rnb: T.aiStyleRnb, pop: T.aiStylePop, hiphop: T.aiStyleHiphop, rock: T.aiStyleRock, afrobeat: T.aiStyleAfrobeat};
+    document.getElementById("ai-mix-report-title").textContent = T.aiMixRepTitle + (styleNames[aiMixReportStyle] ? " (" + styleNames[aiMixReportStyle] + " " + T.aiMixRepStyle + ")" : "");
     document.getElementById("ai-mix-report-note").textContent = T.aiMixRepNote;
     document.getElementById("ai-mix-report-undo").textContent = T.aiMixRepUndo;
     aiMixReportUndoFn = undoFn;
