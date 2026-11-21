@@ -4746,16 +4746,20 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.echoDelay.connect(g.echoFeedback);
     g.echoFeedback.connect(g.echoDelay);
 
+    // Chorus is kept steady on purpose: short (7-13 ms) taps swept 3-4 ms at ~1 Hz made a comb
+    // filter slide through the voice -- measured ~5 dB loudness swing, heard as the effect
+    // swelling in and out. Longer taps with a tiny, slow modulation keep the stereo width and
+    // hold the swing to about 1 dB.
     g.chorusA = ctx.createDelay(0.03);
-    g.chorusA.delayTime.value = 0.007;
-    g.chorusLfoA = ctx.createOscillator(); g.chorusLfoA.type="sine"; g.chorusLfoA.frequency.value=0.6;
-    g.chorusDepthA = ctx.createGain(); g.chorusDepthA.gain.value = 0.003;
+    g.chorusA.delayTime.value = 0.016;
+    g.chorusLfoA = ctx.createOscillator(); g.chorusLfoA.type="sine"; g.chorusLfoA.frequency.value=0.35;
+    g.chorusDepthA = ctx.createGain(); g.chorusDepthA.gain.value = 0.00012;
     g.chorusLfoA.connect(g.chorusDepthA); g.chorusDepthA.connect(g.chorusA.delayTime); g.chorusLfoA.start();
 
     g.chorusB = ctx.createDelay(0.03);
-    g.chorusB.delayTime.value = 0.013;
-    g.chorusLfoB = ctx.createOscillator(); g.chorusLfoB.type="sine"; g.chorusLfoB.frequency.value=0.9;
-    g.chorusDepthB = ctx.createGain(); g.chorusDepthB.gain.value = 0.004;
+    g.chorusB.delayTime.value = 0.024;
+    g.chorusLfoB = ctx.createOscillator(); g.chorusLfoB.type="sine"; g.chorusLfoB.frequency.value=0.5;
+    g.chorusDepthB = ctx.createGain(); g.chorusDepthB.gain.value = 0.00015;
     g.chorusLfoB.connect(g.chorusDepthB); g.chorusDepthB.connect(g.chorusB.delayTime); g.chorusLfoB.start();
 
     // Pan the two chorus taps hard left/right so "Wide" actually widens the
@@ -4812,14 +4816,14 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.jewelsAir.frequency.value = 9500;
 
     g.jewelsChorusA = ctx.createDelay(0.03);
-    g.jewelsChorusA.delayTime.value = 0.009;
-    g.jewelsChorusLfoA = ctx.createOscillator(); g.jewelsChorusLfoA.type = "sine"; g.jewelsChorusLfoA.frequency.value = 0.8;
+    g.jewelsChorusA.delayTime.value = 0.014;
+    g.jewelsChorusLfoA = ctx.createOscillator(); g.jewelsChorusLfoA.type = "sine"; g.jewelsChorusLfoA.frequency.value = 0.4;
     g.jewelsChorusDepthA = ctx.createGain(); g.jewelsChorusDepthA.gain.value = 0;
     g.jewelsChorusLfoA.connect(g.jewelsChorusDepthA); g.jewelsChorusDepthA.connect(g.jewelsChorusA.delayTime); g.jewelsChorusLfoA.start();
 
     g.jewelsChorusB = ctx.createDelay(0.03);
-    g.jewelsChorusB.delayTime.value = 0.015;
-    g.jewelsChorusLfoB = ctx.createOscillator(); g.jewelsChorusLfoB.type = "sine"; g.jewelsChorusLfoB.frequency.value = 1.3;
+    g.jewelsChorusB.delayTime.value = 0.021;
+    g.jewelsChorusLfoB = ctx.createOscillator(); g.jewelsChorusLfoB.type = "sine"; g.jewelsChorusLfoB.frequency.value = 0.55;
     g.jewelsChorusDepthB = ctx.createGain(); g.jewelsChorusDepthB.gain.value = 0;
     g.jewelsChorusLfoB.connect(g.jewelsChorusDepthB); g.jewelsChorusDepthB.connect(g.jewelsChorusB.delayTime); g.jewelsChorusLfoB.start();
 
@@ -5429,8 +5433,8 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // Jewels: signature air + true chorus (blended with M5tar above)
     var jw = effJewels/100;
     chain.jewelsAir.gain.setTargetAtTime(lerp(effJewels,0,100,0,8), now, 0.02);
-    chain.jewelsChorusDepthA.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.003), now, 0.02);
-    chain.jewelsChorusDepthB.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.004), now, 0.02);
+    chain.jewelsChorusDepthA.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.00012), now, 0.02);
+    chain.jewelsChorusDepthB.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.00015), now, 0.02);
     chain.jewelsDry.gain.setTargetAtTime(1 - jw*0.4, now, 0.02);
     chain.jewelsWet.gain.setTargetAtTime(jw, now, 0.02);
     // same dense parallel-compression leg, scaled by Jewels
