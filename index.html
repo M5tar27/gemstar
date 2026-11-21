@@ -787,6 +787,11 @@
   .tl-time{font-family:var(--font-display); font-size:0.85rem; color:#fff; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:0.03em;}
   .tl-zoom{display:flex; align-items:center; gap:6px;}
   .tl-zoom .icon-btn.small{padding:4px 10px; font-size:0.85rem; line-height:1;}
+  .fine-timing{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0 4px;}
+  .fine-timing[hidden]{display:none;}
+  .fine-timing-label{font-size:0.72rem; color:var(--ink-dim); margin-right:2px;}
+  .fine-timing .icon-btn.small{padding:4px 9px; font-size:0.8rem; line-height:1;}
+  .fine-timing-ms{font-size:0.82rem; min-width:68px; text-align:center; font-variant-numeric:tabular-nums; color:var(--ink);}
   .tl-zoom-level{font-size:0.68rem; color:var(--ink-dim); min-width:1.6em; text-align:center; font-variant-numeric:tabular-nums;}
   .tl-hint{margin:0; font-size:0.72rem; color:var(--ink-dim);}
   .vocal-tl-hint{margin:2px 0 8px;}
@@ -1891,8 +1896,21 @@
   <button class="icon-btn small" id="btn-trk-zoom-out" type="button" aria-label="Zoom out on vocal waveforms">−</button>
   <span class="tl-zoom-level" id="trk-zoom-level">Zoom: Off</span>
   <button class="icon-btn small" id="btn-trk-zoom-in" type="button" aria-label="Zoom in on vocal waveforms">+</button>
+  <button class="icon-btn small" id="btn-trk-start" type="button" aria-label="Jump to the start of the song" title="Jump to the start" hidden>&#9198;</button>
+  <input type="range" id="trk-scroll" min="0" max="1000" step="1" value="0" hidden aria-label="Scroll along the song" style="flex:1; min-width:90px; accent-color:var(--cyan);" />
+  <button class="icon-btn small" id="btn-trk-end" type="button" aria-label="Jump to the end of the song" title="Jump to the end" hidden>&#9197;</button>
 </div>
-          <p class="tl-hint vocal-tl-hint" data-i18n="tlHint">Tap a vocal to choose where playback starts · drag across it to pick a section to loop · zoom in for precise edits on longer songs</p>
+          <p class="tl-hint vocal-tl-hint" data-i18n="tlHint">Tap a vocal to choose where playback starts · drag a vocal left or right to line it up with the beat · hold, then drag to pick a section to loop · zoomed in? drag the beat, the ruler or the scroll bar to move the view</p>
+          <div class="fine-timing" id="fine-timing" hidden>
+            <span class="fine-timing-label">Fine timing</span>
+            <button class="icon-btn small" type="button" data-ms="-20" aria-label="Move this vocal 20 milliseconds earlier">&minus;20</button>
+            <button class="icon-btn small" type="button" data-ms="-5" aria-label="Move this vocal 5 milliseconds earlier">&minus;5</button>
+            <span class="fine-timing-ms" id="fine-timing-ms">0 ms</span>
+            <button class="icon-btn small" type="button" data-ms="5" aria-label="Move this vocal 5 milliseconds later">+5</button>
+            <button class="icon-btn small" type="button" data-ms="20" aria-label="Move this vocal 20 milliseconds later">+20</button>
+            <button class="icon-btn small" type="button" id="btn-save-timing" hidden>Save as my timing</button>
+            <button class="icon-btn small" type="button" id="btn-reset-saved-timing" hidden>Reset saved timing</button>
+          </div>
           <div class="all-vocals-rows-wrap" id="all-vocals-rows-wrap">
             <div class="grid-ruler" id="all-vocals-ruler"></div>
             <div id="all-vocals-rows"><!-- one mini waveform per vocal track, injected by JS --></div>
@@ -2508,7 +2526,7 @@ calibrateSyncTapBtn:"TAP",
       removeVocalTrack:"Remove",
       undoLastVocalBtn:"↺ Undo Last Track", undoLastVocalAria:"Remove the most recently added vocal track",
       reRecordBtn:"🎤 Re-record", reRecordAria:"Re-record",
-      punchInAria:"Punch in on", nudgeAria:"Nudge timing of", nudgeTitle:"Nudge: drag this vocal's wave left/right to line it up with the beat",
+      punchInAria:"Punch in on", nudgeAria:"Nudge timing of", nudgeTitle:"Drag this vocal left/right to line it up with the beat (double-click to reset)",
       tlPunchBtn:"🎤 Record from {time}", tlPunchAria:"Keep recording from {time} on the timeline",
       punchArmedHint:"Punching in at {time} — tap Record, sing the new bit, then tap Stop. Only that part gets replaced; everything else stays.",
       trackPunchedToast:'Punched in on "{name}"',
@@ -2517,7 +2535,7 @@ calibrateSyncTapBtn:"TAP",
       undoToastBtn:"Undo", trackRemovedToast:'"{name}" removed', trackReRecordedToast:'"{name}" re-recorded',
       autoAlignedToast:"Auto-aligned to the beat — drag the waveform anytime to fine-tune",
       mtPlayAria:"Play", mtPauseAria:"Pause", mtRewindAria:"Rewind 5 seconds", mtFfAria:"Forward 5 seconds",
-      tlHint:"Tap a vocal to choose where playback starts · tap Record from here to keep recording from that spot · drag across a vocal to pick a section to loop (✂ Cut appears on it) · zoomed in? drag to slide to any part of the song, or hold then drag to pick a loop",
+      tlHint:"Tap a vocal to choose where playback starts · tap Record from here to keep recording from that spot · drag a vocal left or right to line it up with the beat · hold, then drag to pick a section to loop (✂ Cut appears on it) · zoomed in? drag the beat, the ruler or the scroll bar to move the view",
       loopOn:"⟲ Loop: On", loopOff:"⟲ Loop: Off", tlToStart:"⏮ Start", tlAria:"Playback position",
       tlZoomInAria:"Zoom in", tlZoomOutAria:"Zoom out",
       leadBadge:"★ Lead", makeLeadBtn:"☆ Make Lead", makeLeadAria:"Make this the lead vocal:",
@@ -2763,7 +2781,7 @@ calibrateSyncTapBtn:"TOCAR",
       removeVocalTrack:"Quitar",
       undoLastVocalBtn:"↺ Deshacer Última Pista", undoLastVocalAria:"Quitar la pista vocal agregada más recientemente",
       reRecordBtn:"🎤 Regrabar", reRecordAria:"Regrabar",
-      punchInAria:"Hacer punch in en", nudgeAria:"Ajustar tiempo de", nudgeTitle:"Ajustar: arrastra la onda de esta voz para alinearla con el beat",
+      punchInAria:"Hacer punch in en", nudgeAria:"Ajustar tiempo de", nudgeTitle:"Arrastra esta voz a izquierda/derecha para alinearla con el beat (doble clic para restablecer)",
       tlPunchBtn:"🎤 Grabar desde {time}", tlPunchAria:"Seguir grabando desde {time} en la línea de tiempo",
       punchArmedHint:"Punch in en {time} — toca Grabar, canta la parte nueva y luego toca Detener. Solo se reemplaza esa parte; el resto se queda igual.",
       trackPunchedToast:'Se hizo punch in en "{name}"',
@@ -2772,7 +2790,7 @@ calibrateSyncTapBtn:"TOCAR",
       undoToastBtn:"Deshacer", trackRemovedToast:'"{name}" eliminada', trackReRecordedToast:'"{name}" regrabada',
       autoAlignedToast:"Alineado automáticamente al beat — arrastra la forma de onda cuando quieras para ajustar",
       mtPlayAria:"Reproducir", mtPauseAria:"Pausar", mtRewindAria:"Retroceder 5 segundos", mtFfAria:"Avanzar 5 segundos",
-      tlHint:"Toca una voz para elegir dónde empieza · toca Grabar desde aquí para seguir grabando desde ese punto · arrastra sobre una voz para elegir una sección en bucle (aparece ✂ Cortar) · ¿con zoom? arrastra para deslizarte a cualquier parte de la canción, o mantén y arrastra para elegir un bucle",
+      tlHint:"Toca una voz para elegir dónde empieza · toca Grabar desde aquí para seguir grabando desde ese punto · arrastra una voz a izquierda o derecha para alinearla con el beat · mantén y arrastra para elegir una sección en bucle (aparece ✂ Cortar) · ¿con zoom? arrastra el beat, la regla o la barra para mover la vista",
       loopOn:"⟲ Bucle: Sí", loopOff:"⟲ Bucle: No", tlToStart:"⏮ Inicio", tlAria:"Posición de reproducción",
       tlZoomInAria:"Acercar", tlZoomOutAria:"Alejar",
       leadBadge:"★ Principal", makeLeadBtn:"☆ Hacer Principal", makeLeadAria:"Hacer esta la voz principal:",
@@ -3402,7 +3420,7 @@ var RECORD_MONITOR_PREROLL = 0.25; // seconds -- the lead-in before the recordin
 // against, since a take always starts at the top of the song. Zooming in
 // both reveals the waveform in real detail AND makes the nudge-drag
 // precise, since drag sensitivity below is tied to this same window.
-var TRACK_ZOOM_LEVELS = [0, 16, 8, 4, 2, 1, 0.6];
+var TRACK_ZOOM_LEVELS = [0, 90, 60, 40, 30, 20, 12, 8, 5, 3, 2, 1, 0.5]; // seconds visible; 0 = whole song. Gentle first steps -- the old first step jumped straight to a 16s window
 var trackZoomIdx = 0;
 var trackFollowPrevIn = false, trackFollowPrevPlaying = false; // grid auto-follow bookkeeping (see updatePlayheadUI)
 // Keeps the zoomed window fully inside the song so EVERYTHING that maps song-time
@@ -5889,6 +5907,22 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   function setStoredSyncCal(seconds){
     try { localStorage.setItem(SYNC_CAL_KEY, String(seconds)); } catch(e){}
   }
+  // "Save as my timing": the extra trim (seconds) this device's recordings still need on top of the automatic
+  // latency compensation, learned from how far you had to nudge a take. Applied to every new recording here.
+  var RECORD_TRIM_KEY = "gemstarRecordTrimSec";
+  function getStoredRecordTrim(){
+    try {
+      var v = parseFloat(localStorage.getItem(RECORD_TRIM_KEY));
+      if (isFinite(v) && v > -0.5 && v < 0.8) return v;
+    } catch(e){}
+    return 0;
+  }
+  function setStoredRecordTrim(seconds){
+    try {
+      if (!seconds) localStorage.removeItem(RECORD_TRIM_KEY);
+      else localStorage.setItem(RECORD_TRIM_KEY, String(Math.max(-0.4, Math.min(0.7, seconds))));
+    } catch(e){}
+  }
   // Matches each scheduled click to the next tap that followed it within a
   // plausible reaction window, then returns the median offset -- kept as
   // its own pure function so the matching/averaging logic can be exercised
@@ -6127,7 +6161,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
       stopMicPreview(); // only ever one preview stream open at a time
       var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
-      var constraints = { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:{ideal:1} };
+      var constraints = { echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:{ideal:1}, latency:{ideal:0} };
       if (pickedDeviceId) constraints.deviceId = { exact: pickedDeviceId };
       navigator.mediaDevices.getUserMedia({ audio: constraints }).then(function(stream){
         if (recording){ stream.getTracks().forEach(function(t){ t.stop(); }); return; } // Start got hit while this was loading
@@ -6288,15 +6322,17 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
           // When the browser gives no usable number, assume that typical delay instead of
           // 0 -- "Calibrate your timing" still overrides it per device. A browser that
           // DOES report a real (positive) output latency, e.g. desktop Chrome, is trusted as-is.
-          if (!(typeof ctx.outputLatency === "number" && ctx.outputLatency > 0)) outLat = PHONE_DEFAULT_OUTPUT_LATENCY;
+          if (!(typeof ctx.outputLatency === "number" && ctx.outputLatency > 0)) outLat = defaultOutputLatencyGuess();
           var btComp = detectedBluetooth ? 0.18 : 0;
           var inLat = (isFinite(detectedInputLatency) && detectedInputLatency > 0 && detectedInputLatency < 0.3) ? detectedInputLatency : 0;
           // The mic's own input delay (reported by browsers that expose it)
           // is the other half of the round trip.
           compSeconds = monitorPreroll + outLat + inLat + btComp; // monitorPreroll = when the monitor's beat really started
         }
+        compSeconds += getStoredRecordTrim(); // what this device has been taught it still needs ("Save as my timing")
         var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
         if (trimSamples > 0) merged = merged.subarray(trimSamples);
+        else if (trimSamples < 0){ var padded = new Float32Array(merged.length - trimSamples); padded.set(merged, -trimSamples); merged = padded; }
       }
 
       var wavBlob = encodeWavBlob(merged, sr);
@@ -6508,7 +6544,7 @@ return;
       // whatever rate the device is already running at.
       var baseConstraints = {
         echoCancellation:false, noiseSuppression:false, autoGainControl:false,
-        channelCount:{ideal:1}
+        channelCount:{ideal:1}, latency:{ideal:0} // smallest input buffer the device allows (a hint; ignored where unsupported)
       };
       var pickedDeviceId = opts.deviceSelector ? opts.deviceSelector.getSelectedDeviceId() : "";
       var audioConstraints = pickedDeviceId
@@ -7350,6 +7386,7 @@ if (window.gemstarBpmUI) window.gemstarBpmUI.clear();
     if (typeof clearCutSelection === "function") clearCutSelection(); // any waveform selection was for the track we just left
     if (typeof updateCutUndoUI === "function") updateCutUndoUI(); // Undo Cut button reflects whichever track we're now on
     if (typeof drawStaticWaveform === "function") drawStaticWaveform(); // waveform follows whichever track you're on
+    if (typeof syncFineTiming === "function") syncFineTiming();
   }
 
   function renderTrackEditTabs(){
@@ -7777,7 +7814,8 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     var tot = currentTotalDuration();
     renderAllVocalsRuler(tot);
     updateGridMarkers();
-    if (tlTimeEl) tlTimeEl.textContent = fmtClock(trackZoomCenter) + " / " + fmtClock(tot);
+    if (tlTimeEl) tlTimeEl.textContent = fmtClockZ(trackZoomCenter) + " / " + fmtClock(tot);
+    if (typeof syncTrkScroll === "function") syncTrkScroll();
   }
   var gridLiveRowEl = document.getElementById("grid-live-row");
   var gridLiveCanvas = document.getElementById("grid-live-waveform");
@@ -7900,15 +7938,18 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         // the "Record from here" button under the lanes.)
         var nudgeBtn = document.createElement("button");
         nudgeBtn.type = "button";
-        nudgeBtn.className = "trk-btn trk-nudge" + (nudgeRowId === id ? " on" : "");
+        nudgeBtn.className = "trk-btn trk-nudge";
         nudgeBtn.textContent = "\u2194";
         nudgeBtn.title = STR[lang].nudgeTitle || "";
         nudgeBtn.setAttribute("aria-label", (STR[lang].nudgeAria || "Nudge timing of") + " " + name);
-        nudgeBtn.setAttribute("aria-pressed", String(nudgeRowId === id));
+        nudgeBtn.title = "Reset this vocal's timing back to 0 ms (drag the vocal to move it)";
         nudgeBtn.addEventListener("click", function(e){
           e.stopPropagation();
-          nudgeRowId = (nudgeRowId === id) ? null : id;
+          if (!tr) return;
+          tr.nudgeSec = 0;
           renderAllVocalsStrip();
+          if (isPlaying && !retimeTrackLive(tr)) restartPlaybackFromCursor();
+          scheduleSave();
         });
         controls.appendChild(nudgeBtn);
 
@@ -7967,7 +8008,6 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         }
         function updateNudgeTitle(){
           if (!trk) return;
-          if (nudgeRowId !== rowId){ cv.title = ""; return; }
           var ms = Math.round(trackNudgeSec(trk) * 1000);
           cv.title = ms === 0 ? (STR[lang].nudgeTitle || "") : ((ms > 0 ? ("+" + ms) : String(ms)) + "ms — double-click to reset");
         }
@@ -7977,8 +8017,14 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           e.preventDefault();
           try { cv.setPointerCapture(e.pointerId); } catch(err){}
           var pr = {id: e.pointerId, x: e.clientX, t: timeAt(e.clientX), moved: false, mode: "loop",
-                    center: trackZoomCenter, nudge: trk ? trackNudgeSec(trk) : 0, timer: 0};
-          if (trk && nudgeRowId === rowId) pr.mode = "nudge";
+                    center: trackZoomCenter, nudge: trk ? trackNudgeSec(trk) : 0, timer: 0,
+                    thr: (e.pointerType === "mouse") ? 3 : MOVE_PX};
+          // Dragging a vocal moves THAT vocal against the beat (nothing else). Hold for a moment first to
+          // pick a loop section instead. Dragging the beat lane (or the ruler / scroll bar) slides the view.
+          if (trk && !isBeat){
+            pr.mode = "nudge";
+            pr.timer = setTimeout(function(){ if (press === pr && !pr.moved) pr.mode = "loop"; }, HOLD_MS);
+          }
           else if (trackZoomIdx > 0){
             pr.mode = "pan";
             pr.timer = setTimeout(function(){ if (press === pr && !pr.moved) pr.mode = "loop"; }, HOLD_MS);
@@ -7989,15 +8035,18 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           if (!press || e.pointerId !== press.id) return;
           var dx = e.clientX - press.x;
           if (!press.moved){
-            if (Math.abs(dx) <= MOVE_PX) return;
+            if (Math.abs(dx) <= (press.thr || MOVE_PX)) return;
             press.moved = true; clearTimeout(press.timer);
           }
           var rw = cv.getBoundingClientRect().width;
           if (!(rw > 0)) return;
           if (press.mode === "nudge"){
-            var range = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : NUDGE_DRAG_RANGE_SEC;
+            // Direct (the wave follows your finger) once the window is a few seconds wide; capped so a wide
+            // view still gives millisecond-level control instead of flying off to the +/-2 s limit.
+            var range = Math.min(trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : NUDGE_DRAG_RANGE_SEC, NUDGE_DRAG_RANGE_SEC);
             trk.nudgeSec = clampNudge(press.nudge + (dx / rw) * range);
             redrawThis(); updateNudgeTitle();
+            if (tlTimeEl){ var nms = Math.round(trackNudgeSec(trk) * 1000); tlTimeEl.textContent = "Vocal timing: " + (nms > 0 ? "+" : "") + nms + " ms"; }
           } else if (press.mode === "pan"){
             trackZoomCenter = press.center - (dx / rw) * TRACK_ZOOM_LEVELS[trackZoomIdx];
             clampTrackZoomCenter(total);
@@ -8015,11 +8064,11 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
           clearTimeout(p.timer);
           try { cv.releasePointerCapture(e.pointerId); } catch(err){}
           if (cancelled){ renderAllVocalsStrip(); renderTimeline(); return; }
-          if (p.mode === "nudge"){
-            if (p.moved){
-              if (isPlaying && !retimeTrackLive(trk)) restartPlaybackFromCursor();
-              scheduleSave();
-            }
+          if (p.mode === "nudge" && p.moved){
+            if (isPlaying && !retimeTrackLive(trk)) restartPlaybackFromCursor();
+            scheduleSave();
+            updatePlayheadUI();
+            if (typeof syncFineTiming === "function") syncFineTiming();
             return;
           }
           if (p.mode === "pan" && p.moved){ renderAllVocalsStrip(); return; } // just slid the view
@@ -8042,12 +8091,13 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         cv.addEventListener("pointerup", function(e){ finish(e, false); });
         cv.addEventListener("pointercancel", function(e){ finish(e, true); });
         cv.addEventListener("dblclick", function(e){
-          if (!trk || nudgeRowId !== rowId) return;
+          if (!trk) return;
           e.stopPropagation();
           trk.nudgeSec = 0;
           redrawThis(); updateNudgeTitle();
           if (isPlaying && !retimeTrackLive(trk)) restartPlaybackFromCursor();
           scheduleSave();
+          if (typeof syncFineTiming === "function") syncFineTiming();
         });
       })(canvas, id, !!opts.beat, opts.track || null, drawRow);
     }
@@ -8073,6 +8123,8 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     extraVocals.forEach(function(t){ addRow(t.name, t.buffer, t.id, {track:t}); });
     renderAllVocalsRuler(total);
     updateGridMarkers();
+    if (typeof syncTrkScroll === "function") syncTrkScroll();
+    if (typeof syncFineTiming === "function") syncFineTiming();
   }
 
   // Picks a "nice" tick spacing (seconds) for a given span, aiming for
@@ -8880,6 +8932,17 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     sec = Math.max(0, sec || 0);
     var m = Math.floor(sec/60), s2 = Math.floor(sec%60);
     return m + ":" + (s2<10?"0":"") + s2;
+  }
+  // Same clock, but with tenths (or hundredths when tightly zoomed) once the waveform view is zoomed in,
+  // so the time you read matches the precision you can now grab.
+  function fmtClockZ(sec){
+    var dur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : 0;
+    if (!(dur > 0) || dur > 30) return fmtClock(sec);
+    sec = Math.max(0, sec || 0);
+    var d = dur <= 4 ? 2 : 1, k = Math.pow(10, d);
+    var tot = Math.round(sec * k) / k;
+    var m = Math.floor(tot / 60), r = tot - m * 60;
+    return m + ":" + (r < 10 ? "0" : "") + r.toFixed(d);
   }
 
   // Where the playhead is right now (or where Play would start, if stopped).
@@ -9715,6 +9778,18 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
   // ~0.25 s behind the beat.)
   var recordMonitorPrerollSec = 0.03;
   var PHONE_DEFAULT_OUTPUT_LATENCY = 0.145; // seconds -- typical phone-browser click-to-ear delay, used only when the browser reports none
+  // Safari never exposes ctx.outputLatency. On a phone/tablet (touch device, incl. iPad that calls itself a Mac)
+  // keep the measured ~145 ms; on a desktop Mac Safari the real delay is far smaller, so assuming the phone
+  // figure would clip the start of every take. "Calibrate your timing" / "Save as my timing" still refine it.
+  var DESKTOP_DEFAULT_OUTPUT_LATENCY = 0.06;
+  function defaultOutputLatencyGuess(){
+    try {
+      var touch = (navigator.maxTouchPoints || 0) > 1;
+      var coarse = window.matchMedia && window.matchMedia("(pointer:coarse)").matches;
+      if (touch || coarse) return PHONE_DEFAULT_OUTPUT_LATENCY;
+    } catch(e){}
+    return DESKTOP_DEFAULT_OUTPUT_LATENCY;
+  }
   function startRecordMonitor(){
     // Used to bail out entirely unless in Full Song Mix mode -- but the
     // branch right below already monitors every already-recorded vocal
@@ -9921,14 +9996,63 @@ var btnTrkZoomIn = document.getElementById("btn-trk-zoom-in");
 var btnTrkZoomOut = document.getElementById("btn-trk-zoom-out");
 var trkZoomLevelEl = document.getElementById("trk-zoom-level");
 if (btnTrkZoomOut) btnTrkZoomOut.disabled = true;
+// Next zoom level in a direction, skipping any window that would show (nearly) the whole song anyway --
+// on a short track the first fixed windows aren't a real zoom, so they're stepped over.
+function trkZoomStep(from, dir){
+  var tot = currentTotalDuration();
+  var i = from + dir;
+  while (i > 0 && i < TRACK_ZOOM_LEVELS.length && TRACK_ZOOM_LEVELS[i] >= tot * 0.85) i += dir;
+  if (i < 0) i = 0;
+  if (i >= TRACK_ZOOM_LEVELS.length) i = from;
+  return i;
+}
+var trkScrollEl = document.getElementById("trk-scroll");
+var btnTrkStart = document.getElementById("btn-trk-start");
+var btnTrkEnd = document.getElementById("btn-trk-end");
+function trkScrollBounds(){
+  var tot = currentTotalDuration(), dur = TRACK_ZOOM_LEVELS[trackZoomIdx] || 0;
+  var lo = dur / 2;
+  return {tot: tot, dur: dur, lo: lo, hi: Math.max(lo, tot - dur / 2)};
+}
+// Shows the scroll bar + jump buttons only while zoomed in, and keeps the slider on the current view.
+function syncTrkScroll(){
+  var on = trackZoomIdx > 0 && currentTotalDuration() > 0;
+  [trkScrollEl, btnTrkStart, btnTrkEnd].forEach(function(el){ if (el) el.hidden = !on; });
+  if (!on || !trkScrollEl) return;
+  var b = trkScrollBounds();
+  var v = b.hi > b.lo ? Math.round((trackZoomCenter - b.lo) / (b.hi - b.lo) * 1000) : 0;
+  if (document.activeElement !== trkScrollEl) trkScrollEl.value = String(Math.max(0, Math.min(1000, v)));
+}
 function trkZoomTo(idx, keepCenter){
   var wasOff = trackZoomIdx === 0;
+  var oldDur = TRACK_ZOOM_LEVELS[trackZoomIdx] || 0, oldStart = trackZoomCenter - oldDur / 2;
   trackZoomIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, idx));
   if (trackZoomIdx === 0) trackZoomCenter = 0;
   else {
     // Zooming in from "Off" opens on wherever you are (playhead, or the tap
-    // point when stopped) instead of always snapping to the very start.
-    if (wasOff && !keepCenter) trackZoomCenter = isPlaying ? currentPlayPosition() : (tlCursor || 0);
+    // point when stopped). With nothing chosen (cursor at the very top) it opens on the
+    // vocal itself instead of an empty intro, so you can actually see what you recorded.
+    if (wasOff && !keepCenter){
+      if (isPlaying) trackZoomCenter = currentPlayPosition();
+      else if ((tlCursor || 0) > 0.05) trackZoomCenter = tlCursor;
+      else {
+        trackZoomCenter = 0;
+        try {
+          if (audioBuffer && typeof findOnsetSec === "function"){
+            var on0 = findOnsetSec(audioBuffer);
+            if (on0 !== null && isFinite(on0) && on0 > 0.5) trackZoomCenter = on0 + (TRACK_ZOOM_LEVELS[trackZoomIdx] || 0) / 2 - 0.5;
+          }
+        } catch(e){}
+      }
+    }
+    // Already zoomed and stepping in/out: keep the playhead (or start marker) at the same spot on screen,
+    // so each step closes in on what you're working on instead of drifting away from it.
+    if (!wasOff && !keepCenter && oldDur > 0){
+      var anchor = isPlaying ? currentPlayPosition() : (tlCursor || 0);
+      if ((isPlaying || anchor > 0.05) && anchor >= oldStart && anchor <= oldStart + oldDur){
+        trackZoomCenter = anchor + (0.5 - (anchor - oldStart) / oldDur) * TRACK_ZOOM_LEVELS[trackZoomIdx];
+      }
+    }
     clampTrackZoomCenter(currentTotalDuration());
   }
   if (trkZoomLevelEl){
@@ -9938,34 +10062,130 @@ function trkZoomTo(idx, keepCenter){
   if (btnTrkZoomOut) btnTrkZoomOut.disabled = trackZoomIdx === 0;
   if (btnTrkZoomIn) btnTrkZoomIn.disabled = trackZoomIdx === TRACK_ZOOM_LEVELS.length - 1;
   if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+  syncTrkScroll();
 }
-if (btnTrkZoomIn) btnTrkZoomIn.addEventListener("click", function(){ trkZoomTo(trackZoomIdx + 1); });
-if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo(trackZoomIdx - 1); });
+if (btnTrkZoomIn) btnTrkZoomIn.addEventListener("click", function(){ trkZoomTo(trkZoomStep(trackZoomIdx, 1)); });
+if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo(trkZoomStep(trackZoomIdx, -1)); });
+// Scroll bar + jump buttons: move the zoomed view anywhere in the song, all the way to the end.
+var trkScrollRaf = 0;
+if (trkScrollEl){
+  trkScrollEl.addEventListener("input", function(){
+    var b = trkScrollBounds();
+    trackZoomCenter = b.lo + (parseInt(trkScrollEl.value, 10) / 1000) * (b.hi - b.lo);
+    if (!trkScrollRaf) trkScrollRaf = requestAnimationFrame(function(){
+      trkScrollRaf = 0;
+      if (typeof panRedrawAllRows === "function") panRedrawAllRows();
+    });
+  });
+  trkScrollEl.addEventListener("change", function(){ if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip(); });
+}
+// ---- Fine timing: millisecond nudges for the selected vocal + "Save as my timing" ----
+var fineTimingEl = document.getElementById("fine-timing");
+var fineTimingMsEl = document.getElementById("fine-timing-ms");
+var btnSaveTiming = document.getElementById("btn-save-timing");
+var btnResetSavedTiming = document.getElementById("btn-reset-saved-timing");
+function fineTimingTrack(){
+  if (!audioBuffer) return null;
+  if (editTarget === "lead") return leadTrack;
+  for (var i = 0; i < extraVocals.length; i++) if (extraVocals[i].id === editTarget) return extraVocals[i];
+  return leadTrack;
+}
+function syncFineTiming(){
+  if (!fineTimingEl) return;
+  var tr = fineTimingTrack();
+  fineTimingEl.hidden = !tr;
+  if (!tr) return;
+  var ms = Math.round(trackNudgeSec(tr) * 1000);
+  if (fineTimingMsEl) fineTimingMsEl.textContent = (ms > 0 ? "+" : "") + ms + " ms";
+  if (btnSaveTiming) btnSaveTiming.hidden = ms === 0;
+  if (btnResetSavedTiming) btnResetSavedTiming.hidden = getStoredRecordTrim() === 0;
+}
+if (fineTimingEl){
+  fineTimingEl.addEventListener("click", function(e){
+    var b = e.target && e.target.closest ? e.target.closest("button[data-ms]") : null;
+    if (!b) return;
+    var tr = fineTimingTrack();
+    if (!tr) return;
+    tr.nudgeSec = clampNudge(trackNudgeSec(tr) + parseInt(b.getAttribute("data-ms"), 10) / 1000);
+    renderAllVocalsStrip();
+    if (isPlaying && !retimeTrackLive(tr)) restartPlaybackFromCursor();
+    scheduleSave();
+    syncFineTiming();
+  });
+}
+if (btnSaveTiming) btnSaveTiming.addEventListener("click", function(){
+  var tr = fineTimingTrack();
+  if (!tr) return;
+  var nudge = trackNudgeSec(tr);
+  if (!nudge) return;
+  var before = getStoredRecordTrim();
+  setStoredRecordTrim(before - nudge); // moved earlier (negative) => trim more from future takes
+  var ms = Math.round(-nudge * 1000);
+  showUndoToast("Saved. New recordings on this device will start " + Math.abs(ms) + " ms " + (ms > 0 ? "earlier" : "later") + ".", function(){ setStoredRecordTrim(before); syncFineTiming(); });
+  syncFineTiming();
+});
+if (btnResetSavedTiming) btnResetSavedTiming.addEventListener("click", function(){
+  setStoredRecordTrim(0);
+  syncFineTiming();
+});
+if (btnTrkStart) btnTrkStart.addEventListener("click", function(){ var b = trkScrollBounds(); trackZoomCenter = b.lo; if (typeof panRedrawAllRows === "function") panRedrawAllRows(); else renderAllVocalsStrip(); });
+if (btnTrkEnd) btnTrkEnd.addEventListener("click", function(){ var b = trkScrollBounds(); trackZoomCenter = b.hi; if (typeof panRedrawAllRows === "function") panRedrawAllRows(); else renderAllVocalsStrip(); });
     if (allVocalsRowsEl){
+      // Two-finger scroll / mouse wheel used to ZOOM one step per event, so a single trackpad swipe
+      // (dozens of events) shot straight to the tightest zoom. Now: plain scroll leaves the page alone
+      // (and sideways scroll pans the zoomed view); only pinch / Ctrl-or-Cmd+scroll zooms, one step at a time.
+      var wheelZoomAt = 0;
       allVocalsRowsEl.addEventListener("wheel", function(e){
         var tgt = e.target && e.target.closest ? e.target.closest("canvas") : null;
         if (!tgt) return;
         var tot = currentTotalDuration();
         if (tot <= 0) return;
-        e.preventDefault();
         var r = tgt.getBoundingClientRect();
         if (!r.width) return;
-        var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+        if (e.ctrlKey || e.metaKey){
+          e.preventDefault();
+          var nowW = Date.now();
+          if (nowW - wheelZoomAt < 280) return; // one level per gesture burst
+          wheelZoomAt = nowW;
+          var frac = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+          var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : tot;
+          var winStart = trackZoomIdx > 0 ? (trackZoomCenter - winDur/2) : 0;
+          var cursorSongTime = winStart + frac * winDur;
+          var newIdx = trkZoomStep(trackZoomIdx, e.deltaY < 0 ? 1 : -1);
+          if (newIdx !== 0) trackZoomCenter = Math.max(0, Math.min(tot, cursorSongTime));
+          if (newIdx !== trackZoomIdx) trkZoomTo(newIdx, true);
+          return;
+        }
+        if (trackZoomIdx <= 0) return; // whole song showing: let the page scroll normally
+        var dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+        if (!dx) return; // plain up/down scroll scrolls the page
+        e.preventDefault();
+        trackZoomCenter += (dx / r.width) * TRACK_ZOOM_LEVELS[trackZoomIdx];
+        clampTrackZoomCenter(tot);
+        if (typeof panRedrawAllRows === "function") panRedrawAllRows();
+      }, {passive:false});
+      // Safari (Mac trackpad) reports a pinch as gesturestart/gesturechange with a running scale instead of
+      // Ctrl+wheel, and would otherwise zoom the whole page. Step one zoom level per 1.25x of pinch.
+      var gestScaleBase = 1;
+      allVocalsRowsEl.addEventListener("gesturestart", function(e){ e.preventDefault(); gestScaleBase = 1; });
+      allVocalsRowsEl.addEventListener("gesturechange", function(e){
+        e.preventDefault();
+        var tot = currentTotalDuration();
+        if (tot <= 0) return;
+        var ratio = e.scale / gestScaleBase;
+        if (ratio < 1.25 && ratio > 0.8) return;
+        var tgt = e.target && e.target.closest ? e.target.closest("canvas") : null;
+        var r = tgt ? tgt.getBoundingClientRect() : null;
+        var frac = (r && r.width && isFinite(e.clientX)) ? Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) : 0.5;
         var winDur = trackZoomIdx > 0 ? TRACK_ZOOM_LEVELS[trackZoomIdx] : tot;
         var winStart = trackZoomIdx > 0 ? (trackZoomCenter - winDur/2) : 0;
         var cursorSongTime = winStart + frac * winDur;
-        var dir = e.deltaY < 0 ? 1 : -1;
-        var newIdx = Math.max(0, Math.min(TRACK_ZOOM_LEVELS.length - 1, trackZoomIdx + dir));
+        var newIdx = trkZoomStep(trackZoomIdx, ratio >= 1.25 ? 1 : -1);
+        gestScaleBase = e.scale;
         if (newIdx !== 0) trackZoomCenter = Math.max(0, Math.min(tot, cursorSongTime));
-        // A trackpad/mouse-wheel gesture fires many 'wheel' events in quick
-        // succession, and each one used to force a full rebuild+redraw of
-        // every waveform row even after already hitting the min/max zoom
-        // clamp (newIdx === trackZoomIdx, nothing actually changes on
-        // screen) -- pure wasted main-thread work piling up right in the
-        // middle of an active zoom gesture, the kind of stall that can make
-        // playback stutter. Skip the no-op redraws entirely.
         if (newIdx !== trackZoomIdx) trkZoomTo(newIdx, true);
-      }, {passive:false});
+      });
+      allVocalsRowsEl.addEventListener("gestureend", function(e){ e.preventDefault(); });
     }
 
   function pct(sec, total){ return total > 0 ? Math.max(0, Math.min(100, (sec/total)*100)) : 0; }
@@ -10033,7 +10253,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       tlPlayheadEl.hidden = !isPlaying;
       if (isPlaying) tlPlayheadEl.style.left = tlPx(pos) + "px";
     }
-    if (tlTimeEl) tlTimeEl.textContent = fmtClock(pos) + " / " + fmtClock(total);
+    if (tlTimeEl) tlTimeEl.textContent = fmtClockZ(pos) + " / " + fmtClock(total);
     updatePunchHereButton();
     // Same playhead, echoed across the track grid below -- one line
     // sweeping through every lane at once, same left-edge math (left% =
@@ -10254,7 +10474,7 @@ if (btnTrkZoomOut) btnTrkZoomOut.addEventListener("click", function(){ trkZoomTo
       if (rectW <= 0) return;
       trackZoomCenter = rulerPress.center - (dx / rectW) * w.dur;
       clampTrackZoomCenter(w.total);
-      if (tlTimeEl) tlTimeEl.textContent = fmtClock(trackZoomCenter) + " / " + fmtClock(w.total);
+      if (tlTimeEl) tlTimeEl.textContent = fmtClockZ(trackZoomCenter) + " / " + fmtClock(w.total);
       if (!rulerRaf) rulerRaf = requestAnimationFrame(function(){ rulerRaf = 0; renderAllVocalsStrip(); });
     });
     function rulerEnd(e, cancelled){
