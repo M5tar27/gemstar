@@ -5357,6 +5357,18 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
   function applyParamsTo(chain, v){
     if (!chain || chain._dead) return;
+    // A knob drag fires this on every pointer move, and used to re-send all ~40 params each time
+    // even though only one changed -- thousands of automation events a second piling up on the
+    // audio thread (heard as glitching/crackle while mixing with the knobs). Only send a param
+    // when its target value actually differs from the last one sent for this chain.
+    var pc = chain._pc || (chain._pc = new WeakMap());
+    function P(param){
+      return { setTargetAtTime: function(val, t, tc){
+        if (pc.get(param) === val) return;
+        pc.set(param, val);
+        param.setTargetAtTime(val, t, tc);
+      }};
+    }
     var now = ctx.currentTime;
     var m5 = v.m5tar/100;
 
@@ -5376,20 +5388,20 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     var hpHz = (v.hipass || 0) <= 0 ? 10 : 20 * Math.pow(20, v.hipass/100);
     var lpMax = Math.min(20000, ctx.sampleRate * 0.45);
     var lpHz = (v.lowpass || 0) <= 0 ? lpMax : Math.min(lpMax, 20000 * Math.pow(0.1, v.lowpass/100));
-    chain.hpA.frequency.setTargetAtTime(hpHz, now, 0.02); chain.hpB.frequency.setTargetAtTime(hpHz, now, 0.02);
-    chain.lpA.frequency.setTargetAtTime(lpHz, now, 0.02); chain.lpB.frequency.setTargetAtTime(lpHz, now, 0.02);
+    P(chain.hpA.frequency).setTargetAtTime(hpHz, now, 0.02); P(chain.hpB.frequency).setTargetAtTime(hpHz, now, 0.02);
+    P(chain.lpA.frequency).setTargetAtTime(lpHz, now, 0.02); P(chain.lpB.frequency).setTargetAtTime(lpHz, now, 0.02);
 
     // At Punch = 0 this is a true pass-through (0dB threshold, 1:1 ratio) --
     // no compression sneaks in just because a vocal was loaded.
-    chain.punchComp.threshold.setTargetAtTime(lerp(effPunch,0,100,0,-30), now, 0.02);
-    chain.punchComp.ratio.setTargetAtTime(lerp(effPunch,0,100,1,10), now, 0.02);
-    chain.punchMakeup.gain.setTargetAtTime(dbToGain(lerp(effPunch,0,100,0,4)), now, 0.02);
+    P(chain.punchComp.threshold).setTargetAtTime(lerp(effPunch,0,100,0,-30), now, 0.02);
+    P(chain.punchComp.ratio).setTargetAtTime(lerp(effPunch,0,100,1,10), now, 0.02);
+    P(chain.punchMakeup.gain).setTargetAtTime(dbToGain(lerp(effPunch,0,100,0,4)), now, 0.02);
 
-    chain.bassFilter.gain.setTargetAtTime(lerp(v.bass,0,100,-6,9), now, 0.02);
-    chain.voiceFilter.gain.setTargetAtTime(lerp(effVoice,0,100,-6,8), now, 0.02);
-    chain.highsFilter.gain.setTargetAtTime(lerp(v.highs,0,100,-6,9), now, 0.02);
+    P(chain.bassFilter.gain).setTargetAtTime(lerp(v.bass,0,100,-6,9), now, 0.02);
+    P(chain.voiceFilter.gain).setTargetAtTime(lerp(effVoice,0,100,-6,8), now, 0.02);
+    P(chain.highsFilter.gain).setTargetAtTime(lerp(v.highs,0,100,-6,9), now, 0.02);
 
-    chain.deEssGain.gain.setTargetAtTime(-(v.smooth/100)*1.1, now, 0.02);
+    P(chain.deEssGain.gain).setTargetAtTime(-(v.smooth/100)*1.1, now, 0.02);
 
     // Radio: parallel radio-style compression + air (dedicated). Threshold
     // drops and ratio climbs as the knob opens up; a rising highshelf on the
@@ -5397,12 +5409,12 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     // disappears (floors at 40% dry at 100% radio) so it stays parallel
     // rather than fully squashed.
     var rd = v.radio/100;
-    chain.radioComp.threshold.setTargetAtTime(lerp(v.radio,0,100,-6,-32), now, 0.02);
-    chain.radioComp.ratio.setTargetAtTime(lerp(v.radio,0,100,1.5,10), now, 0.02);
-    chain.radioMakeup.gain.setTargetAtTime(dbToGain(lerp(v.radio,0,100,0,6)), now, 0.02);
-    chain.radioAir.gain.setTargetAtTime(lerp(v.radio,0,100,0,6), now, 0.02);
-    chain.radioDry.gain.setTargetAtTime(1 - rd*0.6, now, 0.02);
-    chain.radioWet.gain.setTargetAtTime(rd, now, 0.02);
+    P(chain.radioComp.threshold).setTargetAtTime(lerp(v.radio,0,100,-6,-32), now, 0.02);
+    P(chain.radioComp.ratio).setTargetAtTime(lerp(v.radio,0,100,1.5,10), now, 0.02);
+    P(chain.radioMakeup.gain).setTargetAtTime(dbToGain(lerp(v.radio,0,100,0,6)), now, 0.02);
+    P(chain.radioAir.gain).setTargetAtTime(lerp(v.radio,0,100,0,6), now, 0.02);
+    P(chain.radioDry.gain).setTargetAtTime(1 - rd*0.6, now, 0.02);
+    P(chain.radioWet.gain).setTargetAtTime(rd, now, 0.02);
 
     // Speed/Humanize: real pitch correction. Both AudioParams are already
     // 0-100 range, same as the knobs, so no lerp needed. The worklet node
@@ -5427,52 +5439,52 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
 
     // Space: room / hall reverb only -- no delay in here anymore
     var sp = v.space;
-    chain.smallWet.gain.setTargetAtTime(
+    P(chain.smallWet.gain).setTargetAtTime(
       sp<=30 ? lerp(sp,0,30,0,0.35) : lerp(sp,30,100,0.35,0.06), now, 0.02);
-    chain.hallWet.gain.setTargetAtTime(lerp(sp,20,100,0,0.45), now, 0.02);
+    P(chain.hallWet.gain).setTargetAtTime(lerp(sp,20,100,0,0.45), now, 0.02);
 
     // Wide: chorus / width (dedicated, for singers)
     var wd = v.wide;
-    chain.chorusWet.gain.setTargetAtTime(lerp(wd,0,100,0,0.6), now, 0.02);
+    P(chain.chorusWet.gain).setTargetAtTime(lerp(wd,0,100,0,0.6), now, 0.02);
 
     // Delay: standalone slapback echo -- the ONLY source of delay in the
     // whole chain now. Fixed 280ms time / 32% feedback (set where the node
     // is created); this knob just controls how much of it is blended in.
     var dl = v.delay;
-    chain.echoWet.gain.setTargetAtTime(lerp(dl,0,100,0,0.4), now, 0.02);
+    P(chain.echoWet.gain).setTargetAtTime(lerp(dl,0,100,0,0.4), now, 0.02);
 
     // shared dry blend so space+wide+delay together never drown the vocal
     var spaceWideDry = 1 - (sp/100)*0.3 - (wd/100)*0.25 - (dl/100)*0.2;
-    chain.wideDry.gain.setTargetAtTime(Math.max(0.35, spaceWideDry), now, 0.02);
+    P(chain.wideDry.gain).setTargetAtTime(Math.max(0.35, spaceWideDry), now, 0.02);
 
     // M5tar: signature grit + low-mid warmth (its own light touch, plus
     // the parameter blend above)
     var satK = 1 + (0.1 + m5*0.5)*6, satKMax = 1 + M5TAR_SAT_DRIVE_MAX*6;
-    chain.m5tarPre.gain.setTargetAtTime(satK/satKMax, now, 0.02);
-    chain.m5tarPost.gain.setTargetAtTime(Math.tanh(satKMax)/Math.tanh(satK), now, 0.02);
-    chain.m5tarWarmth.gain.setTargetAtTime(lerp(v.m5tar,0,100,0,5), now, 0.02);
-    chain.m5tarDry.gain.setTargetAtTime(1 - m5*0.5, now, 0.02);
-    chain.m5tarWet.gain.setTargetAtTime(m5, now, 0.02);
+    P(chain.m5tarPre.gain).setTargetAtTime(satK/satKMax, now, 0.02);
+    P(chain.m5tarPost.gain).setTargetAtTime(Math.tanh(satKMax)/Math.tanh(satK), now, 0.02);
+    P(chain.m5tarWarmth.gain).setTargetAtTime(lerp(v.m5tar,0,100,0,5), now, 0.02);
+    P(chain.m5tarDry.gain).setTargetAtTime(1 - m5*0.5, now, 0.02);
+    P(chain.m5tarWet.gain).setTargetAtTime(m5, now, 0.02);
     // same dense parallel-compression recipe as the Radio knob, scaled by
     // M5tar instead -- a gentler range than Radio's own since it's layering
     // on top of the saturation/warmth above, not standing in for it
-    chain.m5tarComp.threshold.setTargetAtTime(lerp(v.m5tar,0,100,-6,-26), now, 0.02);
-    chain.m5tarComp.ratio.setTargetAtTime(lerp(v.m5tar,0,100,1.5,7), now, 0.02);
-    chain.m5tarCompMakeup.gain.setTargetAtTime(dbToGain(lerp(v.m5tar,0,100,0,4)), now, 0.02);
-    chain.m5tarCompWet.gain.setTargetAtTime(m5*0.35, now, 0.02);
+    P(chain.m5tarComp.threshold).setTargetAtTime(lerp(v.m5tar,0,100,-6,-26), now, 0.02);
+    P(chain.m5tarComp.ratio).setTargetAtTime(lerp(v.m5tar,0,100,1.5,7), now, 0.02);
+    P(chain.m5tarCompMakeup.gain).setTargetAtTime(dbToGain(lerp(v.m5tar,0,100,0,4)), now, 0.02);
+    P(chain.m5tarCompWet.gain).setTargetAtTime(m5*0.35, now, 0.02);
 
     // Jewels: signature air + true chorus (blended with M5tar above)
     var jw = effJewels/100;
-    chain.jewelsAir.gain.setTargetAtTime(lerp(effJewels,0,100,0,8), now, 0.02);
-    chain.jewelsChorusDepthA.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.00012), now, 0.02);
-    chain.jewelsChorusDepthB.gain.setTargetAtTime(lerp(effJewels,0,100,0,0.00015), now, 0.02);
-    chain.jewelsDry.gain.setTargetAtTime(1 - jw*0.4, now, 0.02);
-    chain.jewelsWet.gain.setTargetAtTime(jw, now, 0.02);
+    P(chain.jewelsAir.gain).setTargetAtTime(lerp(effJewels,0,100,0,8), now, 0.02);
+    P(chain.jewelsChorusDepthA.gain).setTargetAtTime(lerp(effJewels,0,100,0,0.00012), now, 0.02);
+    P(chain.jewelsChorusDepthB.gain).setTargetAtTime(lerp(effJewels,0,100,0,0.00015), now, 0.02);
+    P(chain.jewelsDry.gain).setTargetAtTime(1 - jw*0.4, now, 0.02);
+    P(chain.jewelsWet.gain).setTargetAtTime(jw, now, 0.02);
     // same dense parallel-compression leg, scaled by Jewels
-    chain.jewelsComp.threshold.setTargetAtTime(lerp(effJewels,0,100,-6,-26), now, 0.02);
-    chain.jewelsComp.ratio.setTargetAtTime(lerp(effJewels,0,100,1.5,7), now, 0.02);
-    chain.jewelsCompMakeup.gain.setTargetAtTime(dbToGain(lerp(effJewels,0,100,0,4)), now, 0.02);
-    chain.jewelsCompWet.gain.setTargetAtTime(jw*0.35, now, 0.02);
+    P(chain.jewelsComp.threshold).setTargetAtTime(lerp(effJewels,0,100,-6,-26), now, 0.02);
+    P(chain.jewelsComp.ratio).setTargetAtTime(lerp(effJewels,0,100,1.5,7), now, 0.02);
+    P(chain.jewelsCompMakeup.gain).setTargetAtTime(dbToGain(lerp(effJewels,0,100,0,4)), now, 0.02);
+    P(chain.jewelsCompWet.gain).setTargetAtTime(jw*0.35, now, 0.02);
   }
 
   function applyOutputGain(){
