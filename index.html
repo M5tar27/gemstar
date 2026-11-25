@@ -4971,7 +4971,13 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     g.jewelsSum.connect(g.lpA);
     g.lpA.connect(g.lpB);
     g.lpB.connect(g.wetBus);
-    g.wetBus.connect(g.vocalLimIn);
+    // Gain-staging trim (see stageTrimDb): M5tar, Jewels and Wide each add several dB of level, and a
+    // vocal that arrives already normalized to -3 dBFS then gets driven into the soft limiter below,
+    // heard as static/grit that gets worse the more knobs are up. This gain takes that added level
+    // back out, smoothly (it is an AudioParam, so it never clicks).
+    g.stageTrim = ctx.createGain();
+    g.wetBus.connect(g.stageTrim);
+    g.stageTrim.connect(g.vocalLimIn);
 
     return g;
   }
@@ -5022,7 +5028,11 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // (live playback or an export/analysis pass in progress), and disconnect
   // it the instant that ends. See the comment in buildChain() above for why.
   var activeMixUsers = 0;
-  function wireFinalMixIfNeeded(g){
+  // rampAt (optional, ctx time): used when a chain that has been idle is brought back in. Its delay lines,
+  // reverb and compressors hold stale audio from the last time they ran, which would burst out the instant
+  // they are connected (a loud click). So connect muted, let real audio flush the stale part through, and
+  // only fade up at rampAt.
+  function wireFinalMixIfNeeded(g, rampAt){
     if (!g || g._dead) return;
     if (g._renderOnly) return; // this chain's vocals are playing from a pre-rendered buffer (see "Pre-render vocals")
     if (g._unwireTimer){ clearTimeout(g._unwireTimer); g._unwireTimer = null; }
@@ -5031,30 +5041,49 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
       // from an unwireFinalMix() that hasn't fired its disconnect yet.
       // Bringing the gain back up (itself a smooth ramp, not a jump) is
       // all that's needed; connecting again would just double the edge.
-      try { g.finalMix.gain.setTargetAtTime(1, ctx.currentTime, 0.006); } catch(e){}
+      try { g.finalMix.gain.cancelScheduledValues(ctx.currentTime); g.finalMix.gain.setTargetAtTime(1, ctx.currentTime, 0.006); } catch(e){}
       return;
     }
     try { g.finalMix.connect(chain.mixSum); } catch(e){}
     try { g.finalMix.connect(chain.vocalAnalyser); } catch(e){}
-    try { g.finalMix.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+    try {
+      var tw = ctx.currentTime;
+      g.finalMix.gain.cancelScheduledValues(tw);
+      if (rampAt && rampAt > tw){
+        g.finalMix.gain.setValueAtTime(0, tw); g.finalMix.gain.setValueAtTime(0, rampAt);
+        g.finalMix.gain.linearRampToValueAtTime(1, rampAt + RA_XFADE_SEC);
+      } else g.finalMix.gain.setValueAtTime(1, tw);
+    } catch(e){}
     g._mixWired = true;
   }
-  function unwireFinalMix(g){
+  // fadeAt (optional, ctx time in the future): hold the chain at full level until then and cross-fade it
+  // out over RA_XFADE_SEC, so the pre-rendered copy that replaces it fades in at the same moment.
+  function unwireFinalMix(g, fadeAt){
     if (!g || !g._mixWired || g._unwireTimer) return;
     // Don't yank finalMix off the mix bus while it may still be carrying
     // live signal (a reverb tail, a limiter/compressor still settling) --
     // that abrupt discontinuity is exactly what was causing an audible
     // pop/click right as recording/playback stopped. Fade it to silence
     // first, then disconnect once it's actually quiet.
-    var now = ctx.currentTime;
-    try { g.finalMix.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    var now = ctx.currentTime, waitMs = 40;
+    if (fadeAt && fadeAt > now){
+      try {
+        g.finalMix.gain.cancelScheduledValues(now);
+        g.finalMix.gain.setValueAtTime(g.finalMix.gain.value, now);
+        g.finalMix.gain.setValueAtTime(g.finalMix.gain.value, fadeAt);
+        g.finalMix.gain.linearRampToValueAtTime(0, fadeAt + RA_XFADE_SEC);
+      } catch(e){}
+      waitMs = (fadeAt + RA_XFADE_SEC - now) * 1000 + 60;
+    } else {
+      try { g.finalMix.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    }
     g._unwireTimer = setTimeout(function(){
       g._unwireTimer = null;
       g._mixWired = false;
       try { g.finalMix.disconnect(chain.mixSum); } catch(e){}
       try { g.finalMix.disconnect(chain.vocalAnalyser); } catch(e){}
-      try { g.finalMix.gain.setValueAtTime(1, ctx.currentTime); } catch(e){} // reset for next time
-    }, 40);
+      try { g.finalMix.gain.cancelScheduledValues(0); g.finalMix.gain.setValueAtTime(1, ctx.currentTime); } catch(e){} // reset for next time
+    }, waitMs);
   }
   // The shared reverb bus's convolver RETURN gets the exact same lazy
   // wire-with-fade treatment as each track's finalMix, just once for the
@@ -5062,7 +5091,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
   // activeMixUsers > 0, so the two convolvers never run while nothing is
   // playing/exporting, same invariant as before, now at O(1) cost instead
   // of O(tracks).
-  function wireSharedReverbIfNeeded(){
+  function wireSharedReverbIfNeeded(rampAt){
     var reverb = sharedReverb;
     if (!reverb || reverb.ctx !== ctx || !chain) return;
     if (reverb._unwireTimer){ clearTimeout(reverb._unwireTimer); reverb._unwireTimer = null; }
@@ -5073,24 +5102,40 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
     try { reverb.returnSmall.connect(chain.mixSum); } catch(e){}
     try { reverb.returnHall.connect(chain.mixSum); } catch(e){}
-    try { reverb.returnSmall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
-    try { reverb.returnHall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+    var tr = ctx.currentTime, hold = !!(rampAt && rampAt > tr);
+    [reverb.returnSmall, reverb.returnHall].forEach(function(r){
+      try {
+        r.gain.cancelScheduledValues(tr);
+        if (hold){ r.gain.setValueAtTime(0, tr); r.gain.setValueAtTime(0, rampAt); r.gain.linearRampToValueAtTime(1, rampAt + RA_XFADE_SEC); }
+        else r.gain.setValueAtTime(1, tr);
+      } catch(e){}
+    });
     reverb._wired = true;
   }
-  function unwireSharedReverb(){
+  function unwireSharedReverb(fadeAt){
     var reverb = sharedReverb;
     if (!reverb || !reverb._wired || reverb._unwireTimer) return;
-    var now = ctx.currentTime;
-    try { reverb.returnSmall.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
-    try { reverb.returnHall.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    var now = ctx.currentTime, waitMs = 40;
+    if (fadeAt && fadeAt > now){
+      [reverb.returnSmall, reverb.returnHall].forEach(function(r){
+        try {
+          r.gain.cancelScheduledValues(now); r.gain.setValueAtTime(r.gain.value, now);
+          r.gain.setValueAtTime(r.gain.value, fadeAt); r.gain.linearRampToValueAtTime(0, fadeAt + RA_XFADE_SEC);
+        } catch(e){}
+      });
+      waitMs = (fadeAt + RA_XFADE_SEC - now) * 1000 + 60;
+    } else {
+      try { reverb.returnSmall.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+      try { reverb.returnHall.gain.setTargetAtTime(0, now, 0.006); } catch(e){}
+    }
     reverb._unwireTimer = setTimeout(function(){
       reverb._unwireTimer = null;
       reverb._wired = false;
       try { reverb.returnSmall.disconnect(); } catch(e){}
       try { reverb.returnHall.disconnect(); } catch(e){}
-      try { reverb.returnSmall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
-      try { reverb.returnHall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
-    }, 40);
+      try { reverb.returnSmall.gain.cancelScheduledValues(0); reverb.returnSmall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+      try { reverb.returnHall.gain.cancelScheduledValues(0); reverb.returnHall.gain.setValueAtTime(1, ctx.currentTime); } catch(e){}
+    }, waitMs);
   }
   function connectAllFinalMixes(){
     if (!chain) return;
@@ -5355,6 +5400,29 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
   }
 
+  // Level (dB, at the peaks) that each level-adding knob puts on the vocal, measured on the live chain at
+  // knob = 0/25/50/75/100. Used to hold the vocal at its normalized level so the limiter never has to
+  // squash it. Piecewise-linear between the measured points.
+  var STAGE_GAIN_CURVES = {
+    m5tar:  [0, 2.7, 6.5, 10.0, 12.9],
+    jewels: [0, 1.5, 3.0, 5.7, 7.1],
+    wide:   [0, 1.5, 2.6, 3.9, 4.6]
+  };
+  function stageCurveDb(curve, knob){
+    var k = Math.max(0, Math.min(100, knob || 0)) / 25, i = Math.min(3, Math.floor(k)), f = k - i;
+    return curve[i] + (curve[i+1] - curve[i]) * f;
+  }
+  // Total trim (negative dB) for one set of knob values. Measured with every knob stacked, the chain
+  // adds up to about +20 dB, a little more than the sum at low settings and a little less at high ones,
+  // so the sum is scaled by 1.05 and capped at 20 dB. Leaves 1 dB of the boost (the soft limiter's knee
+  // sits about 1 dB above the normalized level) and takes the rest out.
+  function stageTrimDb(v){
+    var eff = Math.min(100, (v.m5tar || 0));
+    var add = stageCurveDb(STAGE_GAIN_CURVES.m5tar, eff) + stageCurveDb(STAGE_GAIN_CURVES.jewels, v.jewels) + stageCurveDb(STAGE_GAIN_CURVES.wide, v.wide);
+    add = Math.min(20, add * 1.05);
+    return -Math.max(0, add - 1);
+  }
+
   function applyParamsTo(chain, v){
     if (!chain || chain._dead) return;
     // A knob drag fires this on every pointer move, and used to re-send all ~40 params each time
@@ -5371,6 +5439,7 @@ registerProcessor('gemstar-analysis-tap', GemstarAnalysisTapProcessor);
     }
     var now = ctx.currentTime;
     var m5 = v.m5tar/100;
+    if (chain.stageTrim) P(chain.stageTrim.gain).setTargetAtTime(dbToGain(stageTrimDb(v)), now, 0.03);
 
     // M5TAR macro: M5tar's own signature chain is a light blend into other
     // stages, on top of wherever the user has those knobs — it never moves
@@ -6120,6 +6189,195 @@ runSyncCalibration();
 }
 
 
+  /* ---- Auto-sync from the beat that leaks into the mic ----
+     Recording over a beat, some of that beat reaches the mic (phone speaker, open or leaky headphones).
+     Cross-correlating the take with the beat finds exactly how long after the start the beat was
+     heard back, which is the real round trip of THIS phone, interface and room, with nothing for
+     the user to calibrate. Only trusted when the match is unmistakable (strong peak, and the first
+     and second half of the take each find the same delay); otherwise the usual estimate is used. */
+function gemBleedLatency(take, ref, sr, opts){
+  opts = opts || {};
+  var DEC = Math.max(1, Math.round(sr / 12000)), rate = sr / DEC;
+  var maxSec = opts.maxSec || 12;
+  var n = Math.min(take.length, ref.length, Math.floor(maxSec * sr));
+  var m = Math.floor(n / DEC);
+  if (m < rate * 3) return null;
+  var N = 1; while (N < m * 2) N <<= 1;
+  var xr = new Float64Array(N), xi = new Float64Array(N), rr = new Float64Array(N), ri = new Float64Array(N);
+  // decimate with a short boxcar (cheap anti-alias), remove DC
+  var mx = 0, mr = 0;
+  for (var i = 0; i < m; i++){
+    var a = 0, b = 0;
+    for (var k = 0; k < DEC; k++){ a += take[i*DEC+k]; b += ref[i*DEC+k]; }
+    xr[i] = a / DEC; rr[i] = b / DEC; mx += xr[i]; mr += rr[i];
+  }
+  mx /= m; mr /= m;
+  for (i = 0; i < m; i++){ var w = 0.5 - 0.5 * Math.cos(2*Math.PI*i/(m-1)); xr[i] = (xr[i]-mx)*w; rr[i] = (rr[i]-mr)*w; }
+  gemFft(xr, xi, false); gemFft(rr, ri, false);
+  // generalized cross-correlation with partial phase transform (weights every frequency toward equal say)
+  var BETA = opts.beta == null ? 0.85 : opts.beta;
+  var gr = new Float64Array(N), gi = new Float64Array(N);
+  var lo = Math.floor(200 / rate * N), hi = Math.floor(Math.min(5500, rate*0.48) / rate * N);
+  for (var f = lo; f <= hi; f++){
+    var cr = xr[f]*rr[f] + xi[f]*ri[f], ci = xi[f]*rr[f] - xr[f]*ri[f];
+    var mag = Math.sqrt(cr*cr + ci*ci) + 1e-18, wgt = 1 / Math.pow(mag, BETA);
+    gr[f] = cr * wgt; gi[f] = ci * wgt;
+    gr[N-f] = gr[f]; gi[N-f] = -gi[f];
+  }
+  gemFft(gr, gi, true);
+  var minLag = Math.floor((opts.minLag || 0.02) * rate), maxLag = Math.floor((opts.maxLag || 0.7) * rate);
+  var best = -1, bv = -Infinity, sum = 0, cnt = 0, vals = new Float64Array(maxLag - minLag + 1);
+  for (var L = minLag; L <= maxLag; L++){ var v = gr[L]; vals[L-minLag] = v; if (v > bv){ bv = v; best = L; } }
+  // noise floor = robust spread of the correlation away from the peak
+  var abs = new Float64Array(vals.length); for (i = 0; i < vals.length; i++) abs[i] = Math.abs(vals[i]);
+  var sorted = Array.prototype.slice.call(abs).sort(function(a,b){return a-b;});
+  var med = sorted[Math.floor(sorted.length/2)] || 1e-18, p99 = sorted[Math.floor(sorted.length*0.99)];
+  // second best peak outside +-2 ms of the best (ambiguity check)
+  var guard = Math.floor(0.004 * rate), second = 0;
+  for (L = 0; L < vals.length; L++){ if (Math.abs(L - (best-minLag)) > guard && vals[L] > second) second = vals[L]; }
+  // sub-sample refinement by parabola
+  var y0 = gr[best-1], y1 = gr[best], y2 = gr[best+1], d = (y0 - 2*y1 + y2), off = d ? 0.5*(y0 - y2)/d : 0;
+  var lag = (best + off) / rate;
+  return {lag: lag, ratio: bv / med, vsSecond: bv / Math.max(second, 1e-18), vsP99: bv / Math.max(p99,1e-18)};
+}
+function gemFft(re, im, inverse){
+  var n = re.length, i, j, k, t;
+  for (i = 1, j = 0; i < n; i++){
+    var bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit;
+    if (i < j){ t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+  }
+  for (var len = 2; len <= n; len <<= 1){
+    var ang = 2*Math.PI/len * (inverse ? 1 : -1), wr = Math.cos(ang), wi = Math.sin(ang), half = len >> 1;
+    for (i = 0; i < n; i += len){
+      var cr = 1, ci = 0;
+      for (k = 0; k < half; k++){
+        var ur = re[i+k], ui = im[i+k], xr = re[i+k+half]*cr - im[i+k+half]*ci, xi = re[i+k+half]*ci + im[i+k+half]*cr;
+        re[i+k] = ur + xr; im[i+k] = ui + xi; re[i+k+half] = ur - xr; im[i+k+half] = ui - xi;
+        var nr = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = nr;
+      }
+    }
+  }
+  if (inverse) for (i = 0; i < n; i++){ re[i] /= n; im[i] /= n; }
+}
+
+  var recordMonitorRef = null; // what the monitor is playing right now: {buf, offset, loop} (beat only, see gemMonitorRefSignal)
+  // The beat as the mic would hear it if there were no delay at all: sample i = beat at (offset + i / sr).
+  function gemMonitorRefSignal(info, sr, seconds){
+    if (!info || !info.buf) return null;
+    var buf = info.buf, n = Math.floor(seconds * sr), out = new Float32Array(n);
+    var ch = buf.numberOfChannels, chData = [], c;
+    for (c = 0; c < ch; c++) chData.push(buf.getChannelData(c));
+    var bsr = buf.sampleRate, len = buf.length;
+    for (var i = 0; i < n; i++){
+      var pos = Math.floor((info.offset || 0) * bsr + i * bsr / sr);
+      if (pos >= len){ if (info.loop) pos = pos % len; else break; }
+      var v = 0; for (c = 0; c < ch; c++) v += chData[c][pos];
+      out[i] = v / ch;
+    }
+    return out;
+  }
+  // Returns the lag in seconds only when the evidence is clear, else null.
+  function gemTrustedBleedLag(take, info, sr){
+    try {
+      if (!info || take.length < sr * 6) return null;
+      var secs = Math.min(20, take.length / sr), n = Math.floor(secs * sr), h = n >> 1;
+      var ref = gemMonitorRefSignal(info, sr, secs);
+      if (!ref) return null;
+      var t = take.subarray(0, n);
+      var r = gemBleedLatency(t, ref, sr, {maxSec: secs});
+      window.__gemBleed = r; // for troubleshooting
+      if (!r || r.lag < 0.04 || r.lag > 0.6 || r.ratio < 8) return null;
+      if (r.ratio >= 20) return r.lag;
+      var r1 = gemBleedLatency(t.subarray(0, h), ref.subarray(0, h), sr, {maxSec: secs});
+      var r2 = gemBleedLatency(t.subarray(h), ref.subarray(h), sr, {maxSec: secs});
+      window.__gemBleed = {full: r, first: r1, second: r2};
+      if (r1 && r2 && r1.ratio >= 6 && r2.ratio >= 6 && Math.abs(r1.lag - r.lag) < 0.003 && Math.abs(r2.lag - r.lag) < 0.003) return r.lag;
+    } catch(e){}
+    return null;
+  }
+
+  /* ---- Android app: native low-latency recording ----
+     Inside the Gemstar Android app (Capacitor) a native audio engine (Oboe) is
+     available as Capacitor.Plugins.GemstarAudio. It plays the monitor mix and
+     records the mic on the phone's own low-latency audio path and reports exactly
+     how far the take sits behind the beat. In any normal browser (Chrome, Safari)
+     the plugin does not exist, nativeAudio() returns null, and the Web Audio
+     recorder below is used exactly as before. */
+  function nativeAudio(){
+    try {
+      var C = window.Capacitor;
+      if (C && C.Plugins && C.Plugins.GemstarAudio &&
+          ((C.isNativePlatform && C.isNativePlatform()) || (C.getPlatform && C.getPlatform() === "android"))) return C.Plugins.GemstarAudio;
+    } catch(e){}
+    return null;
+  }
+  var gemBufSeq = 0;
+  function gemBufId(b){ return b ? (b._gemId || (b._gemId = ++gemBufSeq)) : 0; }
+  function u8ToB64(u8){
+    var parts = [], STEP = 0x8000;
+    for (var i=0; i<u8.length; i+=STEP) parts.push(String.fromCharCode.apply(null, u8.subarray(i, Math.min(u8.length, i+STEP))));
+    return btoa(parts.join(""));
+  }
+  function b64ToF32(b64){
+    var bin = atob(b64), n = bin.length, u8 = new Uint8Array(n);
+    for (var i=0; i<n; i++) u8[i] = bin.charCodeAt(i);
+    return new Float32Array(u8.buffer, 0, n >> 2);
+  }
+  var nativeMonSig = "";
+  // Renders what the singer should hear while recording (beat + the other vocals, level/pan only --
+  // same idea as startRecordMonitorLite) and hands it to the native engine as 16-bit stereo PCM.
+  // Skips the transfer when nothing changed since the last take. Returns true if there is a monitor.
+  async function nativePrepareMonitor(NA, rate){
+    var items = [];
+    if (audioBuffer){
+      if (!reRecordLeadActive) items.push({buf:audioBuffer, tr:leadTrack});
+      extraVocals.forEach(function(t){ if (t !== reRecordExtraTarget && t.buffer) items.push({buf:t.buffer, tr:t}); });
+    }
+    var beat = (beatBuffer && chain) ? beatBuffer : null;
+    var beatG = beat ? beatOutLevel() : 0;
+    if (!items.length && !beat){ nativeMonSig = ""; try { await NA.clearMonitor(); } catch(e){} return false; }
+    var total = beat ? beat.duration : 0;
+    items.forEach(function(it){ total = Math.max(total, it.buf.duration); });
+    if (!(total > 0)) { nativeMonSig = ""; try { await NA.clearMonitor(); } catch(e){} return false; }
+    var sig = [rate, total.toFixed(3), beat ? (gemBufId(beat)+":"+beatG.toFixed(3)) : "-"].concat(items.map(function(it){
+      return gemBufId(it.buf)+":"+trackOutGain(it.tr).toFixed(3)+":"+(it.tr.pan||0)+":"+trackNudgeSec(it.tr);
+    })).join("|");
+    if (sig === nativeMonSig) return true;
+    nativeMonSig = "";
+    var frames = Math.ceil(total * rate);
+    var OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    var off = new OAC(2, frames, rate);
+    function addSrc(buf, gainVal, pan, startAt){
+      var src = off.createBufferSource(); src.buffer = buf;
+      var g = off.createGain(); g.gain.value = gainVal;
+      src.connect(g);
+      if (off.createStereoPanner){ var pn = off.createStereoPanner(); pn.pan.value = Math.max(-1, Math.min(1, pan || 0)); g.connect(pn); pn.connect(off.destination); }
+      else g.connect(off.destination);
+      if (startAt >= 0) src.start(startAt, 0); else src.start(0, -startAt);
+    }
+    items.forEach(function(it){ addSrc(it.buf, trackOutGain(it.tr), it.tr.pan, trackNudgeSec(it.tr)); });
+    if (beat) addSrc(beat, beatG, 0, 0);
+    var rendered = await off.startRendering();
+    var L = rendered.getChannelData(0), R = rendered.numberOfChannels > 1 ? rendered.getChannelData(1) : L;
+    var peak = 0;
+    for (var i=0; i<frames; i++){ var a = Math.abs(L[i]); if (a > peak) peak = a; a = Math.abs(R[i]); if (a > peak) peak = a; }
+    var scale = peak > 0.95 ? 0.95 / peak : 1;   // monitor only -- the saved take and final mix are untouched
+    await NA.beginMonitor({ frames: frames, sampleRate: rate });
+    var CH = 131072;
+    for (var f0=0; f0<frames; f0+=CH){
+      var n = Math.min(CH, frames - f0);
+      var i16 = new Int16Array(n * 2);
+      for (var k=0; k<n; k++){
+        var l = L[f0+k]*scale, r = R[f0+k]*scale;
+        i16[2*k]   = Math.max(-32768, Math.min(32767, Math.round(l * 32767)));
+        i16[2*k+1] = Math.max(-32768, Math.min(32767, Math.round(r * 32767)));
+      }
+      await NA.appendMonitor({ b64: u8ToB64(new Uint8Array(i16.buffer)) });
+    }
+    nativeMonSig = sig;
+    return true;
+  }
+
   /* Reusable mic-recorder: wires one set of controls (start/stop/retry/dot/
      timer/meter/hint) to getUserMedia + a raw PCM capture node, and hands
      the finished take to onCaptured(file) as a real File — same object
@@ -6143,6 +6401,9 @@ runSyncCalibration();
     var detectedBluetooth = false;
     var detectedInputLatency = 0;
 var detectedInterface = false; // set once mic access is granted and we can read the chosen device's label
+
+    // ---- native (Android app) recording state ----
+    var nativeActive = false, nativeHadMonitor = false, nativeBusy = false, nativeFailed = false, nativeLevelBound = false, nativeStartTs = 0;
 if (opts.fxMonitorCheckbox && opts.interfaceWarnEl){
 opts.fxMonitorCheckbox.addEventListener("change", function(){
 opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.checked);
@@ -6328,6 +6589,13 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
     // Force-stop with no save — used when switching modes, hitting Change
     // File/Cancel, or the recording length cap the plan tier allows.
     function hardStop(){
+      if (nativeActive){
+        nativeActive = false;
+        var NAh = nativeAudio();
+        if (NAh){ try { NAh.abort(); NAh.releaseTake(); } catch(e){} }
+        nativeCleanupUi();
+        stopRecordMonitor();
+      }
       stopCapture();
       stopMicPreview();
       pcmChunks = [];
@@ -6348,6 +6616,8 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
       // playing) has nothing to sync against, so it's left untouched.
       var wasMonitored = recordMonitorOwnsPlayback || !!recordMonitorBeatOnly;
       var monitorPreroll = recordMonitorPrerollSec;
+      var bleedInfo = wasMonitored ? recordMonitorRef : null;
+      recordMonitorRef = null;
       stopCapture();
       stopTimer();
       stopMeter();
@@ -6369,10 +6639,17 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
       // uncorrected, the captured take lands later on the timeline than
       // what was actually sung, so it plays back behind the beat. Trim
       // that same amount of leading audio here so the take lines back up.
+      var autoSyncMs = null;
       if (wasMonitored){
         var calibratedSync = getStoredSyncCal();
         var compSeconds;
-        if (calibratedSync !== null){
+        var bleedLag = gemTrustedBleedLag(merged, bleedInfo, sr);
+        if (bleedLag !== null){
+          // Measured from this very take: the beat showed up in the mic exactly this long after the start.
+          // That is the full delay (monitor lead-in + output + input), so no estimate or saved nudge is added.
+          compSeconds = bleedLag;
+          autoSyncMs = Math.round(bleedLag * 1000);
+        } else if (calibratedSync !== null){
           // Measured directly from this device via "Calibrate your timing"
           // (see runSyncCalibration) -- the real click-to-tap delay, which
           // already captures hardware output latency AND the user's own
@@ -6400,7 +6677,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
           // is the other half of the round trip.
           compSeconds = monitorPreroll + outLat + inLat + btComp; // monitorPreroll = when the monitor's beat really started
         }
-        compSeconds += getStoredRecordTrim(); // what this device has been taught it still needs ("Save as my timing")
+        if (autoSyncMs === null) compSeconds += getStoredRecordTrim(); // what this device has been taught it still needs ("Save as my timing")
         var trimSamples = Math.min(merged.length, Math.round(compSeconds * sr));
         if (trimSamples > 0) merged = merged.subarray(trimSamples);
         else if (trimSamples < 0){ var padded = new Float32Array(merged.length - trimSamples); padded.set(merged, -trimSamples); merged = padded; }
@@ -6415,7 +6692,7 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
       // instead of the one that was just used for recording.
       resetContextForCleanPlaybackRouting();
       opts.onCaptured(file);
-      if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintDone;
+      if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintDone + (autoSyncMs !== null ? " \u00b7 auto-synced (" + autoSyncMs + " ms)" : "");
     }
 
     function refreshIdleHint(){
@@ -6429,6 +6706,114 @@ opts.interfaceWarnEl.hidden = !(detectedInterface && opts.fxMonitorCheckbox.chec
         .replace("{cap}", fmtRecordTime(cap))
         .replace("{plan}", planLabelFor(currentPlan));
       opts.hintEl.textContent = STR[lang].recordHintIdle + " " + note;
+    }
+
+    function nativeCleanupUi(){
+      stopTimer();
+      if (opts.meterBar) opts.meterBar.style.width = "0%";
+      isMicRecording = false;
+      if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+    }
+    // Returns a promise resolving true if the native take started, false if the caller should fall back to the browser recorder.
+    async function startNativeTake(NA){
+      if (nativeBusy) return true;
+      nativeBusy = true;
+      try {
+        capSeconds = opts.getCapSeconds ? opts.getCapSeconds() : capSeconds;
+        stopMicPreview();
+        var perm = await NA.requestMic();
+        if (!perm || !perm.granted){ alert(STR[lang].recordMicError); return true; }
+        ensureContext();
+        if (isPlaying) stopPlayback();   // the native engine is the only thing that should be playing now
+        var info = await NA.getInfo();
+        var rate = info.sampleRate || 48000;
+        if (opts.hintEl) opts.hintEl.textContent = "…";
+        var hasMon = await nativePrepareMonitor(NA, rate);
+        var startSec = 0, loop = true;
+        if (punchModeTarget){ startSec = Math.max(0, punchStartSeconds - PUNCH_PREROLL_SEC); loop = false; }
+        if (!nativeLevelBound){
+          nativeLevelBound = true;
+          NA.addListener("level", function(e){
+            if (!nativeActive) return;
+            var pk = (e && e.peak) || 0;
+            if (opts.meterBar) opts.meterBar.style.width = Math.min(100, Math.round(pk * 140)) + "%";
+            noteInputPeak(pk);
+            if (e && e.capReached) finishNativeTake();
+          });
+        }
+        var res = await NA.start({ sampleRate: rate, startSec: startSec, loop: loop, gain: 1.0, capSeconds: capSeconds, withMonitor: hasMon });
+        nativeActive = true; nativeHadMonitor = hasMon;
+        isMicRecording = true;
+        if (typeof renderAllVocalsStrip === "function") renderAllVocalsStrip();
+        if (hasMon){
+          tlCursor = startSec; tlRegion = null; tlLoop = loop;
+          playStartCtxTime = ctx.currentTime; playStartOffset = startSec; playRegion = null; playLoopWhole = loop;
+          isPlaying = true; recordMonitorOwnsPlayback = true;
+          updatePlayButton(); renderTimeline(); runVisualizer();
+        }
+        detectedBluetooth = !!(res && res.bluetooth);
+        if (opts.btWarnEl) opts.btWarnEl.hidden = !detectedBluetooth;
+        nativeStartTs = Date.now(); recordStartTs = nativeStartTs;
+        if (opts.dotEl) opts.dotEl.classList.add("live");
+        opts.startBtn.hidden = true; opts.stopBtn.hidden = false;
+        if (opts.retryBtn) opts.retryBtn.hidden = true;
+        if (opts.hintEl) opts.hintEl.textContent = STR[lang].recordHintRecording;
+        recordTimerInterval = setInterval(function(){
+          var elapsed = (Date.now() - nativeStartTs) / 1000;
+          if (opts.timeEl) opts.timeEl.textContent = fmtRecordTime(elapsed) + " / " + fmtRecordTime(capSeconds);
+          if (elapsed >= capSeconds && nativeActive) finishNativeTake();
+        }, 200);
+        return true;
+      } catch(err){
+        try { console.warn("native record failed", err); } catch(e){}
+        nativeActive = false;
+        try { await NA.abort(); } catch(e2){}
+        resetButtons();
+        if (opts.hintEl) refreshIdleHint();
+        return false;   // caller falls back to the browser recorder
+      } finally { nativeBusy = false; }
+    }
+    async function finishNativeTake(){
+      if (!nativeActive) return;
+      nativeActive = false;
+      var NA = nativeAudio();
+      var hadMon = nativeHadMonitor;
+      nativeCleanupUi();
+      stopRecordMonitor();
+      resetButtons();
+      if (opts.retryBtn) opts.retryBtn.hidden = false;
+      var res;
+      try { res = await NA.stop(); } catch(e){ res = null; }
+      if (!res || !res.frames){ try { await NA.releaseTake(); } catch(e){} resetContextForCleanPlaybackRouting(); return; }
+      var sr = res.sampleRate || 48000, total = res.frames;
+      var merged = new Float32Array(total);
+      var CH = 131072;
+      for (var p=0; p<total; p+=CH){
+        var n = Math.min(CH, total - p);
+        var r = await NA.readTake({ start: p, count: n });
+        merged.set(b64ToF32(r.b64).subarray(0, n), p);
+      }
+      try { await NA.releaseTake(); } catch(e){}
+      // The engine reports exactly which captured frame was sung against the first frame of the monitor
+      // (hardware clock, both streams). Cut the take there so it lines up with the beat. A device that
+      // reports poorly can still be nudged with "Save as my timing" (getStoredRecordTrim); Bluetooth adds the
+      // same fixed allowance the browser recorder uses, since that delay is invisible to the audio API.
+      if (hadMon){
+        var trim = res.trimFrames || 0;
+        trim += Math.round((getStoredRecordTrim() + (res.bluetooth ? 0.18 : 0)) * sr);
+        trim = Math.min(merged.length, trim);
+        if (trim > 0) merged = merged.subarray(trim);
+        else if (trim < 0){ var padded = new Float32Array(merged.length - trim); padded.set(merged, -trim); merged = padded; }
+      }
+      try { window.__gemNativeLast = res; console.log("[Gemstar native]", JSON.stringify(res)); } catch(e){}
+      var wavBlob = encodeWavBlob(merged, sr);
+      var file = new File([wavBlob], "gemstar-recording.wav", { type: "audio/wav" });
+      resetContextForCleanPlaybackRouting();
+      opts.onCaptured(file);
+      if (opts.hintEl){
+        var ms = Math.round((res.inLatencyMs || 0) + (res.outLatencyMs || 0));
+        opts.hintEl.textContent = STR[lang].recordHintDone + (hadMon ? " · native audio" + (ms > 0 ? " (" + ms + " ms)" : "") : "");
+      }
     }
 
     function onStreamAcquired(stream){
@@ -6582,6 +6967,11 @@ if (opts.interfaceWarnEl) opts.interfaceWarnEl.hidden = !(detectedInterface && o
 
     if (opts.startBtn) opts.startBtn.addEventListener("click", function(){
       if (opts.canStart && !opts.canStart()) return;
+      var NAstart = nativeFailed ? null : nativeAudio();
+      if (NAstart){
+        startNativeTake(NAstart).then(function(ok){ if (!ok){ nativeFailed = true; opts.startBtn.click(); } });
+        return;
+      }
 if (needsFirstRunSyncCal()){
 // markSyncCalOffered() now happens only on a SUCCESSFUL calibration (see
 // runSyncCalibration) -- marking it here, unconditionally, meant a
@@ -6639,7 +7029,8 @@ return;
     });
 
     if (opts.stopBtn) opts.stopBtn.addEventListener("click", function(){
-      if (recording) finishRecording();
+      if (nativeActive) finishNativeTake();
+      else if (recording) finishRecording();
     });
 
     if (opts.retryBtn) opts.retryBtn.addEventListener("click", function(){
@@ -9108,8 +9499,10 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     src.disconnect = function(){ try { fade.disconnect(); } catch(e){} };
     src.start = function(when, off){
       var t = (typeof when === "number" && when > 0) ? when : ctx.currentTime;
+      var inSec = src._fadeInSec || 0.008; // a mid-playback swap asks for a longer, matching cross-fade
+      src._fadeT0 = t; src._fadeIn = inSec; src._fadeOutT0 = null;
       fade.gain.setValueAtTime(0, t);
-      fade.gain.linearRampToValueAtTime(1, t + 0.008);
+      fade.gain.linearRampToValueAtTime(1, t + inSec);
       return rawStart(when, off);
     };
     return src;
@@ -9409,29 +9802,47 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     if (!playLoopWhole) return total > 0 ? Math.min(total, playStartOffset + elapsed) : 0;
     return total > 0 ? (playStartOffset + elapsed) % total : 0;
   }
+  // Length of the fade between the old and new copy of a vocal when playback swaps (live <-> pre-rendered,
+  // or one render for the next). Old fades out while new fades in over the same time, so two copies of the
+  // same audio add back to exactly 1x (no swell) and a changed copy blends in without a step.
+  var RA_XFADE_SEC = 0.04;
+  var RA_LIVE_HOLD_SEC = 0.12;      // muted warm-up before an idle live chain is faded back in (see raSwapGroupToLive)
+  // The fade-node gain a source really has at ctx time t: ramping in, steady, or already ramping out.
+  function raGainAt(src, t){
+    var v = 1;
+    if (src._fadeT0 != null && src._fadeIn) v = Math.max(0, Math.min(1, (t - src._fadeT0) / src._fadeIn));
+    if (src._fadeOutT0 != null){
+      v = Math.min(v, src._fadeOutV0 * Math.max(0, 1 - (t - src._fadeOutT0) / src._fadeOutLen));
+    }
+    return v;
+  }
   function raFadeOutAt(n, t){
     var f = n.src && n.src._fade;
     try { n.src.onended = null; } catch(e){}
     if (f){
-      try { f.gain.cancelScheduledValues(t); f.gain.setValueAtTime(1, t); f.gain.linearRampToValueAtTime(0, t + 0.02); } catch(e){}
+      try {
+        var v0 = raGainAt(n.src, t);
+        f.gain.cancelScheduledValues(t); f.gain.setValueAtTime(v0, t); f.gain.linearRampToValueAtTime(0, t + RA_XFADE_SEC);
+        n.src._fadeOutT0 = t; n.src._fadeOutLen = RA_XFADE_SEC; n.src._fadeOutV0 = v0;
+      } catch(e){}
     }
-    try { n.src.stop(t + 0.025); } catch(e){}
+    try { n.src.stop(t + RA_XFADE_SEC + 0.005); } catch(e){}
     setTimeout(function(){
       try { if (f) f.disconnect(); } catch(e){}
       try { if (n.gain) n.gain.disconnect(); } catch(e){}
       try { if (n.pan) n.pan.disconnect(); } catch(e){}
     }, 300);
   }
-  function raReconcileWiring(){
+  function raReconcileWiring(rampAt, unwireAt){
     if (!chain || activeMixUsers <= 0) return;
     var chains = [chain];
     extraVocals.forEach(function(t){ if (t.chain && !t.chain._dead) chains.push(t.chain); });
     var anyLive = false;
     chains.forEach(function(c){
-      if (c._renderOnly){ if (c._mixWired) unwireFinalMix(c); }
-      else { anyLive = true; wireFinalMixIfNeeded(c); }
+      if (c._renderOnly){ if (c._mixWired) unwireFinalMix(c, unwireAt); }
+      else { anyLive = true; wireFinalMixIfNeeded(c, rampAt); }
     });
-    if (anyLive) wireSharedReverbIfNeeded(); else unwireSharedReverb();
+    if (anyLive) wireSharedReverbIfNeeded(rampAt); else unwireSharedReverb(unwireAt);
   }
 
   // ---- what to do at Play: which groups can start straight from a cached render ----
@@ -9465,6 +9876,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     if (win && (off < 0 || off > buf.duration - 1)) return false; // window already passed
     var src = makeTimedSource(buf, off, win ? null : playRegion, win ? false : playLoopWhole);
     if (!src) return false;
+    src._fadeInSec = RA_XFADE_SEC;
     var gn = ctx.createGain();
     gn.gain.value = raGroupSilent(g) ? 0 : 1;
     src.connect(gn); gn.connect(chain.mixSum); gn.connect(chain.vocalAnalyser);
@@ -9494,7 +9906,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
         primaryEndedSrc = null;
       }
     }
-    raReconcileWiring();
+    raReconcileWiring(0, tStart); // the live chain cross-fades out exactly as this rendered copy fades in
     return true;
   }
   function raSwapGroupToLive(g){
@@ -9504,12 +9916,16 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
     // The pitch worklet sat idle (unwired) while pre-rendered; restart it the same way a Tune
     // change does -- raw pass-through first, then correction -- so it can't output a silent gap.
     if (raEffTune(g.values) > 0 && g.owner.pitchWorkletNode){ setPitchPath(g.owner, false); setPitchPath(g.owner, true); }
-    raReconcileWiring(); // wire this chain back in before anything feeds it
+    // A chain that has been idle is fed muted for RA_LIVE_HOLD_SEC (stale delay/reverb audio flushes out,
+    // filters and compressors settle), then faded up exactly as the pre-rendered copy fades out.
+    var hold = g.owner._mixWired ? 0 : RA_LIVE_HOLD_SEC;
+    var tFade = tStart + hold;
+    raReconcileWiring(hold ? tFade : 0); // wire this chain back in before anything feeds it
     var oldPrimary = false, keep = [];
     vocalSourceNodes.forEach(function(n){
       if (n.rendered && n.gkey === g.key){
         if (primaryEndedSrc === n.src || n.wasPrimary) oldPrimary = true;
-        raFadeOutAt(n, tStart);
+        raFadeOutAt(n, tFade);
       } else keep.push(n);
     });
     vocalSourceNodes = keep;
@@ -9519,6 +9935,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       if (sample < 0){ delay = -sample; sample = 0; }
       var src = makeTimedSource(m.buf, sample, playRegion, playLoopWhole);
       if (!src) return;
+      src._fadeInSec = hold ? 0.008 : RA_XFADE_SEC;
       var nodes = wireTrackSource(src, m.track, g.owner.input);
       m.track._liveGain = nodes.gain; m.track._livePan = nodes.pan;
       vocalSourceNodes.push({src: src, gain: nodes.gain, pan: nodes.pan, ref: m.track});
@@ -9960,6 +10377,7 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       var startAt = ctx.currentTime + 0.03;
       recordMonitorPrerollSec = 0.03;
       src.start(startAt, 0);
+      recordMonitorRef = {buf: beatBuffer, offset: 0, loop: false};
       recordMonitorBeatOnly = src;
       playStartCtxTime = startAt;
       playStartOffset = 0;
@@ -10031,6 +10449,9 @@ interfaceWarnEl: document.getElementById("extra-record-interface-tip"),
       recordMonitorPrerollSec = 0.03 + RECORD_MONITOR_PREROLL;
       vocalSourceNodes.forEach(function(n){ n.src.start(startAt + trackNudgeSec(n.ref), n.src._offset); });
       if (beatSourceNode) beatSourceNode.start(startAt, beatSourceNode._offset);
+      // Only the beat is used to measure the delay: a vocal sung against earlier vocals sounds like them,
+      // and that similarity would be mistaken for the delay.
+      recordMonitorRef = (beatBuffer && beatSourceNode) ? {buf: beatBuffer, offset: monitorOffset, loop: monitorLoop} : null;
       playStartCtxTime = startAt;
       playStartOffset = monitorOffset;
       playRegion = null;
